@@ -13,9 +13,12 @@ Use this checklist with the current World of Warcraft: Forever client.
 ## Verify
 
 1. Log in to a character and confirm no Guild Tithe Lua error appears during loading.
-2. Enter `/gt` and confirm chat prints `Guild Tithe: /gt help - show available commands` once.
-3. Enter `/gt help` and confirm the same help appears once.
-4. Enter `/gt unknown` and confirm the add-on reports an unknown command and suggests `/gt help` without raising an error.
-5. Run `/reload`, then repeat `/gt` to confirm lifecycle and slash-command registration work after a UI reload.
+2. Enter `/gt` and confirm the native Settings window opens to **AddOns > Guild Tithe**. If this Forever build does not expose the supported Settings API, confirm chat instead reports that settings are unavailable and suggests `/gt help`.
+3. When settings are available, confirm **Tithe percentage** starts at `10`, accepts whole numbers from `0` through `100`, and does not allow values outside that range.
+4. Change the percentage, close and reopen settings with `/gt`, and confirm the new value appears immediately.
+5. Run `/reload`, reopen settings, and confirm the chosen percentage remains.
+6. Log in to another character, confirm it starts at `10`, choose a different value, then return to the first character and confirm each value stayed isolated.
+7. Enter `/gt help` and confirm both the `help` and `settings` commands appear once.
+8. Enter `/gt unknown` and confirm the add-on reports an unknown command and suggests `/gt help` without raising an error.
 
 Record the Forever build from `/dump GetBuildInfo()` and any Lua error text when reporting a failure.

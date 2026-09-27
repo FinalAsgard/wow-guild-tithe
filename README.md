@@ -4,7 +4,9 @@ A World of Warcraft: Forever add-on that tracks a configurable guild tithe and d
 
 ## Current foundation
 
-The add-on currently provides its Forever manifest, load lifecycle, client compatibility boundary, and extensible `/gt` command router. Tithe configuration and accounting arrive in subsequent feature slices.
+The add-on currently provides its Forever manifest, load lifecycle, client compatibility boundary, per-character saved state, and extensible `/gt` command router. On clients with the supported native Settings API, `/gt` opens an AddOns settings page where the current character's whole-number tithe percentage can be changed from 0 through 100. Clients without that API keep loading normally and explain that settings are unavailable.
+
+Income-source controls and accounting arrive in subsequent feature slices.
 
 All direct WoW API access belongs in `Adapters/WoW.lua`; core modules are client-independent Lua. See [the testing conventions](docs/testing.md) for the project boundary and test style.
 
