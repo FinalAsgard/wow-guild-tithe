@@ -218,3 +218,43 @@ test.test("settings registration failure does not stop slash handling", function
     test.assertFalse(lifecycle.settingsReady)
     test.assertTrue(lifecycle.slashRegistered)
 end)
+
+test.test("failed persisted state keeps settings unavailable while slash help remains usable", function()
+    local addon = loadRuntimeModules()
+    local settingsRegistrations = 0
+    local messages = {}
+    local client = {
+        Print = function(_, message)
+            table.insert(messages, message)
+            return true
+        end,
+        RegisterSlashCommand = function()
+            return true
+        end,
+    }
+    local state = {
+        Initialize = function()
+            return false, "current character data is quarantined"
+        end,
+    }
+    local settingsController = {
+        Register = function()
+            settingsRegistrations = settingsRegistrations + 1
+            return true
+        end,
+    }
+    local lifecycle = addon.Lifecycle.Create(
+        client,
+        {},
+        "GuildTithe",
+        state,
+        settingsController
+    )
+
+    test.assertTrue(lifecycle:Initialize())
+
+    test.assertFalse(lifecycle.stateReady)
+    test.assertFalse(lifecycle.settingsReady)
+    test.assertEqual(0, settingsRegistrations)
+    test.assertContains(messages[1], "quarantined")
+end)
