@@ -23,4 +23,3 @@ function MoneyFormatter.Format(copper)
 
     return string.format("%.0fg %02ds %02dc", gold, silver, remainingCopper)
 end
-

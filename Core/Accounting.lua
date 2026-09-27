@@ -61,4 +61,3 @@ function Accounting.Calculate(eligibleCopper, percentage, outstandingCopper, pri
         fractionalRemainder = fractionalRemainder,
     }
 end
-

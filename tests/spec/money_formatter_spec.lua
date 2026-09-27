@@ -45,4 +45,3 @@ test.test("money formatting does not mutate its input or stored state", function
     test.assertEqual(before, state.outstandingCopper)
     test.assertEqual(78, state.fractionalRemainder)
 end)
-

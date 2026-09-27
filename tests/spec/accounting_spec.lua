@@ -169,4 +169,3 @@ test.test("tithe service reports rejected state writes without returning success
     test.assertEqual(nil, result)
     test.assertEqual("updated financial state was rejected", accrueError)
 end)
-

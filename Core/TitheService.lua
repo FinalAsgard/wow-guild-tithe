@@ -45,4 +45,3 @@ function Service:AccrueEligibleCopper(eligibleCopper)
 
     return result
 end
-
