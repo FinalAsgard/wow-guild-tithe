@@ -120,24 +120,40 @@ function Client:SetAccountDatabase(database)
     return true
 end
 
-function Client:RegisterPercentageSettings(options)
+local function validBinding(options)
+    return type(options) == "table"
+        and type(options.getValue) == "function"
+        and type(options.setValue) == "function"
+end
+
+function Client:RegisterSettingsCategory(options)
     local settings = self.environment.Settings
     if type(options) ~= "table"
-        or type(options.getValue) ~= "function"
-        or type(options.setValue) ~= "function"
+        or not validBinding(options.percentage)
+        or type(options.checkboxes) ~= "table"
         or type(settings) ~= "table"
         or type(settings.RegisterVerticalLayoutCategory) ~= "function"
         or type(settings.RegisterProxySetting) ~= "function"
         or type(settings.CreateSliderOptions) ~= "function"
         or type(settings.CreateSlider) ~= "function"
+        or type(settings.CreateCheckbox) ~= "function"
         or type(settings.RegisterAddOnCategory) ~= "function"
         or type(settings.VarType) ~= "table"
         or settings.VarType.Number == nil
+        or settings.VarType.Boolean == nil
     then
         return nil
     end
 
+    local index
+    for index = 1, #options.checkboxes do
+        if not validBinding(options.checkboxes[index]) then
+            return nil
+        end
+    end
+
     local ok, category = pcall(function()
+        local percentage = options.percentage
         local registeredCategory = settings.RegisterVerticalLayoutCategory(options.categoryName)
         if registeredCategory == nil then
             error("settings category was not created")
@@ -145,27 +161,61 @@ function Client:RegisterPercentageSettings(options)
 
         local setting = settings.RegisterProxySetting(
             registeredCategory,
-            options.variable,
+            percentage.variable,
             settings.VarType.Number,
-            options.label,
-            options.defaultValue,
-            options.getValue,
-            options.setValue
+            percentage.label,
+            percentage.defaultValue,
+            percentage.getValue,
+            percentage.setValue
         )
         if setting == nil then
             error("percentage setting was not created")
         end
 
         local sliderOptions = settings.CreateSliderOptions(
-            options.minimum,
-            options.maximum,
-            options.step
+            percentage.minimum,
+            percentage.maximum,
+            percentage.step
         )
         if sliderOptions == nil then
             error("percentage slider options were not created")
         end
 
-        settings.CreateSlider(registeredCategory, setting, sliderOptions, options.tooltip)
+        local slider = settings.CreateSlider(
+            registeredCategory,
+            setting,
+            sliderOptions,
+            percentage.tooltip
+        )
+        if slider == nil then
+            error("percentage slider was not created")
+        end
+
+        for index = 1, #options.checkboxes do
+            local checkbox = options.checkboxes[index]
+            local checkboxSetting = settings.RegisterProxySetting(
+                registeredCategory,
+                checkbox.variable,
+                settings.VarType.Boolean,
+                checkbox.label,
+                checkbox.defaultValue,
+                checkbox.getValue,
+                checkbox.setValue
+            )
+            if checkboxSetting == nil then
+                error("checkbox setting was not created")
+            end
+
+            local checkboxControl = settings.CreateCheckbox(
+                registeredCategory,
+                checkboxSetting,
+                checkbox.tooltip
+            )
+            if checkboxControl == nil then
+                error("checkbox control was not created")
+            end
+        end
+
         settings.RegisterAddOnCategory(registeredCategory)
         return registeredCategory
     end)
