@@ -1,0 +1,11 @@
+## Interface: 16000, 16001
+## Title: Guild Tithe
+## Notes: Tracks a configurable guild tithe.
+## Author: FinalAsgard
+## Version: 0.1.0
+
+Core/Namespace.lua
+Adapters/WoW.lua
+Core/CommandRouter.lua
+Core/Lifecycle.lua
+GuildTithe.lua
