@@ -162,6 +162,7 @@ test.test("state interface rejects invalid money, remainder, and configuration v
     test.assertFalse(state:SetFinancialState(1, -1))
     test.assertFalse(state:SetFinancialState(1, 1.5))
     test.assertFalse(state:SetFinancialState(1, 100))
+    test.assertFalse(state:SetFinancialState(addon.CharacterState.MAX_SAFE_INTEGER + 1, 0))
     test.assertFalse(state:SetPercentage(-1))
     test.assertFalse(state:SetPercentage(10.5))
     test.assertFalse(state:SetPercentage(101))

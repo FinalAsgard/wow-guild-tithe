@@ -5,12 +5,13 @@ local function loadSettingsModules()
         "Adapters/WoW.lua",
         "Core/CharacterState.lua",
         "Core/CommandRouter.lua",
+        "Core/MoneyFormatter.lua",
         "Core/SettingsController.lua"
     )
 end
 
 local function newEnvironment(name, realm, database, settings)
-    return {
+    local environment = {
         GuildTitheDB = database,
         Settings = settings,
         UnitName = function()
@@ -20,12 +21,26 @@ local function newEnvironment(name, realm, database, settings)
             return realm
         end,
     }
+
+    environment.CreateSettingsListSectionHeaderInitializer = function(label)
+        if type(environment.Settings) == "table" then
+            environment.Settings.balanceHeading = label
+        end
+        return { kind = "section-header", label = label }
+    end
+
+    return environment
 end
 
 local function newSettingsAPI()
     local category = {}
     function category:GetID()
         return 73
+    end
+
+    local layout = { initializers = {} }
+    function layout:AddInitializer(initializer)
+        table.insert(self.initializers, initializer)
     end
 
     local api = {
@@ -36,11 +51,12 @@ local function newSettingsAPI()
         bindings = {},
         checkboxes = {},
         category = category,
+        layout = layout,
     }
 
     function api.RegisterVerticalLayoutCategory(name)
         api.categoryName = name
-        return category
+        return category, layout
     end
 
     function api.RegisterProxySetting(registeredCategory, variable, variableType, label,
@@ -184,6 +200,23 @@ test.test("native percentage setting binds immediately without changing financia
     test.assertEqual(37, character.percentage)
     test.assertEqual(98765, character.outstandingCopper)
     test.assertEqual(42, character.fractionalRemainder)
+end)
+
+test.test("settings display the formatted balance read-only and hide the remainder", function()
+    local addon = loadSettingsModules()
+    local api = newSettingsAPI()
+    local controller, state = createController(
+        addon,
+        newEnvironment("Jaina", "Camelot", nil, api)
+    )
+    test.assertTrue(state:SetFinancialState(123456, 78))
+
+    test.assertTrue(controller:Register())
+
+    test.assertEqual("Current balance: 12g 34s 56c", api.balanceHeading)
+    test.assertEqual(1, #api.layout.initializers)
+    test.assertEqual(nil, api.bindings.GuildTithe_Balance)
+    test.assertFalse(string.find(api.balanceHeading, "78", 1, true) ~= nil)
 end)
 
 test.test("settings expose all source and chat preferences with fresh-character defaults", function()
@@ -417,4 +450,11 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     test.assertFalse(controller:Register())
     test.assertEqual(database, environment.GuildTitheDB)
     test.assertTrue(state:GetCurrentCharacter().sources.loot)
+
+    local missingBalanceDisplayAPI = newSettingsAPI()
+    environment.Settings = missingBalanceDisplayAPI
+    environment.CreateSettingsListSectionHeaderInitializer = nil
+    test.assertFalse(controller:Register())
+    test.assertEqual(database, environment.GuildTitheDB)
+    test.assertEqual(10, state:GetCurrentCharacter().percentage)
 end)
