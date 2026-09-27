@@ -128,9 +128,12 @@ end
 
 function Client:RegisterSettingsCategory(options)
     local settings = self.environment.Settings
+    local createSectionHeader = self.environment.CreateSettingsListSectionHeaderInitializer
     if type(options) ~= "table"
         or not validBinding(options.percentage)
         or type(options.checkboxes) ~= "table"
+        or type(options.balanceText) ~= "string"
+        or type(createSectionHeader) ~= "function"
         or type(settings) ~= "table"
         or type(settings.RegisterVerticalLayoutCategory) ~= "function"
         or type(settings.RegisterProxySetting) ~= "function"
@@ -154,10 +157,23 @@ function Client:RegisterSettingsCategory(options)
 
     local ok, category = pcall(function()
         local percentage = options.percentage
-        local registeredCategory = settings.RegisterVerticalLayoutCategory(options.categoryName)
-        if registeredCategory == nil then
+        local registeredCategory, layout = settings.RegisterVerticalLayoutCategory(
+            options.categoryName
+        )
+        if registeredCategory == nil
+            or type(layout) ~= "table"
+            or type(layout.AddInitializer) ~= "function"
+        then
             error("settings category was not created")
         end
+
+        local balanceInitializer = createSectionHeader(
+            "Current balance: " .. options.balanceText
+        )
+        if balanceInitializer == nil then
+            error("balance display was not created")
+        end
+        layout:AddInitializer(balanceInitializer)
 
         local setting = settings.RegisterProxySetting(
             registeredCategory,

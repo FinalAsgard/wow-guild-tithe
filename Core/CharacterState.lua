@@ -2,6 +2,7 @@ local _, addon = ...
 
 local CharacterState = {
     SCHEMA_VERSION = 1,
+    MAX_SAFE_INTEGER = 9007199254740991,
 }
 addon.CharacterState = CharacterState
 
@@ -19,7 +20,10 @@ local SOURCE_DEFAULTS = {
 }
 
 local function isInteger(value)
-    return type(value) == "number" and value >= 0 and value == math.floor(value)
+    return type(value) == "number"
+        and value >= 0
+        and value <= CharacterState.MAX_SAFE_INTEGER
+        and value == math.floor(value)
 end
 
 local function copyTable(source)

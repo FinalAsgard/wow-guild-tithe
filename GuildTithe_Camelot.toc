@@ -8,6 +8,9 @@
 Core/Namespace.lua
 Adapters/WoW.lua
 Core/CharacterState.lua
+Core/Accounting.lua
+Core/TitheService.lua
+Core/MoneyFormatter.lua
 Core/CommandRouter.lua
 Core/SettingsController.lua
 Core/Lifecycle.lua

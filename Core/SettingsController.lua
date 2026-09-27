@@ -101,6 +101,18 @@ local function currentChatFeedback(state)
     return character.chatFeedback
 end
 
+local function currentBalance(state, formatter)
+    local character = currentCharacter(state)
+    if character == nil
+        or formatter == nil
+        or type(formatter.Format) ~= "function"
+    then
+        return nil
+    end
+
+    return formatter.Format(character.outstandingCopper)
+end
+
 local function buildCheckboxes(state)
     local checkboxes = {}
     local index
@@ -138,20 +150,26 @@ local function buildCheckboxes(state)
     return checkboxes
 end
 
-function SettingsController.Create(client, state)
+function SettingsController.Create(client, state, formatter)
     return setmetatable({
         client = client,
+        formatter = formatter or addon.MoneyFormatter,
         state = state,
     }, Controller)
 end
 
 function Controller:Register()
-    if self.category ~= nil or currentPercentage(self.state) == nil then
+    local balanceText = currentBalance(self.state, self.formatter)
+    if self.category ~= nil
+        or currentPercentage(self.state) == nil
+        or balanceText == nil
+    then
         return self.category ~= nil
     end
 
     local category = self.client:RegisterSettingsCategory({
         categoryName = "Guild Tithe",
+        balanceText = balanceText,
         percentage = {
             variable = "GuildTithe_Percentage",
             label = "Tithe percentage",
