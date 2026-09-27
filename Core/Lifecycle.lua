@@ -6,13 +6,15 @@ addon.Lifecycle = Lifecycle
 local Controller = {}
 Controller.__index = Controller
 
-function Lifecycle.Create(client, router, addonName)
+function Lifecycle.Create(client, router, addonName, state)
     return setmetatable({
         addonName = addonName,
         client = client,
         initialized = false,
         router = router,
         slashRegistered = false,
+        state = state,
+        stateReady = false,
     }, Controller)
 end
 
@@ -22,6 +24,15 @@ function Controller:Initialize()
     end
 
     self.initialized = true
+    if self.state ~= nil then
+        local ok, initialized, stateError = pcall(self.state.Initialize, self.state)
+        self.stateReady = ok and initialized == true
+        if not self.stateReady then
+            self.client:Print("Guild Tithe: saved character state is unavailable" ..
+                (type(stateError) == "string" and " (" .. stateError .. ")." or "."))
+        end
+    end
+
     self.slashRegistered = self.client:RegisterSlashCommand("/gt", "GUILDTITHE", function(input)
         self.router:Execute(input)
     end)

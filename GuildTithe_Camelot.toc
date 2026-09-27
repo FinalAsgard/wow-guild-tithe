@@ -3,9 +3,11 @@
 ## Notes: Tracks a configurable guild tithe.
 ## Author: FinalAsgard
 ## Version: 0.1.0
+## SavedVariables: GuildTitheDB
 
 Core/Namespace.lua
 Adapters/WoW.lua
+Core/CharacterState.lua
 Core/CommandRouter.lua
 Core/Lifecycle.lua
 GuildTithe.lua

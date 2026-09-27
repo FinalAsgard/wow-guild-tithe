@@ -20,6 +20,14 @@ local function callMethod(object, methodName, ...)
     return ok
 end
 
+local function callFunction(callback, ...)
+    if type(callback) ~= "function" then
+        return false
+    end
+
+    return pcall(callback, ...)
+end
+
 function Compatibility.Create(environment)
     return setmetatable({ environment = environment or _G }, Client)
 end
@@ -70,4 +78,44 @@ function Client:Print(message)
     end
 
     return false
+end
+
+function Client:GetCurrentCharacterIdentity()
+    local ok, name, unitRealm = callFunction(self.environment.UnitName, "player")
+    if not ok or type(name) ~= "string" or name == "" then
+        return nil
+    end
+
+    local realm = unitRealm
+    if type(realm) ~= "string" or realm == "" then
+        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
+        if realmOk then
+            realm = currentRealm
+        end
+    end
+
+    if type(realm) ~= "string" or realm == "" then
+        return nil
+    end
+
+    local stableId
+    local guidOk, guid = callFunction(self.environment.UnitGUID, "player")
+    if guidOk and type(guid) == "string" and guid ~= "" then
+        stableId = guid
+    end
+
+    return {
+        name = name,
+        realm = realm,
+        stableId = stableId,
+    }
+end
+
+function Client:GetAccountDatabase()
+    return self.environment.GuildTitheDB
+end
+
+function Client:SetAccountDatabase(database)
+    self.environment.GuildTitheDB = database
+    return true
 end
