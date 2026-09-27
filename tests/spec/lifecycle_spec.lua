@@ -126,3 +126,27 @@ test.test("client adapter contains errors raised by optional APIs", function()
     test.assertTrue(ok)
     test.assertTrue(lifecycle.slashRegistered)
 end)
+
+test.test("lifecycle initializes character state before registering consumers", function()
+    local addon = loadRuntimeModules()
+    local calls = {}
+    local client = {
+        RegisterSlashCommand = function()
+            table.insert(calls, "slash")
+            return true
+        end,
+    }
+    local state = {
+        Initialize = function()
+            table.insert(calls, "state")
+            return true
+        end,
+    }
+    local lifecycle = addon.Lifecycle.Create(client, {}, "GuildTithe", state)
+
+    test.assertTrue(lifecycle:Initialize())
+
+    test.assertTrue(lifecycle.stateReady)
+    test.assertEqual("state", calls[1])
+    test.assertEqual("slash", calls[2])
+end)

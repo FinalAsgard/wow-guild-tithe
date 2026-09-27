@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local test = require("tests.test_helper")
 
 require("tests.spec.command_router_spec")
+require("tests.spec.character_state_spec")
 require("tests.spec.lifecycle_spec")
 
 if not test.run() then
