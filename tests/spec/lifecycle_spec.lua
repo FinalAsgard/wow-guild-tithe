@@ -258,3 +258,28 @@ test.test("failed persisted state keeps settings unavailable while slash help re
     test.assertEqual(0, settingsRegistrations)
     test.assertContains(messages[1], "quarantined")
 end)
+
+test.test("state initialization exceptions retain their diagnostic message", function()
+    local addon = loadRuntimeModules()
+    local messages = {}
+    local client = {
+        Print = function(_, message)
+            table.insert(messages, message)
+            return true
+        end,
+        RegisterSlashCommand = function()
+            return true
+        end,
+    }
+    local state = {
+        Initialize = function()
+            error("persistence exploded")
+        end,
+    }
+    local lifecycle = addon.Lifecycle.Create(client, {}, "GuildTithe", state)
+
+    test.assertTrue(lifecycle:Initialize())
+
+    test.assertFalse(lifecycle.stateReady)
+    test.assertContains(messages[1], "persistence exploded")
+end)

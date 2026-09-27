@@ -27,7 +27,14 @@ local function newEnvironment(name, realm, database, settings)
         if type(environment.Settings) == "table" then
             environment.Settings.balanceHeading = label
         end
-        return { kind = "section-header", label = label }
+        local initializer = {
+            data = { name = label },
+            kind = "section-header",
+        }
+        function initializer:GetData()
+            return self.data
+        end
+        return initializer
     end
 
     return environment
@@ -113,6 +120,10 @@ local function newSettingsAPI()
 
     function api.OpenToCategory(categoryID)
         api.openedCategoryID = categoryID
+        local initializer = api.layout.initializers[1]
+        if initializer ~= nil and type(initializer.GetData) == "function" then
+            api.balanceHeading = initializer:GetData().name
+        end
     end
 
     return api
@@ -218,6 +229,22 @@ test.test("settings display the formatted balance read-only and hide the remaind
     test.assertEqual(1, #api.layout.initializers)
     test.assertEqual(nil, api.bindings.GuildTithe_Balance)
     test.assertFalse(string.find(api.balanceHeading, "78", 1, true) ~= nil)
+end)
+
+test.test("opening settings refreshes the balance from current character state", function()
+    local addon = loadSettingsModules()
+    local api = newSettingsAPI()
+    local controller, state = createController(
+        addon,
+        newEnvironment("Jaina", "Camelot", nil, api)
+    )
+
+    test.assertTrue(controller:Register())
+    test.assertEqual("Current balance: 0g 00s 00c", api.balanceHeading)
+    test.assertTrue(state:SetFinancialState(123456, 78))
+
+    test.assertTrue(controller:Open())
+    test.assertEqual("Current balance: 12g 34s 56c", api.balanceHeading)
 end)
 
 test.test("settings expose all source and chat preferences with fresh-character defaults", function()

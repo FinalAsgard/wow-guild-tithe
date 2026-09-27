@@ -155,7 +155,7 @@ function Client:RegisterSettingsCategory(options)
         end
     end
 
-    local ok, category = pcall(function()
+    local ok, category, balanceInitializer = pcall(function()
         local percentage = options.percentage
         local registeredCategory, layout = settings.RegisterVerticalLayoutCategory(
             options.categoryName
@@ -233,14 +233,39 @@ function Client:RegisterSettingsCategory(options)
         end
 
         settings.RegisterAddOnCategory(registeredCategory)
-        return registeredCategory
+        return registeredCategory, balanceInitializer
     end)
 
     if not ok then
         return nil
     end
 
+    self.balanceInitializers = self.balanceInitializers or {}
+    self.balanceInitializers[category] = balanceInitializer
     return category
+end
+
+function Client:RefreshSettingsBalance(category, balanceText)
+    if type(balanceText) ~= "string"
+        or type(self.balanceInitializers) ~= "table"
+    then
+        return false
+    end
+
+    local initializer = self.balanceInitializers[category]
+    if type(initializer) ~= "table"
+        or type(initializer.GetData) ~= "function"
+    then
+        return false
+    end
+
+    local ok, data = pcall(initializer.GetData, initializer)
+    if not ok or type(data) ~= "table" then
+        return false
+    end
+
+    data.name = "Current balance: " .. balanceText
+    return true
 end
 
 function Client:OpenSettingsCategory(category)

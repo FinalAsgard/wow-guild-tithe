@@ -55,8 +55,8 @@ records.
 Migrations operate on a deep copy and advance exactly one version at a time.
 The copy is written back only after migration and full validation succeed.
 
-- Version 1 to version 2 adds `quarantinedCharacters`, then runs the version-2
-  validator over every character.
+- Version 1 to version 2 adds `quarantinedCharacters` when absent, preserves an
+  existing quarantine, then runs the version-2 validator over every character.
 - Version 2 is validated and repaired without a schema change.
 
 Loading the result again performs no migration and makes no further structural
@@ -75,6 +75,12 @@ be a non-negative safe integer, and `fractionalRemainder` must be an integer fro
 character's quarantine history with a diagnostic reason. Other valid characters
 remain available. If the quarantined key belongs to the current character, no
 replacement record is created and settings and accounting remain unavailable.
+
+Character-map keys must use the normalized `name-realm` form. A malformed key
+is moved to a generated quarantine entry that retains both the original key and
+record, so it cannot shadow or block valid characters. Cyclic saved tables are
+rejected before migration or writeback because they cannot be safely represented
+as SavedVariables.
 
 A schema version newer than 2 is incompatible. It is returned as an error before
 copying, migration, validation, or writeback, leaving the SavedVariables table

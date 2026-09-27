@@ -9,6 +9,7 @@ require("tests.spec.lifecycle_spec")
 require("tests.spec.money_formatter_spec")
 require("tests.spec.persistence_spec")
 require("tests.spec.settings_controller_spec")
+require("tests.spec.bootstrap_spec")
 
 if not test.run() then
     os.exit(1)

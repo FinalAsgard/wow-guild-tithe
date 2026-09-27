@@ -197,6 +197,15 @@ function Controller:Register()
 end
 
 function Controller:Open()
+    if self.category ~= nil then
+        local balanceText = currentBalance(self.state, self.formatter)
+        if balanceText ~= nil
+            and type(self.client.RefreshSettingsBalance) == "function"
+        then
+            self.client:RefreshSettingsBalance(self.category, balanceText)
+        end
+    end
+
     if self.category ~= nil and self.client:OpenSettingsCategory(self.category) then
         return true
     end

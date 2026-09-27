@@ -46,6 +46,22 @@ function Harness.loadAddonFile(path, addon)
     chunk("GuildTithe", addon)
 end
 
+function Harness.loadAddonFileInEnvironment(path, addon, environment)
+    local chunk, loadError
+    if type(setfenv) == "function" then
+        chunk, loadError = loadfile(path)
+    else
+        chunk, loadError = loadfile(path, "t", environment)
+    end
+    if chunk == nil then
+        error(loadError, 2)
+    end
+    if type(setfenv) == "function" then
+        setfenv(chunk, environment)
+    end
+    chunk("GuildTithe", addon)
+end
+
 function Harness.newAddon(...)
     local addon = {}
     local index

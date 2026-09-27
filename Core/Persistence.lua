@@ -19,18 +19,37 @@ local SOURCE_DEFAULTS = {
     vendorSales = true,
 }
 
-local function copyTable(source)
+local function copyValue(source, ancestors)
+    if type(source) ~= "table" then
+        return source
+    end
+
+    ancestors = ancestors or {}
+    if ancestors[source] then
+        return nil, "saved data contains a cyclic table"
+    end
+    ancestors[source] = true
+
     local result = {}
     local key, value
 
     for key, value in pairs(source) do
-        if type(value) == "table" then
-            result[key] = copyTable(value)
-        else
-            result[key] = value
+        local copiedKey, keyError = copyValue(key, ancestors)
+        if keyError ~= nil then
+            ancestors[source] = nil
+            return nil, keyError
         end
+
+        local copiedValue, valueError = copyValue(value, ancestors)
+        if valueError ~= nil then
+            ancestors[source] = nil
+            return nil, valueError
+        end
+
+        result[copiedKey] = copiedValue
     end
 
+    ancestors[source] = nil
     return result
 end
 
@@ -67,7 +86,7 @@ local function recordRepair(report, characterKey, field)
 end
 
 local function defaultSources()
-    return copyTable(SOURCE_DEFAULTS)
+    return copyValue(SOURCE_DEFAULTS)
 end
 
 local function newCharacter(identity)
@@ -86,7 +105,9 @@ local function newCharacter(identity)
 end
 
 local function migrateVersion1To2(database)
-    database.quarantinedCharacters = {}
+    if database.quarantinedCharacters == nil then
+        database.quarantinedCharacters = {}
+    end
     database.schemaVersion = 2
 end
 
@@ -114,21 +135,52 @@ local function validateQuarantine(database)
     return true
 end
 
-local function quarantineCharacter(database, report, characterKey, character, reason)
-    local entries = database.quarantinedCharacters[characterKey]
-    if entries == nil then
-        entries = {}
-        database.quarantinedCharacters[characterKey] = entries
+local function nextInvalidCharacterKey(database)
+    local index = 1
+    local characterKey
+
+    repeat
+        characterKey = "__invalid_character_key_" .. tostring(index)
+        index = index + 1
+    until database.characters[characterKey] == nil
+        and database.quarantinedCharacters[characterKey] == nil
+
+    return characterKey
+end
+
+local function isCharacterKey(value)
+    if type(value) ~= "string"
+        or value ~= string.lower(value)
+        or string.find(value, "%s") ~= nil
+    then
+        return false
     end
 
-    table.insert(entries, {
+    local name, realm = string.match(value, "^([^-]+)%-(.+)$")
+    return name ~= nil and realm ~= nil
+end
+
+local function quarantineCharacter(database, report, sourceKey, quarantineKey,
+    character, reason)
+    local entries = database.quarantinedCharacters[quarantineKey]
+    if entries == nil then
+        entries = {}
+        database.quarantinedCharacters[quarantineKey] = entries
+    end
+
+    local quarantined = {
         reason = reason,
         record = character,
         schemaVersion = Persistence.LATEST_SCHEMA_VERSION,
-    })
-    database.characters[characterKey] = nil
+    }
+    if sourceKey ~= quarantineKey then
+        quarantined.originalCharacterKey = sourceKey
+    end
+    table.insert(entries, quarantined)
+    database.characters[sourceKey] = nil
     table.insert(report.quarantinedCharacters, {
-        characterKey = characterKey,
+        characterKey = tostring(sourceKey),
+        quarantineKey = quarantineKey,
         reason = reason,
     })
 end
@@ -204,7 +256,11 @@ local function validateCharacters(database, report, context)
     local characterKey, character
     for characterKey, character in pairs(database.characters) do
         local reason
-        if type(character) ~= "table" then
+        local quarantineKey = characterKey
+        if not isCharacterKey(characterKey) then
+            reason = "character key is not normalized"
+            quarantineKey = nil
+        elseif type(character) ~= "table" then
             reason = "character record is not a table"
         elseif not isSafeInteger(character.outstandingCopper) then
             reason = "outstanding copper is not a non-negative safe integer"
@@ -216,6 +272,7 @@ local function validateCharacters(database, report, context)
             table.insert(invalid, {
                 characterKey = characterKey,
                 character = character,
+                quarantineKey = quarantineKey,
                 reason = reason,
             })
         else
@@ -235,6 +292,7 @@ local function validateCharacters(database, report, context)
             database,
             report,
             entry.characterKey,
+            entry.quarantineKey or nextInvalidCharacterKey(database),
             entry.character,
             entry.reason
         )
@@ -280,7 +338,10 @@ function Store:Load(context)
         return nil, "saved data schema is newer than this add-on supports"
     end
 
-    local database = copyTable(source)
+    local database, copyError = copyValue(source)
+    if database == nil then
+        return nil, copyError
+    end
     local report = newReport(schemaVersion)
 
     while database.schemaVersion < Persistence.LATEST_SCHEMA_VERSION do
@@ -342,12 +403,5 @@ function Store:GetReport()
         return nil
     end
 
-    return copyTable(self.report)
-end
-
-function Persistence.Copy(value)
-    if type(value) ~= "table" then
-        return value
-    end
-    return copyTable(value)
+    return copyValue(self.report)
 end

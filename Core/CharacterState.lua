@@ -1,7 +1,6 @@
 local _, addon = ...
 
 local CharacterState = {
-    SCHEMA_VERSION = addon.Persistence.LATEST_SCHEMA_VERSION,
     MAX_SAFE_INTEGER = 9007199254740991,
 }
 addon.CharacterState = CharacterState
@@ -110,7 +109,6 @@ function State:Initialize()
 
     self.character = character
     self.characterKey = characterKey
-    self.database = database
     self.initialized = true
     return true
 end

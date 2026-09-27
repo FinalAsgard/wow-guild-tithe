@@ -5,7 +5,6 @@
 ## Version: 0.1.0
 ## SavedVariables: GuildTitheDB
 
-Core/Namespace.lua
 Adapters/WoW.lua
 Core/Persistence.lua
 Core/CharacterState.lua

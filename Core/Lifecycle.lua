@@ -30,8 +30,9 @@ function Controller:Initialize()
         local ok, initialized, stateError = pcall(self.state.Initialize, self.state)
         self.stateReady = ok and initialized == true
         if not self.stateReady then
+            local failure = ok and stateError or initialized
             self.client:Print("Guild Tithe: saved character state is unavailable" ..
-                (type(stateError) == "string" and " (" .. stateError .. ")." or "."))
+                (type(failure) == "string" and " (" .. failure .. ")." or "."))
         end
     end
 

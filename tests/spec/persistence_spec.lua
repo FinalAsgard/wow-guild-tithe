@@ -241,6 +241,38 @@ test.test("unrecoverable financial records are quarantined without blocking vali
     test.assertEqual(19, state:GetCurrentCharacter().percentage)
 end)
 
+test.test("malformed character keys are preserved in quarantine without blocking valid records", function()
+    local addon = loadPersistenceModules()
+    local environment = newEnvironment("Thrall", "Camelot", {
+        schemaVersion = 2,
+        characters = {
+            [42] = completeCharacter({ outstandingCopper = 4200 }),
+            ["Jaina-Camelot"] = completeCharacter({ outstandingCopper = 1700 }),
+            ["thrall-camelot"] = completeCharacter({ outstandingCopper = 700 }),
+        },
+        quarantinedCharacters = {},
+    })
+
+    local database, report = createStore(addon, environment):Load()
+
+    test.assertEqual(700, database.characters["thrall-camelot"].outstandingCopper)
+    test.assertEqual(nil, database.characters[42])
+    test.assertEqual(nil, database.characters["Jaina-Camelot"])
+    test.assertEqual(2, #report.quarantinedCharacters)
+
+    local preserved = {}
+    local _, entries
+    for _, entries in pairs(database.quarantinedCharacters) do
+        local entry = entries[1]
+        if entry ~= nil and entry.originalCharacterKey ~= nil then
+            preserved[tostring(entry.originalCharacterKey)] = entry.record.outstandingCopper
+            test.assertContains(entry.reason, "key")
+        end
+    end
+    test.assertEqual(4200, preserved["42"])
+    test.assertEqual(1700, preserved["Jaina-Camelot"])
+end)
+
 test.test("a quarantined current character stays unavailable to state and accounting", function()
     local addon = loadPersistenceModules()
     local environment = newEnvironment("Jaina", "Camelot", {
@@ -285,6 +317,55 @@ test.test("migration and validation failure leave the original database untouche
     test.assertContains(loadError, "character collection")
     test.assertEqual(original, environment.GuildTitheDB)
     assertDeepEqual(snapshot, environment.GuildTitheDB)
+end)
+
+test.test("cyclic saved data is rejected without mutation or writeback", function()
+    local addon = loadPersistenceModules()
+    local original = {
+        schemaVersion = 2,
+        characters = {},
+        quarantinedCharacters = {},
+    }
+    original.metadata = { parent = original }
+    local writes = 0
+    local client = {
+        GetAccountDatabase = function()
+            return original
+        end,
+        SetAccountDatabase = function()
+            writes = writes + 1
+            return true
+        end,
+    }
+
+    local database, loadError = addon.Persistence.Create(client):Load()
+
+    test.assertEqual(nil, database)
+    test.assertContains(loadError, "cyclic")
+    test.assertEqual(0, writes)
+    test.assertEqual(original, original.metadata.parent)
+end)
+
+test.test("version one migration preserves an existing quarantine", function()
+    local addon = loadPersistenceModules()
+    local quarantined = {
+        ["jaina-camelot"] = {
+            { reason = "previous failure", record = { raw = true } },
+        },
+    }
+    local environment = newEnvironment("Thrall", "Camelot", {
+        schemaVersion = 1,
+        characters = {
+            ["thrall-camelot"] = completeCharacter(),
+        },
+        quarantinedCharacters = quarantined,
+    })
+
+    local database = createStore(addon, environment):Load()
+
+    test.assertEqual("previous failure",
+        database.quarantinedCharacters["jaina-camelot"][1].reason)
+    test.assertTrue(database.quarantinedCharacters["jaina-camelot"][1].record.raw)
 end)
 
 test.test("future schemas are returned as incompatible without writeback or mutation", function()
