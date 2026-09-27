@@ -29,7 +29,12 @@ local function newSettingsAPI()
     end
 
     local api = {
-        VarType = { Number = "number" },
+        VarType = {
+            Boolean = "boolean",
+            Number = "number",
+        },
+        bindings = {},
+        checkboxes = {},
         category = category,
     }
 
@@ -40,7 +45,7 @@ local function newSettingsAPI()
 
     function api.RegisterProxySetting(registeredCategory, variable, variableType, label,
         defaultValue, getValue, setValue)
-        api.binding = {
+        local binding = {
             category = registeredCategory,
             variable = variable,
             variableType = variableType,
@@ -49,7 +54,11 @@ local function newSettingsAPI()
             getValue = getValue,
             setValue = setValue,
         }
-        return { kind = "proxy-setting" }
+        api.bindings[variable] = binding
+        if variableType == api.VarType.Number then
+            api.binding = binding
+        end
+        return binding
     end
 
     function api.CreateSliderOptions(minimum, maximum, step)
@@ -71,6 +80,16 @@ local function newSettingsAPI()
         return { kind = "slider" }
     end
 
+    function api.CreateCheckbox(registeredCategory, setting, tooltip)
+        local checkbox = {
+            category = registeredCategory,
+            setting = setting,
+            tooltip = tooltip,
+        }
+        table.insert(api.checkboxes, checkbox)
+        return checkbox
+    end
+
     function api.RegisterAddOnCategory(registeredCategory)
         api.registeredCategory = registeredCategory
     end
@@ -80,6 +99,57 @@ local function newSettingsAPI()
     end
 
     return api
+end
+
+local PREFERENCE_CASES = {
+    {
+        variable = "GuildTithe_Source_Loot",
+        source = "loot",
+        defaultValue = true,
+    },
+    {
+        variable = "GuildTithe_Source_Quests",
+        source = "quests",
+        defaultValue = true,
+    },
+    {
+        variable = "GuildTithe_Source_VendorSales",
+        source = "vendorSales",
+        defaultValue = true,
+    },
+    {
+        variable = "GuildTithe_Source_Auctions",
+        source = "auctions",
+        defaultValue = false,
+    },
+    {
+        variable = "GuildTithe_Source_Mailbox",
+        source = "mailbox",
+        defaultValue = false,
+    },
+    {
+        variable = "GuildTithe_Source_PlayerTrades",
+        source = "playerTrades",
+        defaultValue = true,
+    },
+    {
+        variable = "GuildTithe_Source_Miscellaneous",
+        source = "miscellaneous",
+        defaultValue = true,
+    },
+    {
+        variable = "GuildTithe_ChatFeedback",
+        field = "chatFeedback",
+        defaultValue = true,
+    },
+}
+
+local function preferenceValue(character, preference)
+    if preference.source ~= nil then
+        return character.sources[preference.source]
+    end
+
+    return character[preference.field]
 end
 
 local function createController(addon, environment)
@@ -114,6 +184,81 @@ test.test("native percentage setting binds immediately without changing financia
     test.assertEqual(37, character.percentage)
     test.assertEqual(98765, character.outstandingCopper)
     test.assertEqual(42, character.fractionalRemainder)
+end)
+
+test.test("settings expose all source and chat preferences with fresh-character defaults", function()
+    local addon = loadSettingsModules()
+    local api = newSettingsAPI()
+    local controller = createController(addon, newEnvironment("Tyrande", "Camelot", nil, api))
+
+    test.assertTrue(controller:Register())
+    test.assertEqual(8, #api.checkboxes)
+
+    local index
+    for index = 1, #PREFERENCE_CASES do
+        local preference = PREFERENCE_CASES[index]
+        local binding = api.bindings[preference.variable]
+        test.assertEqual("boolean", binding.variableType, preference.variable)
+        test.assertEqual(preference.defaultValue, binding.defaultValue, preference.variable)
+        test.assertEqual(preference.defaultValue, binding.getValue(), preference.variable)
+    end
+end)
+
+test.test("every preference updates only itself and preserves financial state", function()
+    local index
+
+    for index = 1, #PREFERENCE_CASES do
+        local addon = loadSettingsModules()
+        local api = newSettingsAPI()
+        local controller, state = createController(
+            addon,
+            newEnvironment("Moira", "Camelot", nil, api)
+        )
+        test.assertTrue(state:SetFinancialState(654321, 87))
+        test.assertTrue(controller:Register())
+
+        local preference = PREFERENCE_CASES[index]
+        local binding = api.bindings[preference.variable]
+        local before = state:GetCurrentCharacter()
+        local changedValue = not preference.defaultValue
+
+        test.assertTrue(binding.setValue(changedValue), preference.variable)
+        test.assertEqual(changedValue, binding.getValue(), preference.variable)
+
+        local after = state:GetCurrentCharacter()
+        test.assertEqual(before.percentage, after.percentage, preference.variable)
+        test.assertEqual(654321, after.outstandingCopper, preference.variable)
+        test.assertEqual(87, after.fractionalRemainder, preference.variable)
+
+        local otherIndex
+        for otherIndex = 1, #PREFERENCE_CASES do
+            local other = PREFERENCE_CASES[otherIndex]
+            local expected = other.defaultValue
+            if otherIndex == index then
+                expected = changedValue
+            end
+            test.assertEqual(expected, preferenceValue(after, other),
+                preference.variable .. " changed " .. other.variable)
+        end
+    end
+end)
+
+test.test("preference bindings reject non-boolean values without changing state", function()
+    local addon = loadSettingsModules()
+    local api = newSettingsAPI()
+    local controller, state = createController(
+        addon,
+        newEnvironment("Baine", "Camelot", nil, api)
+    )
+    test.assertTrue(controller:Register())
+
+    local index
+    for index = 1, #PREFERENCE_CASES do
+        local preference = PREFERENCE_CASES[index]
+        test.assertFalse(api.bindings[preference.variable].setValue("yes"), preference.variable)
+        test.assertEqual(preference.defaultValue,
+            preferenceValue(state:GetCurrentCharacter(), preference), preference.variable)
+    end
 end)
 
 test.test("percentage binding rejects malformed values without corrupting state", function()
@@ -165,6 +310,48 @@ test.test("settings changes survive reload and remain isolated by character", fu
     test.assertEqual(55, secondAPI.binding.getValue())
 end)
 
+test.test("all preferences survive reload and remain isolated by character", function()
+    local addon = loadSettingsModules()
+    local firstAPI = newSettingsAPI()
+    local firstEnvironment = newEnvironment("Valeera", "Realm One", nil, firstAPI)
+    local firstController = createController(addon, firstEnvironment)
+    test.assertTrue(firstController:Register())
+
+    local index
+    for index = 1, #PREFERENCE_CASES do
+        local preference = PREFERENCE_CASES[index]
+        test.assertTrue(firstAPI.bindings[preference.variable].setValue(
+            not preference.defaultValue
+        ), preference.variable)
+    end
+
+    local secondAPI = newSettingsAPI()
+    local secondController = createController(addon, newEnvironment(
+        "Valeera",
+        "Realm Two",
+        firstEnvironment.GuildTitheDB,
+        secondAPI
+    ))
+    test.assertTrue(secondController:Register())
+
+    local reloadAPI = newSettingsAPI()
+    local reloadedController = createController(addon, newEnvironment(
+        "Valeera",
+        "Realm One",
+        firstEnvironment.GuildTitheDB,
+        reloadAPI
+    ))
+    test.assertTrue(reloadedController:Register())
+
+    for index = 1, #PREFERENCE_CASES do
+        local preference = PREFERENCE_CASES[index]
+        test.assertEqual(preference.defaultValue,
+            secondAPI.bindings[preference.variable].getValue(), preference.variable)
+        test.assertEqual(not preference.defaultValue,
+            reloadAPI.bindings[preference.variable].getValue(), preference.variable)
+    end
+end)
+
 test.test("empty slash input opens the registered add-on settings category", function()
     local addon = loadSettingsModules()
     local api = newSettingsAPI()
@@ -214,4 +401,20 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     test.assertFalse(controller:Register())
     test.assertEqual(database, environment.GuildTitheDB)
     test.assertEqual(10, state:GetCurrentCharacter().percentage)
+
+    local missingCheckboxAPI = newSettingsAPI()
+    missingCheckboxAPI.CreateCheckbox = nil
+    environment.Settings = missingCheckboxAPI
+    test.assertFalse(controller:Register())
+    test.assertEqual(database, environment.GuildTitheDB)
+    test.assertTrue(state:GetCurrentCharacter().sources.loot)
+
+    local failedCheckboxAPI = newSettingsAPI()
+    failedCheckboxAPI.CreateCheckbox = function()
+        return nil
+    end
+    environment.Settings = failedCheckboxAPI
+    test.assertFalse(controller:Register())
+    test.assertEqual(database, environment.GuildTitheDB)
+    test.assertTrue(state:GetCurrentCharacter().sources.loot)
 end)
