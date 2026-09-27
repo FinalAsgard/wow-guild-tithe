@@ -150,3 +150,71 @@ test.test("lifecycle initializes character state before registering consumers", 
     test.assertEqual("state", calls[1])
     test.assertEqual("slash", calls[2])
 end)
+
+test.test("lifecycle registers settings after state and before slash handling", function()
+    local addon = loadRuntimeModules()
+    local calls = {}
+    local client = {
+        RegisterSlashCommand = function()
+            table.insert(calls, "slash")
+            return true
+        end,
+    }
+    local state = {
+        Initialize = function()
+            table.insert(calls, "state")
+            return true
+        end,
+    }
+    local settingsController = {
+        Register = function()
+            table.insert(calls, "settings")
+            return true
+        end,
+    }
+    local lifecycle = addon.Lifecycle.Create(
+        client,
+        {},
+        "GuildTithe",
+        state,
+        settingsController
+    )
+
+    test.assertTrue(lifecycle:Initialize())
+
+    test.assertTrue(lifecycle.stateReady)
+    test.assertTrue(lifecycle.settingsReady)
+    test.assertEqual("state", calls[1])
+    test.assertEqual("settings", calls[2])
+    test.assertEqual("slash", calls[3])
+end)
+
+test.test("settings registration failure does not stop slash handling", function()
+    local addon = loadRuntimeModules()
+    local client = {
+        RegisterSlashCommand = function()
+            return true
+        end,
+    }
+    local state = {
+        Initialize = function()
+            return true
+        end,
+    }
+    local settingsController = {
+        Register = function()
+            error("unsupported Settings API")
+        end,
+    }
+    local lifecycle = addon.Lifecycle.Create(
+        client,
+        {},
+        "GuildTithe",
+        state,
+        settingsController
+    )
+
+    test.assertTrue(lifecycle:Initialize())
+    test.assertFalse(lifecycle.settingsReady)
+    test.assertTrue(lifecycle.slashRegistered)
+end)

@@ -40,3 +40,17 @@ test.test("unknown commands fail safely with a useful hint", function()
     test.assertContains(message, "unknown command 'missing'")
     test.assertContains(message, "/gt help")
 end)
+
+test.test("a registered route can become the empty-input default", function()
+    local called = false
+    local addon = test.newAddon("Core/CommandRouter.lua")
+    local router = addon.CommandRouter.Create()
+    router:Register("settings", "open settings", function()
+        called = true
+    end)
+
+    test.assertFalse(router:SetDefault("missing"))
+    test.assertTrue(router:SetDefault("SETTINGS"))
+    test.assertTrue(router:Execute(""))
+    test.assertTrue(called)
+end)
