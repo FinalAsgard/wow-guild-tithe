@@ -3,6 +3,7 @@ local test = require("tests.test_helper")
 local function loadStateModules()
     return test.newAddon(
         "Adapters/WoW.lua",
+        "Core/Persistence.lua",
         "Core/CharacterState.lua"
     )
 end
@@ -37,7 +38,7 @@ test.test("fresh characters receive the complete default tithe state", function(
     test.assertTrue(state:Initialize())
     local character = state:GetCurrentCharacter()
 
-    test.assertEqual(1, environment.GuildTitheDB.schemaVersion)
+    test.assertEqual(2, environment.GuildTitheDB.schemaVersion)
     test.assertEqual("arthas-camelot", state:GetCharacterKey())
     test.assertEqual("Arthas", character.identity.displayName)
     test.assertEqual("Camelot", character.identity.displayRealm)

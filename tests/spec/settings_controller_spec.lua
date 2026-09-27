@@ -3,6 +3,7 @@ local test = require("tests.test_helper")
 local function loadSettingsModules()
     return test.newAddon(
         "Adapters/WoW.lua",
+        "Core/Persistence.lua",
         "Core/CharacterState.lua",
         "Core/CommandRouter.lua",
         "Core/MoneyFormatter.lua",

@@ -1,7 +1,7 @@
 local _, addon = ...
 
 local CharacterState = {
-    SCHEMA_VERSION = 1,
+    SCHEMA_VERSION = addon.Persistence.LATEST_SCHEMA_VERSION,
     MAX_SAFE_INTEGER = 9007199254740991,
 }
 addon.CharacterState = CharacterState
@@ -70,25 +70,11 @@ local function buildCharacterKey(identity)
     return name .. "-" .. realm
 end
 
-local function newCharacterRecord(identity)
-    return {
-        identity = {
-            displayName = identity.name,
-            displayRealm = identity.realm,
-            stableId = identity.stableId,
-        },
-        percentage = 10,
-        outstandingCopper = 0,
-        fractionalRemainder = 0,
-        chatFeedback = true,
-        sources = copyTable(SOURCE_DEFAULTS),
-    }
-end
-
-function CharacterState.Create(client)
+function CharacterState.Create(client, persistence)
     return setmetatable({
         client = client,
         initialized = false,
+        persistence = persistence or addon.Persistence.Create(client),
     }, State)
 end
 
@@ -103,28 +89,23 @@ function State:Initialize()
         return false, "current character identity is unavailable"
     end
 
-    local database = self.client:GetAccountDatabase()
+    local database, persistenceError = self.persistence:Load({
+        characterKey = characterKey,
+        identity = identity,
+    })
     if database == nil then
-        database = {
-            schemaVersion = CharacterState.SCHEMA_VERSION,
-            characters = {},
-        }
-        self.client:SetAccountDatabase(database)
-    end
-
-    if type(database) ~= "table"
-        or database.schemaVersion ~= CharacterState.SCHEMA_VERSION
-        or type(database.characters) ~= "table"
-    then
-        return false, "saved data uses an unsupported schema"
+        return false, persistenceError
     end
 
     local character = database.characters[characterKey]
     if character == nil then
-        character = newCharacterRecord(identity)
-        database.characters[characterKey] = character
-    elseif type(character) ~= "table" then
-        return false, "current character data is unavailable"
+        if self.persistence:IsCharacterQuarantined(characterKey) then
+            return false, "current character data is quarantined"
+        end
+        character = self.persistence:CreateCharacter(characterKey, identity)
+        if character == nil then
+            return false, "current character data is unavailable"
+        end
     end
 
     self.character = character
@@ -132,6 +113,10 @@ function State:Initialize()
     self.database = database
     self.initialized = true
     return true
+end
+
+function State:GetPersistenceReport()
+    return self.persistence:GetReport()
 end
 
 function State:GetCharacterKey()
