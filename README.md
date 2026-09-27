@@ -8,7 +8,7 @@ The add-on currently provides its Forever manifest, load lifecycle, client compa
 
 Live income observation and classification arrive in a subsequent PRD.
 
-All direct WoW API access belongs in `Adapters/WoW.lua`; core modules are client-independent Lua. See [the testing conventions](docs/testing.md) for the project boundary and test style.
+All direct WoW API access belongs in `Adapters/WoW.lua`; core modules are client-independent Lua. See [the persistence schema and recovery contract](docs/persistence.md) for migration and corruption behavior, and [the testing conventions](docs/testing.md) for the project boundary and test style.
 
 ## Verify the scaffold
 

@@ -25,4 +25,10 @@ If `lua` on your system is Lua 5.1-compatible, `lua tests/run.lua` works as well
 - Build controlled WoW API fakes as ordinary Lua tables and pass them to `Compatibility.Create`. Do not install test globals.
 - Add each spec module to `tests/run.lua` so the zero-dependency runner executes it.
 
+Persistence behavior is tested through the public store and character-state
+interfaces. Migration specs must cover every supported version transition,
+repeat loads, field-local configuration repair, exact financial preservation,
+quarantine isolation, reload round trips, and no-write handling of future
+schemas. See [the schema and recovery contract](persistence.md).
+
 The test runner exits nonzero after reporting every failure. CI also parses every Lua file with Lua 5.1 before running the suite.
