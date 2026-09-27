@@ -119,3 +119,79 @@ function Client:SetAccountDatabase(database)
     self.environment.GuildTitheDB = database
     return true
 end
+
+function Client:RegisterPercentageSettings(options)
+    local settings = self.environment.Settings
+    if type(options) ~= "table"
+        or type(options.getValue) ~= "function"
+        or type(options.setValue) ~= "function"
+        or type(settings) ~= "table"
+        or type(settings.RegisterVerticalLayoutCategory) ~= "function"
+        or type(settings.RegisterProxySetting) ~= "function"
+        or type(settings.CreateSliderOptions) ~= "function"
+        or type(settings.CreateSlider) ~= "function"
+        or type(settings.RegisterAddOnCategory) ~= "function"
+        or type(settings.VarType) ~= "table"
+        or settings.VarType.Number == nil
+    then
+        return nil
+    end
+
+    local ok, category = pcall(function()
+        local registeredCategory = settings.RegisterVerticalLayoutCategory(options.categoryName)
+        if registeredCategory == nil then
+            error("settings category was not created")
+        end
+
+        local setting = settings.RegisterProxySetting(
+            registeredCategory,
+            options.variable,
+            settings.VarType.Number,
+            options.label,
+            options.defaultValue,
+            options.getValue,
+            options.setValue
+        )
+        if setting == nil then
+            error("percentage setting was not created")
+        end
+
+        local sliderOptions = settings.CreateSliderOptions(
+            options.minimum,
+            options.maximum,
+            options.step
+        )
+        if sliderOptions == nil then
+            error("percentage slider options were not created")
+        end
+
+        settings.CreateSlider(registeredCategory, setting, sliderOptions, options.tooltip)
+        settings.RegisterAddOnCategory(registeredCategory)
+        return registeredCategory
+    end)
+
+    if not ok then
+        return nil
+    end
+
+    return category
+end
+
+function Client:OpenSettingsCategory(category)
+    local settings = self.environment.Settings
+    if type(settings) ~= "table"
+        or type(settings.OpenToCategory) ~= "function"
+        or type(category) ~= "table"
+        or type(category.GetID) ~= "function"
+    then
+        return false
+    end
+
+    local idOk, categoryID = pcall(category.GetID, category)
+    if not idOk or categoryID == nil then
+        return false
+    end
+
+    local openOk = pcall(settings.OpenToCategory, categoryID)
+    return openOk
+end

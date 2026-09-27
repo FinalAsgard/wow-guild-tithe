@@ -9,5 +9,6 @@ Core/Namespace.lua
 Adapters/WoW.lua
 Core/CharacterState.lua
 Core/CommandRouter.lua
+Core/SettingsController.lua
 Core/Lifecycle.lua
 GuildTithe.lua

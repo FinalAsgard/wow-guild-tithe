@@ -19,6 +19,7 @@ function CommandRouter.Create(output)
     return setmetatable({
         commands = {},
         commandOrder = {},
+        defaultCommand = "help",
         output = type(output) == "function" and output or function() end,
     }, Router)
 end
@@ -40,6 +41,15 @@ function Router:Register(command, description, handler)
     return true
 end
 
+function Router:SetDefault(command)
+    if type(command) ~= "string" or self.commands[string.lower(command)] == nil then
+        return false
+    end
+
+    self.defaultCommand = string.lower(command)
+    return true
+end
+
 function Router:PrintHelp()
     local entries = {}
     local index
@@ -56,7 +66,7 @@ end
 function Router:Execute(input)
     local command, arguments = normalizeInput(input)
     if command == "" then
-        command = "help"
+        command = self.defaultCommand
     end
 
     local route = self.commands[command]
