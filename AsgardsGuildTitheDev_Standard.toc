@@ -1,0 +1,20 @@
+## Interface: 120100
+## Title: Asgard's Guild Tithe (Dev)
+## Notes: Development build of Asgard's Guild Tithe.
+## Author: FinalAsgard
+## Version: 0.1.0-dev
+## SavedVariables: AsgardsGuildTitheDevDB
+## X-Client: Retail
+
+Core/Identity.lua
+Adapters/ClientProfile.lua
+Adapters/WoW.lua
+Core/Persistence.lua
+Core/CharacterState.lua
+Core/Accounting.lua
+Core/TitheService.lua
+Core/MoneyFormatter.lua
+Core/CommandRouter.lua
+Core/SettingsController.lua
+Core/Lifecycle.lua
+AsgardsGuildTithe.lua

@@ -60,4 +60,4 @@ repeat loads, field-local configuration repair, exact financial preservation,
 quarantine isolation, reload round trips, and no-write handling of future
 schemas. See [the schema and recovery contract](persistence.md).
 
-The test runner exits nonzero after reporting every failure. CI also parses every Lua file with Lua 5.1, runs the suite, bootstraps both manifests, and exercises the Windows junction installer twice to prove idempotency.
+The test runner exits nonzero after reporting every failure. CI also parses every Lua file with Lua 5.1, runs the suite, bootstraps all four manifests (production and development for Forever and Retail), checks that their module lists stay identical, and exercises the Windows junction installer twice to prove idempotency.

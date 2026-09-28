@@ -7,12 +7,15 @@ local Fixtures = {
     PROFILES = { "Forever", "Retail" },
 }
 
-local MANIFEST = "AsgardsGuildTithe_Camelot.toc"
+local MANIFESTS = {
+    Forever = "AsgardsGuildTithe_Camelot.toc",
+    Retail = "AsgardsGuildTithe_Standard.toc",
+}
 
-local function manifestFiles()
+local function manifestFiles(profile)
     local files = {}
     local line
-    for line in io.lines(MANIFEST) do
+    for line in io.lines(MANIFESTS[profile]) do
         line = line:gsub("%s+$", "")
         if string.sub(line, 1, 2) ~= "##" and string.match(line, "%.lua$") then
             table.insert(files, line)
@@ -106,13 +109,14 @@ function Fixtures.newEnvironment(profile, options)
     PROFILE_APIS[profile](environment, declaredClient)
 
     world.environment = environment
+    world.profile = profile
     return world
 end
 
--- Loads the production add-on in manifest order inside `world.environment`.
+-- Loads the profile's production manifest in order inside `world.environment`.
 function Fixtures.loadAddon(world)
     local addon = {}
-    local files = manifestFiles()
+    local files = manifestFiles(world.profile)
     local index
     for index = 1, #files do
         test.loadAddonFileInEnvironment(files[index], addon, world.environment)
