@@ -1,0 +1,8 @@
+package-as: AsgardsGuildTithe
+
+ignore:
+  - .github
+  - AsgardsGuildTitheDev_Camelot.toc
+  - docs
+  - tests
+  - tools
