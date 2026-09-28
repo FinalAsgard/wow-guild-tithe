@@ -42,7 +42,7 @@ local PRODUCTS = {
 -- clients after each game patch (see README).
 local CLIENTS = {
     { name = "Forever", suffix = "_Camelot", interface = "16000, 16001" },
-    { name = "Retail", suffix = "_Standard", interface = "120100" },
+    { name = "Retail", suffix = "_Mainline", interface = "120100" },
 }
 
 local VARIANTS = {}

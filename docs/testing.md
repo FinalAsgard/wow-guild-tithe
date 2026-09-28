@@ -30,8 +30,9 @@ If `lua` on your system is Lua 5.1-compatible, `lua tests/run.lua` works as well
 
 Asgard's Guild Tithe supports two clients: WoW Forever and WoW Retail.
 `Adapters/ClientProfile.lua` classifies the running client from the `## X-Client`
-field of the manifest the client loaded (`Forever` or `Retail`); only that
-client's loader selects the manifest. A Retail declaration must also be
+field of the manifest the client loaded (`Forever` or `Retail`). Forever loads
+`_Camelot` and Retail loads `_Mainline`; Forever prefers `_Camelot` even though
+it also accepts `_Mainline`. A Retail declaration must also be
 confirmed by the Retail project constants. Shared internals never classify a
 client on their own, so Forever is never mistaken for Retail. Anything else is
 unsupported: the add-on prints one message, keeps `help` available, and never
@@ -60,4 +61,4 @@ repeat loads, field-local configuration repair, exact financial preservation,
 quarantine isolation, reload round trips, and no-write handling of future
 schemas. See [the schema and recovery contract](persistence.md).
 
-The test runner exits nonzero after reporting every failure. CI also parses every Lua file with Lua 5.1, runs the suite, bootstraps all four manifests (production and development for Forever and Retail), checks that their module lists stay identical, and runs `tests/Install-Dev.Tests.ps1` on Windows to exercise the junction installer for Forever and Retail layouts, custom roots, repeat installs, conflicting junctions, and real-directory refusal.
+The test runner exits nonzero after reporting every failure. CI also parses every Lua file with Lua 5.1, runs the suite, bootstraps all four manifests (production and development for Forever and Retail), checks that their module lists stay identical, builds and validates the release package (see [packaging](packaging.md)), and runs `tests/Install-Dev.Tests.ps1` on Windows to exercise the junction installer for Forever and Retail layouts, custom roots, repeat installs, conflicting junctions, and real-directory refusal.

@@ -1,9 +1,10 @@
 local _, addon = ...
 
 -- Classifies the running WoW client. Each supported manifest declares its
--- target client in `## X-Client`, because only that client's loader selects
--- it; runtime project constants then confirm the declaration. Shared or
--- similar client internals alone never classify a client.
+-- target client in `## X-Client`, and each client loads its own manifest
+-- (Forever prefers `_Camelot` over `_Mainline`); runtime project constants then
+-- confirm a Retail declaration. Shared or similar client internals alone never
+-- classify a client.
 local ClientProfile = {
     MANIFEST_FIELD = "X-Client",
 }

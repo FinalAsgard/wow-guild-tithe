@@ -9,7 +9,7 @@ local Fixtures = {
 
 local MANIFESTS = {
     Forever = "AsgardsGuildTithe_Camelot.toc",
-    Retail = "AsgardsGuildTithe_Standard.toc",
+    Retail = "AsgardsGuildTithe_Mainline.toc",
 }
 
 local function manifestFiles(profile)

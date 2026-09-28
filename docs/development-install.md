@@ -13,7 +13,7 @@ identifiers, and slash commands on both clients:
 | --- | --- | --- |
 | Folder | `AsgardsGuildTithe` | `AsgardsGuildTitheDev` |
 | Forever manifest | `AsgardsGuildTithe_Camelot.toc` | `AsgardsGuildTitheDev_Camelot.toc` |
-| Retail manifest | `AsgardsGuildTithe_Standard.toc` | `AsgardsGuildTitheDev_Standard.toc` |
+| Retail manifest | `AsgardsGuildTithe_Mainline.toc` | `AsgardsGuildTitheDev_Mainline.toc` |
 | SavedVariables | `AsgardsGuildTitheDB` | `AsgardsGuildTitheDevDB` |
 | Command | `/agt` | `/agtdev` |
 

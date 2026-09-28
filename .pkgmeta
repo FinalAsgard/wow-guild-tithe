@@ -2,8 +2,9 @@ package-as: AsgardsGuildTithe
 
 ignore:
   - .github
+  - ai
   - AsgardsGuildTitheDev_Camelot.toc
-  - AsgardsGuildTitheDev_Standard.toc
+  - AsgardsGuildTitheDev_Mainline.toc
   - docs
   - tests
   - tools

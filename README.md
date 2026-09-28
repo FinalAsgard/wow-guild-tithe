@@ -7,11 +7,11 @@ A World of Warcraft add-on foundation for configuring and accounting for a guild
 | Client | Status | Production manifest | Interface |
 |---|---|---|---|
 | World of Warcraft: Forever | Supported | `AsgardsGuildTithe_Camelot.toc` | `16000`, `16001` |
-| World of Warcraft Retail (live) | Supported | `AsgardsGuildTithe_Standard.toc` | `120100` |
+| World of Warcraft Retail (live) | Supported | `AsgardsGuildTithe_Mainline.toc` | `120100` |
 | WoW Classic Era, progression Classic, Anniversary, and seasonal Classic | Not supported | — | — |
 | Retail PTR, alpha, and beta | Not supported | — | — |
 
-Both supported clients get the same add-on name, commands, settings, and saved-data format from one source tree and one version. Each game installation keeps its own SavedVariables, and nothing is synchronized between Forever and Retail. Each client loads only its own manifest. `_Standard` is the Retail-only suffix; the broader `_Mainline` suffix is avoided because Forever also accepts it. On an unsupported client the add-on reports that once and leaves saved data untouched.
+Both supported clients get the same add-on name, commands, settings, and saved-data format from one source tree and one version. Each game installation keeps its own SavedVariables, and nothing is synchronized between Forever and Retail. Each client loads only its own manifest. Retail uses `_Mainline`, the suffix the WoW packager and CurseForge tag as Retail. Forever also accepts `_Mainline`, but it always prefers its own `_Camelot` manifest, so the two manifests must always ship together. On an unsupported client the add-on reports that once and leaves saved data untouched.
 
 Interface numbers are release metadata, not permanent constants. Confirm them from each running client with `/dump (select(4, GetBuildInfo()))` after every game patch and before each release, and update both manifests for that client together.
 
@@ -29,4 +29,4 @@ Run the automated suite with Lua 5.1:
 lua5.1 tests/run.lua
 ```
 
-For Windows development setup, use the [isolated development install](docs/development-install.md), then follow the [initial in-game checklist](docs/in-game-checklist.md).
+For Windows development setup, use the [isolated development install](docs/development-install.md), then follow the [in-game checklists](docs/in-game-checklist.md). To build and inspect the multi-client release zip, see [release packaging](docs/packaging.md).

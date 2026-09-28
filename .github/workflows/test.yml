@@ -28,6 +28,18 @@ jobs:
       - name: Run automated tests
         run: lua5.1 tests/run.lua
 
+  package:
+    name: Release package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and validate the multi-client package without uploading
+        run: tools/build-package.sh
+
   windows-installer:
     name: Windows development installer
     runs-on: windows-latest
