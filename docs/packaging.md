@@ -28,7 +28,8 @@ tools/build-package.sh            # writes .release/AsgardsGuildTithe-<version>.
 unzip -l .release/AsgardsGuildTithe-*.zip
 ```
 
-The script downloads the packager and runs it with `-d`, so nothing is ever
+The script downloads the packager at a pinned commit (`packager_commit` in
+the script; update it deliberately) and runs it with `-d`, so nothing is ever
 uploaded. It fails unless the packager tags the build for both clients
 (`Build type: multi-version`). It then runs `tools/check-package.sh`, which fails
 when:
@@ -36,6 +37,7 @@ when:
 - a production manifest is missing, or a module it loads is not in the zip
 - the production manifests disagree on `## Version`
 - a development manifest, test, tool, doc, `ai/`, or CI file was packaged
+- any manifest other than the two production manifests was packaged
 
 The packager needs bash 4.3 or newer. macOS ships bash 3.2, so install a newer
 one (for example `brew install bash`) and point the script at it:

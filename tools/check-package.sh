@@ -43,7 +43,7 @@ for manifest in "${production_manifests[@]}"; do
     while IFS= read -r module; do
         [ -z "$module" ] && continue
         has_entry "${addon}/${module//\\//}" || fail "$manifest loads ${module}, which is not in the package"
-    done < <(printf '%s\n' "$contents" | grep -v '^##' | grep -E '\.lua$' || true)
+    done < <(printf '%s\n' "$contents" | grep -v '^##' | grep -E '\.(lua|xml)$' || true)
 done
 
 if [ "${#manifest_versions[@]}" -eq 2 ] && [ "${manifest_versions[0]}" != "${manifest_versions[1]}" ]; then
@@ -54,6 +54,12 @@ for pattern in "${forbidden_patterns[@]}"; do
     matches="$(printf '%s\n' "$entries" | grep -E -- "$pattern" || true)"
     [ -n "$matches" ] && fail "development-only files packaged: $(printf '%s' "$matches" | tr '\n' ' ')"
 done
+
+# Only the supported production manifests may ship; any other manifest would
+# claim a client this release was not verified on.
+extra_manifests="$(printf '%s\n' "$entries" | grep -E "^${addon}/[^/]+\.toc$" |
+    grep -vFx -e "${addon}/${production_manifests[0]}" -e "${addon}/${production_manifests[1]}" || true)"
+[ -n "$extra_manifests" ] && fail "unsupported manifests packaged: $(printf '%s' "$extra_manifests" | tr '\n' ' ')"
 
 outside="$(printf '%s\n' "$entries" | grep -v "^${addon}/" || true)"
 [ -n "$outside" ] && fail "files outside the ${addon}/ folder: $(printf '%s' "$outside" | tr '\n' ' ')"

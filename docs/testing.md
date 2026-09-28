@@ -11,7 +11,7 @@ If `lua` on your system is Lua 5.1-compatible, `lua tests/run.lua` works as well
 ## Production boundaries
 
 - Keep accounting and other domain behavior in pure modules that do not read WoW globals.
-- Put all direct use of WoW globals and client APIs in `Adapters/WoW.lua`.
+- Put all direct use of WoW globals and client APIs in `Adapters/` (the compatibility adapter in `Adapters/WoW.lua` and the client profile in `Adapters/ClientProfile.lua`).
 - Add a method to the compatibility adapter when domain or lifecycle code needs a new client capability.
 - Treat unavailable or failing optional client capabilities as expected inputs. Adapter methods return `false` or `nil` instead of leaking client errors.
 - Prefer stable public functions and observable results over assertions about private tables or helper names.
