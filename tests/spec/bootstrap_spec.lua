@@ -2,6 +2,7 @@ local test = require("tests.test_helper")
 
 local MANIFEST_FILES = {
     "Core/Identity.lua",
+    "Adapters/ClientProfile.lua",
     "Adapters/WoW.lua",
     "Core/Persistence.lua",
     "Core/CharacterState.lua",
@@ -141,6 +142,9 @@ local function registerBootstrapTest(variant)
                     table.insert(messages, message)
                 end,
             },
+            GetAddOnMetadata = function(_, field)
+                return field == "X-Client" and "Forever" or nil
+            end,
             GetRealmName = function()
                 return "Camelot"
             end,

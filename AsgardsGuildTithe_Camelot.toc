@@ -4,8 +4,10 @@
 ## Author: FinalAsgard
 ## Version: 0.1.0
 ## SavedVariables: AsgardsGuildTitheDB
+## X-Client: Forever
 
 Core/Identity.lua
+Adapters/ClientProfile.lua
 Adapters/WoW.lua
 Core/Persistence.lua
 Core/CharacterState.lua

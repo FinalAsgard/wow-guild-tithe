@@ -35,6 +35,17 @@ function Compatibility.Create(environment)
     }, Client)
 end
 
+function Client:GetClientProfile()
+    if self.clientProfile == nil then
+        self.clientProfile = addon.ClientProfile.Detect(
+            self.environment,
+            addon.Identity.addonName
+        )
+    end
+
+    return self.clientProfile
+end
+
 function Client:CreateEventFrame()
     local createFrame = self.environment.CreateFrame
     if type(createFrame) ~= "function" then
@@ -117,6 +128,12 @@ end
 function Client:GetCurrentCharacterIdentity()
     local ok, name, unitRealm = callFunction(self.environment.UnitName, "player")
     if not ok or type(name) ~= "string" or name == "" then
+        return nil
+    end
+
+    -- Both clients report a placeholder name until the player is ready.
+    local placeholder = self.environment.UNKNOWNOBJECT
+    if name == (type(placeholder) == "string" and placeholder or "Unknown") then
         return nil
     end
 
