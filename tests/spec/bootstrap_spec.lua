@@ -112,9 +112,9 @@ end
 
 local function registerBootstrapTest(variant)
     test.test(variant.displayName .. " composes and bootstraps in manifest order", function()
-        local frame = {}
+        local frame = { registeredEvents = {} }
         function frame:RegisterEvent(eventName)
-            self.eventName = eventName
+            self.registeredEvents[eventName] = true
         end
         function frame:SetScript(scriptName, handler)
             self.scriptName = scriptName
@@ -123,6 +123,7 @@ local function registerBootstrapTest(variant)
 
         local settings = newSettingsAPI()
         local messages = {}
+        local playerReady = false
         local environment = {
             CreateFrame = function(frameType)
                 test.assertEqual("Frame", frameType)
@@ -152,7 +153,7 @@ local function registerBootstrapTest(variant)
                 return "Player-7"
             end,
             UnitName = function()
-                return "Jaina"
+                return playerReady and "Jaina" or "Unknown"
             end,
         }
         setmetatable(environment, { __index = _G })
@@ -181,11 +182,21 @@ local function registerBootstrapTest(variant)
             )
         end
 
-        test.assertEqual("ADDON_LOADED", frame.eventName)
+        test.assertTrue(frame.registeredEvents.ADDON_LOADED)
+        test.assertTrue(frame.registeredEvents.PLAYER_LOGIN)
         test.assertEqual("OnEvent", frame.scriptName)
         test.assertEqual(nil, environment[variant.databaseName])
 
         frame.handler(frame, "ADDON_LOADED", variant.addonName)
+
+        test.assertEqual(nil, environment[variant.databaseName])
+        test.assertEqual(
+            variant.slashCommand,
+            environment["SLASH_" .. variant.slashKey .. "1"]
+        )
+
+        playerReady = true
+        frame.handler(frame, "PLAYER_LOGIN")
 
         local database = environment[variant.databaseName]
         test.assertEqual(2, database.schemaVersion)

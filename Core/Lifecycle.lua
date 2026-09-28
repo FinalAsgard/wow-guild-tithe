@@ -12,6 +12,7 @@ function Lifecycle.Create(client, router, state, settingsController)
         client = client,
         initialized = false,
         router = router,
+        slashRegistrationAttempted = false,
         slashRegistered = false,
         state = state,
         stateReady = false,
@@ -20,9 +21,32 @@ function Lifecycle.Create(client, router, state, settingsController)
     }, Controller)
 end
 
-function Controller:Initialize()
-    if self.initialized then
+function Controller:RegisterSlash()
+    if self.slashRegistrationAttempted then
         return self.slashRegistered
+    end
+
+    self.slashRegistrationAttempted = true
+    self.slashRegistered = self.client:RegisterSlashCommand(
+        addon.Identity.slashCommand,
+        addon.Identity.slashAlias,
+        addon.Identity.slashKey,
+        function(input)
+            self.router:Execute(input)
+        end
+    )
+
+    if not self.slashRegistered then
+        self.client:Print(addon.Identity.displayName .. ": " ..
+            addon.Identity.slashCommand .. " is unavailable on this client.")
+    end
+
+    return self.slashRegistered
+end
+
+function Controller:InitializeState()
+    if self.initialized then
+        return self.stateReady
     end
 
     self.initialized = true
@@ -42,46 +66,38 @@ function Controller:Initialize()
         self.settingsReady = ok and registered == true
     end
 
-    self.slashRegistered = self.client:RegisterSlashCommand(
-        addon.Identity.slashCommand,
-        addon.Identity.slashAlias,
-        addon.Identity.slashKey,
-        function(input)
-            self.router:Execute(input)
-        end
-    )
-
-    if not self.slashRegistered then
-        self.client:Print(addon.Identity.displayName .. ": " ..
-            addon.Identity.slashCommand .. " is unavailable on this client.")
-    end
-
-    return self.slashRegistered
+    return self.stateReady
 end
 
 function Controller:OnEvent(eventName, loadedAddonName)
     if eventName == "ADDON_LOADED" and loadedAddonName == self.addonName then
-        self:Initialize()
+        self:RegisterSlash()
+    elseif eventName == "PLAYER_LOGIN" then
+        self:InitializeState()
     end
 end
 
 function Controller:Start()
     local frame = self.client:CreateEventFrame()
     if frame == nil then
-        self:Initialize()
+        self:RegisterSlash()
         return false
     end
 
     local handlerRegistered = self.client:SetEventHandler(frame, function(_, eventName, loadedAddonName)
         self:OnEvent(eventName, loadedAddonName)
     end)
-    local eventRegistered = self.client:RegisterEvent(frame, "ADDON_LOADED")
+    local addonLoadedRegistered = self.client:RegisterEvent(frame, "ADDON_LOADED")
+    local playerLoginRegistered = self.client:RegisterEvent(frame, "PLAYER_LOGIN")
 
-    if not handlerRegistered or not eventRegistered then
-        self:Initialize()
+    if not handlerRegistered or not addonLoadedRegistered then
+        self:RegisterSlash()
+    end
+
+    if not handlerRegistered then
         return false
     end
 
     self.frame = frame
-    return true
+    return addonLoadedRegistered and playerLoginRegistered
 end

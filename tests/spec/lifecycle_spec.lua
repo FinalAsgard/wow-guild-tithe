@@ -9,10 +9,10 @@ local function loadRuntimeModules()
 end
 
 local function newFrame()
-    local frame = {}
+    local frame = { registeredEvents = {} }
 
     function frame:RegisterEvent(eventName)
-        self.registeredEvent = eventName
+        self.registeredEvents[eventName] = true
     end
 
     function frame:SetScript(scriptName, handler)
@@ -23,7 +23,7 @@ local function newFrame()
     return frame
 end
 
-test.test("lifecycle waits for this add-on and registers slash handling", function()
+test.test("lifecycle registers slash handling at add-on load and state at player login", function()
     local addon = loadRuntimeModules()
     local frame = newFrame()
     local messages = {}
@@ -44,7 +44,8 @@ test.test("lifecycle waits for this add-on and registers slash handling", functi
     local lifecycle = addon.Lifecycle.Create(client, router)
 
     test.assertTrue(lifecycle:Start())
-    test.assertEqual("ADDON_LOADED", frame.registeredEvent)
+    test.assertTrue(frame.registeredEvents.ADDON_LOADED)
+    test.assertTrue(frame.registeredEvents.PLAYER_LOGIN)
     test.assertEqual("OnEvent", frame.scriptName)
     test.assertEqual(nil, environment.SLASH_AGT1)
 
@@ -52,7 +53,7 @@ test.test("lifecycle waits for this add-on and registers slash handling", functi
     test.assertFalse(lifecycle.initialized)
 
     frame.handler(frame, "ADDON_LOADED", "AsgardsGuildTithe")
-    test.assertTrue(lifecycle.initialized)
+    test.assertFalse(lifecycle.initialized)
     test.assertTrue(lifecycle.slashRegistered)
     test.assertEqual("/agt", environment.SLASH_AGT1)
     test.assertEqual("/asgardstithe", environment.SLASH_AGT2)
@@ -65,7 +66,7 @@ test.test("lifecycle waits for this add-on and registers slash handling", functi
     )
 end)
 
-test.test("lifecycle initializes once when duplicate load events arrive", function()
+test.test("lifecycle registers slash handling once when duplicate load events arrive", function()
     local addon = loadRuntimeModules()
     local registrations = 0
     local client = {
@@ -82,6 +83,24 @@ test.test("lifecycle initializes once when duplicate load events arrive", functi
     test.assertEqual(1, registrations)
 end)
 
+test.test("lifecycle initializes state once when duplicate login events arrive", function()
+    local addon = loadRuntimeModules()
+    local initializations = 0
+    local state = {
+        Initialize = function()
+            initializations = initializations + 1
+            return true
+        end,
+    }
+    local lifecycle = addon.Lifecycle.Create({}, {}, state)
+
+    lifecycle:OnEvent("PLAYER_LOGIN")
+    lifecycle:OnEvent("PLAYER_LOGIN")
+
+    test.assertEqual(1, initializations)
+    test.assertTrue(lifecycle.stateReady)
+end)
+
 test.test("missing frame capability falls back to immediate slash registration", function()
     local addon = loadRuntimeModules()
     local environment = { SlashCmdList = {} }
@@ -90,7 +109,7 @@ test.test("missing frame capability falls back to immediate slash registration",
     local lifecycle = addon.Lifecycle.Create(client, router)
 
     test.assertFalse(lifecycle:Start())
-    test.assertTrue(lifecycle.initialized)
+    test.assertFalse(lifecycle.initialized)
     test.assertTrue(lifecycle.slashRegistered)
     test.assertEqual("/agt", environment.SLASH_AGT1)
 end)
@@ -107,7 +126,7 @@ test.test("all missing client capabilities are handled without an error", functi
 
     test.assertTrue(ok)
     test.assertFalse(started)
-    test.assertTrue(lifecycle.initialized)
+    test.assertFalse(lifecycle.initialized)
     test.assertFalse(lifecycle.slashRegistered)
 end)
 
@@ -135,7 +154,7 @@ test.test("client adapter contains errors raised by optional APIs", function()
     test.assertEqual("/agt", environment.SLASH_AGT1)
 end)
 
-test.test("lifecycle initializes character state before registering consumers", function()
+test.test("lifecycle initializes character state independently from slash handling", function()
     local addon = loadRuntimeModules()
     local calls = {}
     local client = {
@@ -152,14 +171,14 @@ test.test("lifecycle initializes character state before registering consumers", 
     }
     local lifecycle = addon.Lifecycle.Create(client, {}, state)
 
-    test.assertTrue(lifecycle:Initialize())
+    test.assertTrue(lifecycle:InitializeState())
 
     test.assertTrue(lifecycle.stateReady)
     test.assertEqual("state", calls[1])
-    test.assertEqual("slash", calls[2])
+    test.assertEqual(nil, calls[2])
 end)
 
-test.test("lifecycle registers settings after state and before slash handling", function()
+test.test("lifecycle registers settings after state initialization", function()
     local addon = loadRuntimeModules()
     local calls = {}
     local client = {
@@ -187,13 +206,13 @@ test.test("lifecycle registers settings after state and before slash handling", 
         settingsController
     )
 
-    test.assertTrue(lifecycle:Initialize())
+    test.assertTrue(lifecycle:InitializeState())
 
     test.assertTrue(lifecycle.stateReady)
     test.assertTrue(lifecycle.settingsReady)
     test.assertEqual("state", calls[1])
     test.assertEqual("settings", calls[2])
-    test.assertEqual("slash", calls[3])
+    test.assertEqual(nil, calls[3])
 end)
 
 test.test("settings registration failure does not stop slash handling", function()
@@ -220,7 +239,8 @@ test.test("settings registration failure does not stop slash handling", function
         settingsController
     )
 
-    test.assertTrue(lifecycle:Initialize())
+    lifecycle:RegisterSlash()
+    test.assertTrue(lifecycle:InitializeState())
     test.assertFalse(lifecycle.settingsReady)
     test.assertTrue(lifecycle.slashRegistered)
 end)
@@ -256,7 +276,8 @@ test.test("failed persisted state keeps settings unavailable while slash help re
         settingsController
     )
 
-    test.assertTrue(lifecycle:Initialize())
+    lifecycle:RegisterSlash()
+    test.assertFalse(lifecycle:InitializeState())
 
     test.assertFalse(lifecycle.stateReady)
     test.assertFalse(lifecycle.settingsReady)
@@ -283,7 +304,8 @@ test.test("state initialization exceptions retain their diagnostic message", fun
     }
     local lifecycle = addon.Lifecycle.Create(client, {}, state)
 
-    test.assertTrue(lifecycle:Initialize())
+    lifecycle:RegisterSlash()
+    test.assertFalse(lifecycle:InitializeState())
 
     test.assertFalse(lifecycle.stateReady)
     test.assertContains(messages[1], "persistence exploded")
