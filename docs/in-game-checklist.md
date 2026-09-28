@@ -42,7 +42,13 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 - **Build:** Not recorded. The build number is captured only when reporting an unresolved failure.
 - **Signed off by:** Jon Zenor
 
-This sign-off predates the two-client changes. Re-run the Forever checklist before releasing Retail support and record the new result here.
+Two-client re-check (PRD #14):
+
+- **Date:** 2026-09-28
+- **Client:** World of Warcraft: Forever (interfaces `16000`/`16001`)
+- **Result:** Signed off by Jon Zenor: the add-on launches correctly on Forever with the two-client changes (`_Camelot` and `_Mainline` manifests both present).
+- **Build:** Not recorded.
+- **Signed off by:** Jon Zenor
 
 ## WoW Retail
 
@@ -60,9 +66,9 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 
 ### Sign-off
 
-- **Date:**
+- **Date:** 2026-09-28
 - **Client:** World of Warcraft Retail (live)
-- **Interface:**
-- **Build:**
-- **Result:**
-- **Signed off by:**
+- **Interface:** `120100`, confirmed with `/dump (select(4, GetBuildInfo()))` and matching both `_Mainline.toc` manifests
+- **Build:** Not recorded.
+- **Result:** Signed off by Jon Zenor: the add-on launches correctly on Retail.
+- **Signed off by:** Jon Zenor
