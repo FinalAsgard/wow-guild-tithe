@@ -3,41 +3,64 @@
 The development add-on is a directory junction named
 `AsgardsGuildTitheDev`. It points directly at the Git checkout while remaining
 separate from the production `AsgardsGuildTithe` directory managed by
-CurseForge.
+CurseForge. The same checkout serves both supported clients: each client loads
+only its own development manifest from the junction.
 
 Production and development use separate manifests, SavedVariables, Settings
-identifiers, and slash commands:
+identifiers, and slash commands on both clients:
 
 | | Production | Development |
 | --- | --- | --- |
 | Folder | `AsgardsGuildTithe` | `AsgardsGuildTitheDev` |
-| Manifest | `AsgardsGuildTithe_Camelot.toc` | `AsgardsGuildTitheDev_Camelot.toc` |
+| Forever manifest | `AsgardsGuildTithe_Camelot.toc` | `AsgardsGuildTitheDev_Camelot.toc` |
+| Retail manifest | `AsgardsGuildTithe_Standard.toc` | `AsgardsGuildTitheDev_Standard.toc` |
 | SavedVariables | `AsgardsGuildTitheDB` | `AsgardsGuildTitheDevDB` |
 | Command | `/agt` | `/agtdev` |
 
-The long aliases are `/asgardstithe` and `/asgardstithedev`.
+The long aliases are `/asgardstithe` and `/asgardstithedev`. Each WoW
+installation keeps its own SavedVariables, so Forever and Retail data never
+mix.
 
 ## One-time installation
 
-From PowerShell in the checkout:
+From PowerShell in the checkout, choose the client with `-Client`:
 
 ```powershell
 cd ~/Projects/wow-guild-tithe
-./tools/Install-Dev.ps1
+./tools/Install-Dev.ps1                 # WoW Forever (default)
+./tools/Install-Dev.ps1 -Client Retail  # WoW Retail
 ```
 
-The default WoW root is
-`C:\Program Files (x86)\World of Warcraft\_classic_beta_`. Pass a different
-client directory when needed:
+| `-Client` | Default client directory |
+| --- | --- |
+| `Forever` (default) | `C:\Program Files (x86)\World of Warcraft\_classic_beta_` |
+| `Retail` | `C:\Program Files (x86)\World of Warcraft\_retail_` |
+
+If WoW is installed somewhere else, pass the `World of Warcraft` folder with
+`-WowInstallRoot`, and the client directory is still chosen by `-Client`:
 
 ```powershell
-./tools/Install-Dev.ps1 -WowRoot "D:\World of Warcraft\_classic_beta_"
+./tools/Install-Dev.ps1 -Client Retail -WowInstallRoot "D:\World of Warcraft"
 ```
 
-The installer derives the repository path from its own location. It only
-creates the junction under `Interface\AddOns`; it does not edit repository
-files or change permissions. It is safe to run repeatedly and refuses to
-replace a real directory or a junction targeting another checkout.
+For an unusual layout, pass the exact client directory with `-WowRoot`. It
+overrides the directory derived from `-Client`:
+
+```powershell
+./tools/Install-Dev.ps1 -Client Forever -WowRoot "D:\Games\WoW Forever"
+```
+
+To develop against both clients, run the installer once per client. Both
+junctions point at the same checkout.
+
+The installer derives the repository path from its own location and checks that
+the requested client's development manifest exists. It only creates the
+junction under `Interface\AddOns`; it does not edit repository files or change
+permissions. It is safe to run repeatedly and refuses to replace a real
+directory or a junction targeting another checkout.
+
+The installer's behavior is covered by `tests/Install-Dev.Tests.ps1`, which CI
+runs on Windows. Run it locally with `pwsh ./tests/Install-Dev.Tests.ps1`.
 
 ## Updating
 

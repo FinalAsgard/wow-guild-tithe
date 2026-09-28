@@ -48,7 +48,7 @@ This sign-off predates the two-client changes. Re-run the Forever checklist befo
 
 ### Install
 
-1. From the checkout, run `./tools/Install-Dev.ps1 -WowRoot "C:\Program Files (x86)\World of Warcraft\_retail_"` in PowerShell, adjusting the path if Retail is installed elsewhere.
+1. From the checkout, run `./tools/Install-Dev.ps1 -Client Retail` in PowerShell. Add `-WowInstallRoot` or `-WowRoot` if Retail is not in its default location (see [the development install](development-install.md)).
 2. Confirm `_retail_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Standard.toc`, `Core`, and `Adapters` are directly inside it.
 3. Start or restart the Retail client so it rescans add-ons.
 4. At character selection, open **AddOns** and confirm **Asgard's Guild Tithe (Dev)** appears enabled and is not marked out of date. Disable the production variant if it is installed.
