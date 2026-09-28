@@ -72,6 +72,10 @@ end
 function Controller:OnEvent(eventName, loadedAddonName)
     if eventName == "ADDON_LOADED" and loadedAddonName == self.addonName then
         self:RegisterSlash()
+        -- Loaded after login (load-on-demand): PLAYER_LOGIN has already fired.
+        if self.client:IsLoggedIn() then
+            self:InitializeState()
+        end
     elseif eventName == "PLAYER_LOGIN" then
         self:InitializeState()
     end

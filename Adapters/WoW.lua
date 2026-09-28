@@ -57,6 +57,11 @@ function Client:SetEventHandler(frame, handler)
     return callMethod(frame, "SetScript", "OnEvent", handler)
 end
 
+function Client:IsLoggedIn()
+    local ok, loggedIn = callFunction(self.environment.IsLoggedIn)
+    return ok and loggedIn ~= nil and loggedIn ~= false
+end
+
 local function withoutLeadingSlash(command)
     return string.gsub(command, "^/", "")
 end

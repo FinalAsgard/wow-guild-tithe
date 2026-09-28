@@ -74,6 +74,9 @@ test.test("lifecycle registers slash handling once when duplicate load events ar
             registrations = registrations + 1
             return true
         end,
+        IsLoggedIn = function()
+            return false
+        end,
     }
     local lifecycle = addon.Lifecycle.Create(client, {})
 
@@ -95,6 +98,31 @@ test.test("lifecycle initializes state once when duplicate login events arrive",
     local lifecycle = addon.Lifecycle.Create({}, {}, state)
 
     lifecycle:OnEvent("PLAYER_LOGIN")
+    lifecycle:OnEvent("PLAYER_LOGIN")
+
+    test.assertEqual(1, initializations)
+    test.assertTrue(lifecycle.stateReady)
+end)
+
+test.test("lifecycle initializes state at add-on load when the player is already logged in", function()
+    local addon = loadRuntimeModules()
+    local initializations = 0
+    local environment = {
+        IsLoggedIn = function()
+            return true
+        end,
+        SlashCmdList = {},
+    }
+    local client = addon.Compatibility.Create(environment)
+    local state = {
+        Initialize = function()
+            initializations = initializations + 1
+            return true
+        end,
+    }
+    local lifecycle = addon.Lifecycle.Create(client, addon.CommandRouter.Create(), state)
+
+    lifecycle:OnEvent("ADDON_LOADED", "AsgardsGuildTithe")
     lifecycle:OnEvent("PLAYER_LOGIN")
 
     test.assertEqual(1, initializations)
