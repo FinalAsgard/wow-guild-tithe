@@ -1,6 +1,6 @@
 # Testing conventions
 
-Guild Tithe production code and automated tests remain compatible with Lua 5.1. Run the suite from the repository root:
+Asgard's Guild Tithe production code and automated tests remain compatible with Lua 5.1. Run the suite from the repository root:
 
 ```sh
 lua5.1 tests/run.lua
@@ -32,4 +32,4 @@ repeat loads, field-local configuration repair, exact financial preservation,
 quarantine isolation, reload round trips, and no-write handling of future
 schemas. See [the schema and recovery contract](persistence.md).
 
-The test runner exits nonzero after reporting every failure. CI also parses every Lua file with Lua 5.1 before running the suite.
+The test runner exits nonzero after reporting every failure. CI also parses every Lua file with Lua 5.1, runs the suite, bootstraps both manifests, and exercises the Windows junction installer twice to prove idempotency.

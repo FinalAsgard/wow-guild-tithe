@@ -3,6 +3,8 @@ local Harness = {
     tests = {},
 }
 
+Harness.DEFAULT_ADDON_NAME = "AsgardsGuildTithe"
+
 local function render(value)
     if type(value) == "string" then
         return string.format("%q", value)
@@ -38,15 +40,15 @@ function Harness.assertContains(haystack, needle, message)
     end
 end
 
-function Harness.loadAddonFile(path, addon)
+function Harness.loadAddonFile(path, addon, addonName)
     local chunk, loadError = loadfile(path)
     if chunk == nil then
         error(loadError, 2)
     end
-    chunk("GuildTithe", addon)
+    chunk(addonName or Harness.DEFAULT_ADDON_NAME, addon)
 end
 
-function Harness.loadAddonFileInEnvironment(path, addon, environment)
+function Harness.loadAddonFileInEnvironment(path, addon, environment, addonName)
     local chunk, loadError
     if type(setfenv) == "function" then
         chunk, loadError = loadfile(path)
@@ -59,18 +61,23 @@ function Harness.loadAddonFileInEnvironment(path, addon, environment)
     if type(setfenv) == "function" then
         setfenv(chunk, environment)
     end
-    chunk("GuildTithe", addon)
+    chunk(addonName or Harness.DEFAULT_ADDON_NAME, addon)
 end
 
-function Harness.newAddon(...)
+function Harness.newAddonNamed(addonName, ...)
     local addon = {}
     local index
 
+    Harness.loadAddonFile("Core/Identity.lua", addon, addonName)
     for index = 1, select("#", ...) do
-        Harness.loadAddonFile(select(index, ...), addon)
+        Harness.loadAddonFile(select(index, ...), addon, addonName)
     end
 
     return addon
+end
+
+function Harness.newAddon(...)
+    return Harness.newAddonNamed(Harness.DEFAULT_ADDON_NAME, ...)
 end
 
 function Harness.run()

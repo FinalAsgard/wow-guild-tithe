@@ -13,7 +13,7 @@ end
 
 local function newEnvironment(name, realm, database, settings)
     local environment = {
-        GuildTitheDB = database,
+        AsgardsGuildTitheDB = database,
         Settings = settings,
         UnitName = function()
             return name
@@ -131,42 +131,42 @@ end
 
 local PREFERENCE_CASES = {
     {
-        variable = "GuildTithe_Source_Loot",
+        variable = "AsgardsGuildTithe_Source_Loot",
         source = "loot",
         defaultValue = true,
     },
     {
-        variable = "GuildTithe_Source_Quests",
+        variable = "AsgardsGuildTithe_Source_Quests",
         source = "quests",
         defaultValue = true,
     },
     {
-        variable = "GuildTithe_Source_VendorSales",
+        variable = "AsgardsGuildTithe_Source_VendorSales",
         source = "vendorSales",
         defaultValue = true,
     },
     {
-        variable = "GuildTithe_Source_Auctions",
+        variable = "AsgardsGuildTithe_Source_Auctions",
         source = "auctions",
         defaultValue = false,
     },
     {
-        variable = "GuildTithe_Source_Mailbox",
+        variable = "AsgardsGuildTithe_Source_Mailbox",
         source = "mailbox",
         defaultValue = false,
     },
     {
-        variable = "GuildTithe_Source_PlayerTrades",
+        variable = "AsgardsGuildTithe_Source_PlayerTrades",
         source = "playerTrades",
         defaultValue = true,
     },
     {
-        variable = "GuildTithe_Source_Miscellaneous",
+        variable = "AsgardsGuildTithe_Source_Miscellaneous",
         source = "miscellaneous",
         defaultValue = true,
     },
     {
-        variable = "GuildTithe_ChatFeedback",
+        variable = "AsgardsGuildTithe_ChatFeedback",
         field = "chatFeedback",
         defaultValue = true,
     },
@@ -196,9 +196,9 @@ test.test("native percentage setting binds immediately without changing financia
 
     test.assertTrue(controller:Register())
 
-    test.assertEqual("Guild Tithe", api.categoryName)
+    test.assertEqual("Asgard's Guild Tithe", api.categoryName)
     test.assertEqual(api.category, api.registeredCategory)
-    test.assertEqual("GuildTithe_Percentage", api.binding.variable)
+    test.assertEqual("AsgardsGuildTithe_Percentage", api.binding.variable)
     test.assertEqual("number", api.binding.variableType)
     test.assertEqual("Tithe percentage", api.binding.label)
     test.assertEqual(10, api.binding.defaultValue)
@@ -227,7 +227,7 @@ test.test("settings display the formatted balance read-only and hide the remaind
 
     test.assertEqual("Current balance: 12g 34s 56c", api.balanceHeading)
     test.assertEqual(1, #api.layout.initializers)
-    test.assertEqual(nil, api.bindings.GuildTithe_Balance)
+    test.assertEqual(nil, api.bindings.AsgardsGuildTithe_Balance)
     test.assertFalse(string.find(api.balanceHeading, "78", 1, true) ~= nil)
 end)
 
@@ -351,7 +351,7 @@ test.test("settings changes survive reload and remain isolated by character", fu
     local secondEnvironment = newEnvironment(
         "Valeera",
         "Realm Two",
-        firstEnvironment.GuildTitheDB,
+        firstEnvironment.AsgardsGuildTitheDB,
         secondAPI
     )
     local secondController = createController(addon, secondEnvironment)
@@ -363,7 +363,7 @@ test.test("settings changes survive reload and remain isolated by character", fu
     local reloadedController = createController(addon, newEnvironment(
         "Valeera",
         "Realm One",
-        firstEnvironment.GuildTitheDB,
+        firstEnvironment.AsgardsGuildTitheDB,
         reloadAPI
     ))
     test.assertTrue(reloadedController:Register())
@@ -390,7 +390,7 @@ test.test("all preferences survive reload and remain isolated by character", fun
     local secondController = createController(addon, newEnvironment(
         "Valeera",
         "Realm Two",
-        firstEnvironment.GuildTitheDB,
+        firstEnvironment.AsgardsGuildTitheDB,
         secondAPI
     ))
     test.assertTrue(secondController:Register())
@@ -399,7 +399,7 @@ test.test("all preferences survive reload and remain isolated by character", fun
     local reloadedController = createController(addon, newEnvironment(
         "Valeera",
         "Realm One",
-        firstEnvironment.GuildTitheDB,
+        firstEnvironment.AsgardsGuildTitheDB,
         reloadAPI
     ))
     test.assertTrue(reloadedController:Register())
@@ -440,7 +440,7 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
         end,
     }
     local controller, state = createController(addon, environment)
-    local database = environment.GuildTitheDB
+    local database = environment.AsgardsGuildTitheDB
     local router = addon.CommandRouter.Create()
     router:Register("help", "show available commands", function()
         router:PrintHelp()
@@ -449,10 +449,10 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
 
     test.assertFalse(controller:Register())
     test.assertTrue(router:Execute(""))
-    test.assertEqual(database, environment.GuildTitheDB)
+    test.assertEqual(database, environment.AsgardsGuildTitheDB)
     test.assertEqual(10, state:GetCurrentCharacter().percentage)
     test.assertContains(messages[1], "settings are unavailable")
-    test.assertContains(messages[1], "/gt help")
+    test.assertContains(messages[1], "/agt help")
 
     local incompatibleAPI = newSettingsAPI()
     incompatibleAPI.RegisterProxySetting = function()
@@ -460,14 +460,14 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     end
     environment.Settings = incompatibleAPI
     test.assertFalse(controller:Register())
-    test.assertEqual(database, environment.GuildTitheDB)
+    test.assertEqual(database, environment.AsgardsGuildTitheDB)
     test.assertEqual(10, state:GetCurrentCharacter().percentage)
 
     local missingCheckboxAPI = newSettingsAPI()
     missingCheckboxAPI.CreateCheckbox = nil
     environment.Settings = missingCheckboxAPI
     test.assertFalse(controller:Register())
-    test.assertEqual(database, environment.GuildTitheDB)
+    test.assertEqual(database, environment.AsgardsGuildTitheDB)
     test.assertTrue(state:GetCurrentCharacter().sources.loot)
 
     local failedCheckboxAPI = newSettingsAPI()
@@ -476,13 +476,13 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     end
     environment.Settings = failedCheckboxAPI
     test.assertFalse(controller:Register())
-    test.assertEqual(database, environment.GuildTitheDB)
+    test.assertEqual(database, environment.AsgardsGuildTitheDB)
     test.assertTrue(state:GetCurrentCharacter().sources.loot)
 
     local missingBalanceDisplayAPI = newSettingsAPI()
     environment.Settings = missingBalanceDisplayAPI
     environment.CreateSettingsListSectionHeaderInitializer = nil
     test.assertFalse(controller:Register())
-    test.assertEqual(database, environment.GuildTitheDB)
+    test.assertEqual(database, environment.AsgardsGuildTitheDB)
     test.assertEqual(10, state:GetCurrentCharacter().percentage)
 end)

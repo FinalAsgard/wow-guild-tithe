@@ -20,7 +20,9 @@ function CommandRouter.Create(output)
         commands = {},
         commandOrder = {},
         defaultCommand = "help",
+        displayName = addon.Identity.displayName,
         output = type(output) == "function" and output or function() end,
+        slashCommand = addon.Identity.slashCommand,
     }, Router)
 end
 
@@ -57,10 +59,10 @@ function Router:PrintHelp()
     for index = 1, #self.commandOrder do
         local command = self.commandOrder[index]
         local description = self.commands[command].description
-        table.insert(entries, "/gt " .. command .. " - " .. description)
+        table.insert(entries, self.slashCommand .. " " .. command .. " - " .. description)
     end
 
-    self.output("Guild Tithe: " .. table.concat(entries, "; "))
+    self.output(self.displayName .. ": " .. table.concat(entries, "; "))
 end
 
 function Router:Execute(input)
@@ -71,7 +73,8 @@ function Router:Execute(input)
 
     local route = self.commands[command]
     if route == nil then
-        self.output("Guild Tithe: unknown command '" .. command .. "'. Use /gt help.")
+        self.output(self.displayName .. ": unknown command '" .. command ..
+            "'. Use " .. self.slashCommand .. " help.")
         return false
     end
 

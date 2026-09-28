@@ -13,7 +13,10 @@ test.test("empty slash input prints concise help", function()
 
     test.assertTrue(router:Execute(""))
     test.assertEqual(1, #messages)
-    test.assertEqual("Guild Tithe: /gt help - show available commands", messages[1])
+    test.assertEqual(
+        "Asgard's Guild Tithe: /agt help - show available commands",
+        messages[1]
+    )
 end)
 
 test.test("commands receive arguments and can be extended", function()
@@ -38,7 +41,7 @@ test.test("unknown commands fail safely with a useful hint", function()
 
     test.assertFalse(router:Execute("missing"))
     test.assertContains(message, "unknown command 'missing'")
-    test.assertContains(message, "/gt help")
+    test.assertContains(message, "/agt help")
 end)
 
 test.test("a registered route can become the empty-input default", function()

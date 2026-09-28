@@ -1,16 +1,18 @@
 # Persistence schema and recovery
 
-`GuildTitheDB` is an account-wide SavedVariables table. Production code reads and
-writes that global only through `Adapters/WoW.lua`; `Core/Persistence.lua` is the
-single loading, migration, and validation boundary used by character state.
-Settings and accounting receive state only after that boundary succeeds.
+`AsgardsGuildTitheDB` is the production account-wide SavedVariables table;
+`AsgardsGuildTitheDevDB` is its isolated development counterpart. Runtime
+identity selects the declared table, and production code reads and writes it
+only through `Adapters/WoW.lua`. `Core/Persistence.lua` is the single loading,
+migration, and validation boundary used by character state. Settings and
+accounting receive state only after that boundary succeeds.
 
 ## Current schema: version 2
 
 The persisted shape is:
 
 ```lua
-GuildTitheDB = {
+AsgardsGuildTitheDB = {
     schemaVersion = 2,
     characters = {
         ["normalizedname-normalizedrealm"] = {

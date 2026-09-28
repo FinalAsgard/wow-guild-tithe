@@ -29,7 +29,10 @@ local function callFunction(callback, ...)
 end
 
 function Compatibility.Create(environment)
-    return setmetatable({ environment = environment or _G }, Client)
+    return setmetatable({
+        databaseName = addon.Identity.databaseName,
+        environment = environment or _G,
+    }, Client)
 end
 
 function Client:CreateEventFrame()
@@ -112,11 +115,11 @@ function Client:GetCurrentCharacterIdentity()
 end
 
 function Client:GetAccountDatabase()
-    return self.environment.GuildTitheDB
+    return self.environment[self.databaseName]
 end
 
 function Client:SetAccountDatabase(database)
-    self.environment.GuildTitheDB = database
+    self.environment[self.databaseName] = database
     return true
 end
 

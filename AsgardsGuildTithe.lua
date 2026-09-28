@@ -13,7 +13,7 @@ router:Register("help", "show available commands", function()
 end)
 settingsController:RegisterCommands(router)
 
-local lifecycle = addon.Lifecycle.Create(client, router, addonName, state, settingsController)
+local lifecycle = addon.Lifecycle.Create(client, router, state, settingsController)
 
 addon.client = client
 addon.lifecycle = lifecycle

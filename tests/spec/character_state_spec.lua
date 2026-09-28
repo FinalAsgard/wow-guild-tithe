@@ -10,7 +10,7 @@ end
 
 local function newEnvironment(name, realm, stableId, database)
     return {
-        GuildTitheDB = database,
+        AsgardsGuildTitheDB = database,
         UnitName = function(unit)
             test.assertEqual("player", unit)
             return name
@@ -38,7 +38,7 @@ test.test("fresh characters receive the complete default tithe state", function(
     test.assertTrue(state:Initialize())
     local character = state:GetCurrentCharacter()
 
-    test.assertEqual(2, environment.GuildTitheDB.schemaVersion)
+    test.assertEqual(2, environment.AsgardsGuildTitheDB.schemaVersion)
     test.assertEqual("arthas-camelot", state:GetCharacterKey())
     test.assertEqual("Arthas", character.identity.displayName)
     test.assertEqual("Camelot", character.identity.displayRealm)
@@ -67,7 +67,12 @@ test.test("state changes survive reconstruction against the saved database", fun
     test.assertTrue(firstState:SetSourceEnabled("auctions", true))
     test.assertTrue(firstState:SetFinancialState(123456, 73))
 
-    local reloadedEnvironment = newEnvironment("Jaina", "Camelot", nil, environment.GuildTitheDB)
+    local reloadedEnvironment = newEnvironment(
+        "Jaina",
+        "Camelot",
+        nil,
+        environment.AsgardsGuildTitheDB
+    )
     local reloadedState = createState(addon, reloadedEnvironment)
     test.assertTrue(reloadedState:Initialize())
     local character = reloadedState:GetCurrentCharacter()
@@ -91,7 +96,7 @@ test.test("same-name characters on different realms remain isolated", function()
         "Valeera",
         "Realm Two",
         "Player-B",
-        firstEnvironment.GuildTitheDB
+        firstEnvironment.AsgardsGuildTitheDB
     )
     local secondState = createState(addon, secondEnvironment)
     test.assertTrue(secondState:Initialize())
@@ -102,7 +107,7 @@ test.test("same-name characters on different realms remain isolated", function()
         "Valeera",
         "Realm One",
         "Player-A",
-        firstEnvironment.GuildTitheDB
+        firstEnvironment.AsgardsGuildTitheDB
     ))
     test.assertTrue(firstReload:Initialize())
 
@@ -125,7 +130,7 @@ test.test("normalized name and realm remain the lookup path when stable id chang
         "  REXXAR  ",
         " the  venture co ",
         "New-GUID",
-        firstEnvironment.GuildTitheDB
+        firstEnvironment.AsgardsGuildTitheDB
     ))
     test.assertTrue(reloadedState:Initialize())
     local character = reloadedState:GetCurrentCharacter()
@@ -187,13 +192,13 @@ test.test("missing identity or an unsupported schema does not overwrite saved da
     local futureState = createState(addon, futureEnvironment)
 
     test.assertFalse(futureState:Initialize())
-    test.assertEqual(futureDatabase, futureEnvironment.GuildTitheDB)
-    test.assertTrue(futureEnvironment.GuildTitheDB.characters.untouched)
+    test.assertEqual(futureDatabase, futureEnvironment.AsgardsGuildTitheDB)
+    test.assertTrue(futureEnvironment.AsgardsGuildTitheDB.characters.untouched)
 
     local missingIdentityEnvironment = {
-        GuildTitheDB = futureDatabase,
+        AsgardsGuildTitheDB = futureDatabase,
     }
     local missingIdentityState = createState(addon, missingIdentityEnvironment)
     test.assertFalse(missingIdentityState:Initialize())
-    test.assertEqual(futureDatabase, missingIdentityEnvironment.GuildTitheDB)
+    test.assertEqual(futureDatabase, missingIdentityEnvironment.AsgardsGuildTitheDB)
 end)

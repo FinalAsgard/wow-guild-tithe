@@ -9,49 +9,49 @@ Controller.__index = Controller
 local SOURCE_SETTINGS = {
     {
         key = "loot",
-        variable = "GuildTithe_Source_Loot",
+        variableSuffix = "Source_Loot",
         label = "Loot income",
         tooltip = "Include coin looted from creatures and containers.",
         defaultValue = true,
     },
     {
         key = "quests",
-        variable = "GuildTithe_Source_Quests",
+        variableSuffix = "Source_Quests",
         label = "Quest income",
         tooltip = "Include money received from quest rewards.",
         defaultValue = true,
     },
     {
         key = "vendorSales",
-        variable = "GuildTithe_Source_VendorSales",
+        variableSuffix = "Source_VendorSales",
         label = "Vendor sales",
         tooltip = "Include money received from selling items to vendors.",
         defaultValue = true,
     },
     {
         key = "auctions",
-        variable = "GuildTithe_Source_Auctions",
+        variableSuffix = "Source_Auctions",
         label = "Auction income",
         tooltip = "Include proceeds from auction-house sales.",
         defaultValue = false,
     },
     {
         key = "mailbox",
-        variable = "GuildTithe_Source_Mailbox",
+        variableSuffix = "Source_Mailbox",
         label = "Mailbox income",
         tooltip = "Include non-auction money received through the mailbox.",
         defaultValue = false,
     },
     {
         key = "playerTrades",
-        variable = "GuildTithe_Source_PlayerTrades",
+        variableSuffix = "Source_PlayerTrades",
         label = "Player trades",
         tooltip = "Include money received through direct player trades.",
         defaultValue = true,
     },
     {
         key = "miscellaneous",
-        variable = "GuildTithe_Source_Miscellaneous",
+        variableSuffix = "Source_Miscellaneous",
         label = "Miscellaneous/system income",
         tooltip = "Include otherwise unclassified money gains.",
         defaultValue = true,
@@ -59,9 +59,9 @@ local SOURCE_SETTINGS = {
 }
 
 local CHAT_FEEDBACK_SETTING = {
-    variable = "GuildTithe_ChatFeedback",
+    variableSuffix = "ChatFeedback",
     label = "Routine chat feedback",
-    tooltip = "Show routine Guild Tithe activity messages in chat.",
+    tooltip = "Show routine Asgard's Guild Tithe activity messages in chat.",
     defaultValue = true,
 }
 
@@ -121,7 +121,7 @@ local function buildCheckboxes(state)
         local definition = SOURCE_SETTINGS[index]
         local source = definition.key
         table.insert(checkboxes, {
-            variable = definition.variable,
+            variable = addon.Identity.settingsPrefix .. "_" .. definition.variableSuffix,
             label = definition.label,
             tooltip = definition.tooltip,
             defaultValue = definition.defaultValue,
@@ -135,7 +135,8 @@ local function buildCheckboxes(state)
     end
 
     table.insert(checkboxes, {
-        variable = CHAT_FEEDBACK_SETTING.variable,
+        variable = addon.Identity.settingsPrefix .. "_" ..
+            CHAT_FEEDBACK_SETTING.variableSuffix,
         label = CHAT_FEEDBACK_SETTING.label,
         tooltip = CHAT_FEEDBACK_SETTING.tooltip,
         defaultValue = CHAT_FEEDBACK_SETTING.defaultValue,
@@ -168,10 +169,10 @@ function Controller:Register()
     end
 
     local category = self.client:RegisterSettingsCategory({
-        categoryName = "Guild Tithe",
+        categoryName = addon.Identity.displayName,
         balanceText = balanceText,
         percentage = {
-            variable = "GuildTithe_Percentage",
+            variable = addon.Identity.settingsPrefix .. "_Percentage",
             label = "Tithe percentage",
             tooltip = "Percentage of eligible income reserved for your guild tithe.",
             defaultValue = 10,
@@ -210,7 +211,9 @@ function Controller:Open()
         return true
     end
 
-    self.client:Print("Guild Tithe: settings are unavailable on this client. Use /gt help.")
+    self.client:Print(addon.Identity.displayName ..
+        ": settings are unavailable on this client. Use " ..
+        addon.Identity.slashCommand .. " help.")
     return false
 end
 

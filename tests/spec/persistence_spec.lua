@@ -12,7 +12,7 @@ end
 
 local function newEnvironment(name, realm, database)
     return {
-        GuildTitheDB = database,
+        AsgardsGuildTitheDB = database,
         UnitName = function()
             return name or "Jaina"
         end,
@@ -297,7 +297,7 @@ test.test("a quarantined current character stays unavailable to state and accoun
     test.assertEqual(nil, result)
     test.assertEqual("current character state is unavailable", accountingError)
     test.assertEqual(100,
-        environment.GuildTitheDB.quarantinedCharacters["jaina-camelot"][1]
+        environment.AsgardsGuildTitheDB.quarantinedCharacters["jaina-camelot"][1]
             .record.fractionalRemainder)
 end)
 
@@ -315,8 +315,8 @@ test.test("migration and validation failure leave the original database untouche
 
     test.assertEqual(nil, database)
     test.assertContains(loadError, "character collection")
-    test.assertEqual(original, environment.GuildTitheDB)
-    assertDeepEqual(snapshot, environment.GuildTitheDB)
+    test.assertEqual(original, environment.AsgardsGuildTitheDB)
+    assertDeepEqual(snapshot, environment.AsgardsGuildTitheDB)
 end)
 
 test.test("cyclic saved data is rejected without mutation or writeback", function()
@@ -411,7 +411,7 @@ test.test("repaired state survives a reload round trip without further changes",
             }),
         },
     })
-    environment.GuildTitheDB.characters["jaina-camelot"].sources.loot = nil
+    environment.AsgardsGuildTitheDB.characters["jaina-camelot"].sources.loot = nil
 
     local first = addon.CharacterState.Create(addon.Compatibility.Create(environment))
     test.assertTrue(first:Initialize())

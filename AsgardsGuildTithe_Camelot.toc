@@ -1,10 +1,11 @@
 ## Interface: 16000, 16001
-## Title: Guild Tithe
+## Title: Asgard's Guild Tithe
 ## Notes: Tracks a configurable guild tithe.
 ## Author: FinalAsgard
 ## Version: 0.1.0
-## SavedVariables: GuildTitheDB
+## SavedVariables: AsgardsGuildTitheDB
 
+Core/Identity.lua
 Adapters/WoW.lua
 Core/Persistence.lua
 Core/CharacterState.lua
@@ -14,4 +15,4 @@ Core/MoneyFormatter.lua
 Core/CommandRouter.lua
 Core/SettingsController.lua
 Core/Lifecycle.lua
-GuildTithe.lua
+AsgardsGuildTithe.lua

@@ -41,24 +41,27 @@ test.test("lifecycle waits for this add-on and registers slash handling", functi
     router:Register("help", "show available commands", function()
         router:PrintHelp()
     end)
-    local lifecycle = addon.Lifecycle.Create(client, router, "GuildTithe")
+    local lifecycle = addon.Lifecycle.Create(client, router)
 
     test.assertTrue(lifecycle:Start())
     test.assertEqual("ADDON_LOADED", frame.registeredEvent)
     test.assertEqual("OnEvent", frame.scriptName)
-    test.assertEqual(nil, environment.SLASH_GUILDTITHE1)
+    test.assertEqual(nil, environment.SLASH_ASGARDSGUILDTITHE1)
 
     frame.handler(frame, "ADDON_LOADED", "SomeOtherAddon")
     test.assertFalse(lifecycle.initialized)
 
-    frame.handler(frame, "ADDON_LOADED", "GuildTithe")
+    frame.handler(frame, "ADDON_LOADED", "AsgardsGuildTithe")
     test.assertTrue(lifecycle.initialized)
     test.assertTrue(lifecycle.slashRegistered)
-    test.assertEqual("/gt", environment.SLASH_GUILDTITHE1)
-    test.assertEqual("function", type(environment.SlashCmdList.GUILDTITHE))
+    test.assertEqual("/agt", environment.SLASH_ASGARDSGUILDTITHE1)
+    test.assertEqual("function", type(environment.SlashCmdList.ASGARDSGUILDTITHE))
 
-    environment.SlashCmdList.GUILDTITHE("")
-    test.assertEqual("Guild Tithe: /gt help - show available commands", messages[1])
+    environment.SlashCmdList.ASGARDSGUILDTITHE("")
+    test.assertEqual(
+        "Asgard's Guild Tithe: /agt help - show available commands",
+        messages[1]
+    )
 end)
 
 test.test("lifecycle initializes once when duplicate load events arrive", function()
@@ -70,10 +73,10 @@ test.test("lifecycle initializes once when duplicate load events arrive", functi
             return true
         end,
     }
-    local lifecycle = addon.Lifecycle.Create(client, {}, "GuildTithe")
+    local lifecycle = addon.Lifecycle.Create(client, {})
 
-    lifecycle:OnEvent("ADDON_LOADED", "GuildTithe")
-    lifecycle:OnEvent("ADDON_LOADED", "GuildTithe")
+    lifecycle:OnEvent("ADDON_LOADED", "AsgardsGuildTithe")
+    lifecycle:OnEvent("ADDON_LOADED", "AsgardsGuildTithe")
 
     test.assertEqual(1, registrations)
 end)
@@ -83,19 +86,19 @@ test.test("missing frame capability falls back to immediate slash registration",
     local environment = { SlashCmdList = {} }
     local client = addon.Compatibility.Create(environment)
     local router = addon.CommandRouter.Create()
-    local lifecycle = addon.Lifecycle.Create(client, router, "GuildTithe")
+    local lifecycle = addon.Lifecycle.Create(client, router)
 
     test.assertFalse(lifecycle:Start())
     test.assertTrue(lifecycle.initialized)
     test.assertTrue(lifecycle.slashRegistered)
-    test.assertEqual("/gt", environment.SLASH_GUILDTITHE1)
+    test.assertEqual("/agt", environment.SLASH_ASGARDSGUILDTITHE1)
 end)
 
 test.test("all missing client capabilities are handled without an error", function()
     local addon = loadRuntimeModules()
     local client = addon.Compatibility.Create({})
     local router = addon.CommandRouter.Create()
-    local lifecycle = addon.Lifecycle.Create(client, router, "GuildTithe")
+    local lifecycle = addon.Lifecycle.Create(client, router)
 
     local ok, started = pcall(function()
         return lifecycle:Start()
@@ -117,7 +120,7 @@ test.test("client adapter contains errors raised by optional APIs", function()
     }
     local client = addon.Compatibility.Create(environment)
     local router = addon.CommandRouter.Create()
-    local lifecycle = addon.Lifecycle.Create(client, router, "GuildTithe")
+    local lifecycle = addon.Lifecycle.Create(client, router)
 
     local ok = pcall(function()
         lifecycle:Start()
@@ -142,7 +145,7 @@ test.test("lifecycle initializes character state before registering consumers", 
             return true
         end,
     }
-    local lifecycle = addon.Lifecycle.Create(client, {}, "GuildTithe", state)
+    local lifecycle = addon.Lifecycle.Create(client, {}, state)
 
     test.assertTrue(lifecycle:Initialize())
 
@@ -175,7 +178,6 @@ test.test("lifecycle registers settings after state and before slash handling", 
     local lifecycle = addon.Lifecycle.Create(
         client,
         {},
-        "GuildTithe",
         state,
         settingsController
     )
@@ -209,7 +211,6 @@ test.test("settings registration failure does not stop slash handling", function
     local lifecycle = addon.Lifecycle.Create(
         client,
         {},
-        "GuildTithe",
         state,
         settingsController
     )
@@ -246,7 +247,6 @@ test.test("failed persisted state keeps settings unavailable while slash help re
     local lifecycle = addon.Lifecycle.Create(
         client,
         {},
-        "GuildTithe",
         state,
         settingsController
     )
@@ -276,7 +276,7 @@ test.test("state initialization exceptions retain their diagnostic message", fun
             error("persistence exploded")
         end,
     }
-    local lifecycle = addon.Lifecycle.Create(client, {}, "GuildTithe", state)
+    local lifecycle = addon.Lifecycle.Create(client, {}, state)
 
     test.assertTrue(lifecycle:Initialize())
 
