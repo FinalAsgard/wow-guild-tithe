@@ -15,8 +15,8 @@ Use this checklist with the current World of Warcraft: Forever client.
 1. Log in to a character and confirm no Asgard's Guild Tithe Lua error appears during loading.
 2. Enter `/agtdev` and confirm the native Settings window opens to **AddOns > Asgard's Guild Tithe (Dev)**. If this Forever build does not expose the supported Settings API, confirm chat instead reports that settings are unavailable and suggests `/agtdev help`.
 3. When settings are available, confirm **Tithe percentage** starts at `10`, accepts whole numbers from `0` through `100`, and does not allow values outside that range.
-4. Confirm **Current balance** displays `0g 00s 00c` for a fresh character and has no editable control or fractional-remainder display.
-5. Confirm **Loot income**, **Quest income**, **Vendor sales**, **Player trades**, **Miscellaneous/system income**, and **Routine chat feedback** start enabled, while **Auction income** and **Mailbox income** start disabled.
+4. Confirm **Current balance** displays `0g 00s 00c` for a fresh character, states that income tracking is not active yet, and has no editable control or fractional-remainder display.
+5. Confirm **Loot income**, **Quest income**, **Vendor sales**, **Player trades**, **Miscellaneous/system income**, and **Routine chat feedback** start enabled, while **Auction income** and **Mailbox income** start disabled. These options configure the future income observer; selling an item does not change the balance in this PRD.
 6. Change the percentage and each checkbox, close and reopen settings with `/agtdev`, and confirm every new value appears immediately while the balance remains unchanged.
 7. Run `/reload`, reopen settings, and confirm the chosen percentage and checkbox values remain.
 8. Fully exit and restart the client, reopen settings, and confirm those values remain after a complete SavedVariables round trip.

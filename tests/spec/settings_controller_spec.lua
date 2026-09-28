@@ -14,6 +14,9 @@ end
 local function newEnvironment(name, realm, database, settings)
     local environment = {
         AsgardsGuildTitheDB = database,
+        MinimalSliderWithSteppersMixin = {
+            Label = { Right = "right" },
+        },
         Settings = settings,
         UnitName = function()
             return name
@@ -91,6 +94,10 @@ local function newSettingsAPI()
             maximum = maximum,
             step = step,
         }
+        function api.sliderOptions:SetLabelFormatter(label, formatter)
+            api.sliderLabel = label
+            api.sliderFormatter = formatter
+        end
         return api.sliderOptions
     end
 
@@ -205,6 +212,8 @@ test.test("native percentage setting binds immediately without changing financia
     test.assertEqual(0, api.sliderOptions.minimum)
     test.assertEqual(100, api.sliderOptions.maximum)
     test.assertEqual(1, api.sliderOptions.step)
+    test.assertEqual("right", api.sliderLabel)
+    test.assertEqual("37%", api.sliderFormatter(37))
     test.assertEqual(10, api.binding.getValue())
 
     test.assertTrue(api.binding.setValue(37))
@@ -225,7 +234,10 @@ test.test("settings display the formatted balance read-only and hide the remaind
 
     test.assertTrue(controller:Register())
 
-    test.assertEqual("Current balance: 12g 34s 56c", api.balanceHeading)
+    test.assertEqual(
+        "Current balance: 12g 34s 56c (income tracking not active)",
+        api.balanceHeading
+    )
     test.assertEqual(1, #api.layout.initializers)
     test.assertEqual(nil, api.bindings.AsgardsGuildTithe_Balance)
     test.assertFalse(string.find(api.balanceHeading, "78", 1, true) ~= nil)
@@ -240,11 +252,17 @@ test.test("opening settings refreshes the balance from current character state",
     )
 
     test.assertTrue(controller:Register())
-    test.assertEqual("Current balance: 0g 00s 00c", api.balanceHeading)
+    test.assertEqual(
+        "Current balance: 0g 00s 00c (income tracking not active)",
+        api.balanceHeading
+    )
     test.assertTrue(state:SetFinancialState(123456, 78))
 
     test.assertTrue(controller:Open())
-    test.assertEqual("Current balance: 12g 34s 56c", api.balanceHeading)
+    test.assertEqual(
+        "Current balance: 12g 34s 56c (income tracking not active)",
+        api.balanceHeading
+    )
 end)
 
 test.test("settings expose all source and chat preferences with fresh-character defaults", function()
@@ -482,6 +500,18 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     local missingBalanceDisplayAPI = newSettingsAPI()
     environment.Settings = missingBalanceDisplayAPI
     environment.CreateSettingsListSectionHeaderInitializer = nil
+    test.assertFalse(controller:Register())
+    test.assertEqual(database, environment.AsgardsGuildTitheDB)
+    test.assertEqual(10, state:GetCurrentCharacter().percentage)
+
+    local missingSliderFormatterAPI = newSettingsAPI()
+    missingSliderFormatterAPI.CreateSliderOptions = function()
+        return {}
+    end
+    environment.Settings = missingSliderFormatterAPI
+    environment.CreateSettingsListSectionHeaderInitializer = function(label)
+        return { kind = "section-header", label = label }
+    end
     test.assertFalse(controller:Register())
     test.assertEqual(database, environment.AsgardsGuildTitheDB)
     test.assertEqual(10, state:GetCurrentCharacter().percentage)

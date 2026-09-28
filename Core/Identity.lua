@@ -3,10 +3,12 @@ local addonName, addon = ...
 local VARIANTS = {
     AsgardsGuildTithe = {
         displayName = "Asgard's Guild Tithe",
+        slashAlias = "/asgardstithe",
         slashCommand = "/agt",
     },
     AsgardsGuildTitheDev = {
         displayName = "Asgard's Guild Tithe (Dev)",
+        slashAlias = "/asgardstithedev",
         slashCommand = "/agtdev",
     },
 }
@@ -21,6 +23,7 @@ addon.Identity = {
     databaseName = addonName .. "DB",
     displayName = variant.displayName,
     settingsPrefix = addonName,
+    slashAlias = variant.slashAlias,
     slashCommand = variant.slashCommand,
-    slashKey = string.upper(addonName),
+    slashKey = string.upper(string.sub(variant.slashCommand, 2)),
 }

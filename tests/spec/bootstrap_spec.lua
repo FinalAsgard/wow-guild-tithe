@@ -21,7 +21,8 @@ local VARIANTS = {
         displayName = "Asgard's Guild Tithe",
         otherDatabaseName = "AsgardsGuildTitheDevDB",
         slashCommand = "/agt",
-        slashKey = "ASGARDSGUILDTITHE",
+        slashAlias = "/asgardstithe",
+        slashKey = "AGT",
         toc = "AsgardsGuildTithe_Camelot.toc",
     },
     {
@@ -30,7 +31,8 @@ local VARIANTS = {
         displayName = "Asgard's Guild Tithe (Dev)",
         otherDatabaseName = "AsgardsGuildTitheDB",
         slashCommand = "/agtdev",
-        slashKey = "ASGARDSGUILDTITHEDEV",
+        slashAlias = "/asgardstithedev",
+        slashKey = "AGTDEV",
         toc = "AsgardsGuildTitheDev_Camelot.toc",
     },
 }
@@ -81,7 +83,12 @@ local function newSettingsAPI()
     end
 
     function settings.CreateSliderOptions(minimum, maximum, step)
-        return { minimum = minimum, maximum = maximum, step = step }
+        local options = { minimum = minimum, maximum = maximum, step = step }
+        function options:SetLabelFormatter(label, formatter)
+            settings.sliderLabel = label
+            settings.sliderFormatter = formatter
+        end
+        return options
     end
 
     function settings.CreateSlider()
@@ -136,6 +143,9 @@ local function registerBootstrapTest(variant)
             GetRealmName = function()
                 return "Camelot"
             end,
+            MinimalSliderWithSteppersMixin = {
+                Label = { Right = "right" },
+            },
             Settings = settings,
             SlashCmdList = {},
             UnitGUID = function()
@@ -147,6 +157,13 @@ local function registerBootstrapTest(variant)
         }
         setmetatable(environment, { __index = _G })
         environment._G = environment
+        environment.RegisterNewSlashCommand = function(callback, command, alias)
+            local key = string.upper(command)
+            environment["SLASH_" .. key .. "1"] = "/" .. command
+            environment["SLASH_" .. key .. "2"] = "/" .. alias
+            environment.SlashCmdList[key] = callback
+            environment.registeredSlashAlias = "/" .. alias
+        end
         local legacyDatabase = { sentinel = "legacy GuildTithe data" }
         local otherVariantDatabase = { sentinel = "other isolated variant" }
         environment.GuildTitheDB = legacyDatabase
@@ -176,6 +193,8 @@ local function registerBootstrapTest(variant)
         test.assertEqual(otherVariantDatabase, environment[variant.otherDatabaseName])
         test.assertEqual(legacyDatabase, environment.GuildTitheDB)
         test.assertEqual(variant.displayName, settings.categoryName)
+        test.assertEqual("right", settings.sliderLabel)
+        test.assertEqual("42%", settings.sliderFormatter(42))
         test.assertEqual("table", type(settings.bindings[
             variant.addonName .. "_Percentage"
         ]))
@@ -183,6 +202,7 @@ local function registerBootstrapTest(variant)
             variant.slashCommand,
             environment["SLASH_" .. variant.slashKey .. "1"]
         )
+        test.assertEqual(variant.slashAlias, environment.registeredSlashAlias)
         test.assertEqual("function", type(environment.SlashCmdList[variant.slashKey]))
         test.assertEqual(settings.category, settings.registeredCategory)
 

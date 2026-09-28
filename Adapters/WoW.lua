@@ -57,13 +57,39 @@ function Client:SetEventHandler(frame, handler)
     return callMethod(frame, "SetScript", "OnEvent", handler)
 end
 
-function Client:RegisterSlashCommand(command, key, handler)
+local function withoutLeadingSlash(command)
+    return string.gsub(command, "^/", "")
+end
+
+function Client:RegisterSlashCommand(command, alias, key, handler)
+    if type(command) ~= "string"
+        or type(alias) ~= "string"
+        or type(key) ~= "string"
+        or type(handler) ~= "function"
+    then
+        return false
+    end
+
+    local registerNewSlashCommand = self.environment.RegisterNewSlashCommand
+    if type(registerNewSlashCommand) == "function" then
+        local ok = pcall(
+            registerNewSlashCommand,
+            handler,
+            withoutLeadingSlash(command),
+            withoutLeadingSlash(alias)
+        )
+        if ok then
+            return true
+        end
+    end
+
     local slashCommands = self.environment.SlashCmdList
     if type(slashCommands) ~= "table" then
         return false
     end
 
     self.environment["SLASH_" .. key .. "1"] = command
+    self.environment["SLASH_" .. key .. "2"] = alias
     slashCommands[key] = handler
     return true
 end
@@ -170,9 +196,8 @@ function Client:RegisterSettingsCategory(options)
             error("settings category was not created")
         end
 
-        local balanceInitializer = createSectionHeader(
-            "Current balance: " .. options.balanceText
-        )
+        local balanceInitializer = createSectionHeader("Current balance: " ..
+            options.balanceText .. " (income tracking not active)")
         if balanceInitializer == nil then
             error("balance display was not created")
         end
@@ -199,6 +224,21 @@ function Client:RegisterSettingsCategory(options)
         if sliderOptions == nil then
             error("percentage slider options were not created")
         end
+
+        local sliderMixin = self.environment.MinimalSliderWithSteppersMixin
+        if type(sliderOptions.SetLabelFormatter) ~= "function"
+            or type(sliderMixin) ~= "table"
+            or type(sliderMixin.Label) ~= "table"
+            or sliderMixin.Label.Right == nil
+        then
+            error("percentage slider formatter is unavailable")
+        end
+        sliderOptions:SetLabelFormatter(
+            sliderMixin.Label.Right,
+            function(value)
+                return string.format("%.0f%%", value)
+            end
+        )
 
         local slider = settings.CreateSlider(
             registeredCategory,
@@ -267,7 +307,8 @@ function Client:RefreshSettingsBalance(category, balanceText)
         return false
     end
 
-    data.name = "Current balance: " .. balanceText
+    data.name = "Current balance: " .. balanceText ..
+        " (income tracking not active)"
     return true
 end
 

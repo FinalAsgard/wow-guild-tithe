@@ -44,6 +44,7 @@ function Controller:Initialize()
 
     self.slashRegistered = self.client:RegisterSlashCommand(
         addon.Identity.slashCommand,
+        addon.Identity.slashAlias,
         addon.Identity.slashKey,
         function(input)
             self.router:Execute(input)

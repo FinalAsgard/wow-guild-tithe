@@ -46,7 +46,7 @@ test.test("lifecycle waits for this add-on and registers slash handling", functi
     test.assertTrue(lifecycle:Start())
     test.assertEqual("ADDON_LOADED", frame.registeredEvent)
     test.assertEqual("OnEvent", frame.scriptName)
-    test.assertEqual(nil, environment.SLASH_ASGARDSGUILDTITHE1)
+    test.assertEqual(nil, environment.SLASH_AGT1)
 
     frame.handler(frame, "ADDON_LOADED", "SomeOtherAddon")
     test.assertFalse(lifecycle.initialized)
@@ -54,10 +54,11 @@ test.test("lifecycle waits for this add-on and registers slash handling", functi
     frame.handler(frame, "ADDON_LOADED", "AsgardsGuildTithe")
     test.assertTrue(lifecycle.initialized)
     test.assertTrue(lifecycle.slashRegistered)
-    test.assertEqual("/agt", environment.SLASH_ASGARDSGUILDTITHE1)
-    test.assertEqual("function", type(environment.SlashCmdList.ASGARDSGUILDTITHE))
+    test.assertEqual("/agt", environment.SLASH_AGT1)
+    test.assertEqual("/asgardstithe", environment.SLASH_AGT2)
+    test.assertEqual("function", type(environment.SlashCmdList.AGT))
 
-    environment.SlashCmdList.ASGARDSGUILDTITHE("")
+    environment.SlashCmdList.AGT("")
     test.assertEqual(
         "Asgard's Guild Tithe: /agt help - show available commands",
         messages[1]
@@ -91,7 +92,7 @@ test.test("missing frame capability falls back to immediate slash registration",
     test.assertFalse(lifecycle:Start())
     test.assertTrue(lifecycle.initialized)
     test.assertTrue(lifecycle.slashRegistered)
-    test.assertEqual("/agt", environment.SLASH_ASGARDSGUILDTITHE1)
+    test.assertEqual("/agt", environment.SLASH_AGT1)
 end)
 
 test.test("all missing client capabilities are handled without an error", function()
@@ -116,6 +117,9 @@ test.test("client adapter contains errors raised by optional APIs", function()
         CreateFrame = function()
             error("client frame API failed")
         end,
+        RegisterNewSlashCommand = function()
+            error("client slash API failed")
+        end,
         SlashCmdList = {},
     }
     local client = addon.Compatibility.Create(environment)
@@ -128,6 +132,7 @@ test.test("client adapter contains errors raised by optional APIs", function()
 
     test.assertTrue(ok)
     test.assertTrue(lifecycle.slashRegistered)
+    test.assertEqual("/agt", environment.SLASH_AGT1)
 end)
 
 test.test("lifecycle initializes character state before registering consumers", function()

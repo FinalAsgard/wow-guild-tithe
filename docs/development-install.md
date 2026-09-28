@@ -15,6 +15,8 @@ identifiers, and slash commands:
 | SavedVariables | `AsgardsGuildTitheDB` | `AsgardsGuildTitheDevDB` |
 | Command | `/agt` | `/agtdev` |
 
+The long aliases are `/asgardstithe` and `/asgardstithedev`.
+
 ## One-time installation
 
 From PowerShell in the checkout:
