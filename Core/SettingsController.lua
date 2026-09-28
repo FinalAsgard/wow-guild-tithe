@@ -113,7 +113,7 @@ local function currentBalance(state, formatter)
     return formatter.Format(character.outstandingCopper)
 end
 
-local function buildCheckboxes(state)
+local function buildSourceCheckboxes(state)
     local checkboxes = {}
     local index
 
@@ -134,7 +134,11 @@ local function buildCheckboxes(state)
         })
     end
 
-    table.insert(checkboxes, {
+    return checkboxes
+end
+
+local function buildChatFeedbackCheckbox(state)
+    return {
         variable = addon.Identity.settingsPrefix .. "_" ..
             CHAT_FEEDBACK_SETTING.variableSuffix,
         label = CHAT_FEEDBACK_SETTING.label,
@@ -146,9 +150,7 @@ local function buildCheckboxes(state)
         setValue = function(value)
             return state:SetChatFeedback(value)
         end,
-    })
-
-    return checkboxes
+    }
 end
 
 function SettingsController.Create(client, state, formatter)
@@ -186,7 +188,16 @@ function Controller:Register()
                 return self.state:SetPercentage(value)
             end,
         },
-        checkboxes = buildCheckboxes(self.state),
+        checkboxSections = {
+            {
+                heading = "Income Sources",
+                checkboxes = buildSourceCheckboxes(self.state),
+            },
+            {
+                heading = "Feedback",
+                checkboxes = { buildChatFeedbackCheckbox(self.state) },
+            },
+        },
     })
 
     if category == nil then

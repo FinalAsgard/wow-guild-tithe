@@ -28,7 +28,12 @@ local function newEnvironment(name, realm, database, settings)
 
     environment.CreateSettingsListSectionHeaderInitializer = function(label)
         if type(environment.Settings) == "table" then
-            environment.Settings.balanceHeading = label
+            local api = environment.Settings
+            table.insert(api.sectionHeadings, label)
+            table.insert(api.events, "header:" .. label)
+            if string.find(label, "Current balance", 1, true) ~= nil then
+                api.balanceHeading = label
+            end
         end
         local initializer = {
             data = { name = label },
@@ -62,7 +67,9 @@ local function newSettingsAPI()
         bindings = {},
         checkboxes = {},
         category = category,
+        events = {},
         layout = layout,
+        sectionHeadings = {},
     }
 
     function api.RegisterVerticalLayoutCategory(name)
@@ -108,6 +115,7 @@ local function newSettingsAPI()
             options = options,
             tooltip = tooltip,
         }
+        table.insert(api.events, "slider:" .. setting.variable)
         return { kind = "slider" }
     end
 
@@ -118,6 +126,7 @@ local function newSettingsAPI()
             tooltip = tooltip,
         }
         table.insert(api.checkboxes, checkbox)
+        table.insert(api.events, "checkbox:" .. setting.variable)
         return checkbox
     end
 
@@ -235,10 +244,10 @@ test.test("settings display the formatted balance read-only and hide the remaind
     test.assertTrue(controller:Register())
 
     test.assertEqual(
-        "Current balance: 12g 34s 56c (income tracking not active)",
+        "Tithe - Current balance: 12g 34s 56c (income tracking not active)",
         api.balanceHeading
     )
-    test.assertEqual(1, #api.layout.initializers)
+    test.assertEqual(3, #api.layout.initializers)
     test.assertEqual(nil, api.bindings.AsgardsGuildTithe_Balance)
     test.assertFalse(string.find(api.balanceHeading, "78", 1, true) ~= nil)
 end)
@@ -253,14 +262,14 @@ test.test("opening settings refreshes the balance from current character state",
 
     test.assertTrue(controller:Register())
     test.assertEqual(
-        "Current balance: 0g 00s 00c (income tracking not active)",
+        "Tithe - Current balance: 0g 00s 00c (income tracking not active)",
         api.balanceHeading
     )
     test.assertTrue(state:SetFinancialState(123456, 78))
 
     test.assertTrue(controller:Open())
     test.assertEqual(
-        "Current balance: 12g 34s 56c (income tracking not active)",
+        "Tithe - Current balance: 12g 34s 56c (income tracking not active)",
         api.balanceHeading
     )
 end)
@@ -272,6 +281,14 @@ test.test("settings expose all source and chat preferences with fresh-character 
 
     test.assertTrue(controller:Register())
     test.assertEqual(8, #api.checkboxes)
+    test.assertEqual(3, #api.sectionHeadings)
+    test.assertContains(api.sectionHeadings[1], "Tithe")
+    test.assertEqual("Income Sources", api.sectionHeadings[2])
+    test.assertEqual("Feedback", api.sectionHeadings[3])
+    test.assertContains(api.events[3], "Income Sources")
+    test.assertContains(api.events[4], "Source_Loot")
+    test.assertContains(api.events[11], "Feedback")
+    test.assertContains(api.events[12], "ChatFeedback")
 
     local index
     for index = 1, #PREFERENCE_CASES do

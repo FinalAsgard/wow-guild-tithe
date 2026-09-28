@@ -160,7 +160,7 @@ function Client:RegisterSettingsCategory(options)
     local createSectionHeader = self.environment.CreateSettingsListSectionHeaderInitializer
     if type(options) ~= "table"
         or not validBinding(options.percentage)
-        or type(options.checkboxes) ~= "table"
+        or type(options.checkboxSections) ~= "table"
         or type(options.balanceText) ~= "string"
         or type(createSectionHeader) ~= "function"
         or type(settings) ~= "table"
@@ -177,10 +177,21 @@ function Client:RegisterSettingsCategory(options)
         return nil
     end
 
-    local index
-    for index = 1, #options.checkboxes do
-        if not validBinding(options.checkboxes[index]) then
+    local sectionIndex, checkboxIndex
+    for sectionIndex = 1, #options.checkboxSections do
+        local section = options.checkboxSections[sectionIndex]
+        if type(section) ~= "table"
+            or type(section.heading) ~= "string"
+            or section.heading == ""
+            or type(section.checkboxes) ~= "table"
+        then
             return nil
+        end
+
+        for checkboxIndex = 1, #section.checkboxes do
+            if not validBinding(section.checkboxes[checkboxIndex]) then
+                return nil
+            end
         end
     end
 
@@ -196,7 +207,7 @@ function Client:RegisterSettingsCategory(options)
             error("settings category was not created")
         end
 
-        local balanceInitializer = createSectionHeader("Current balance: " ..
+        local balanceInitializer = createSectionHeader("Tithe - Current balance: " ..
             options.balanceText .. " (income tracking not active)")
         if balanceInitializer == nil then
             error("balance display was not created")
@@ -250,28 +261,37 @@ function Client:RegisterSettingsCategory(options)
             error("percentage slider was not created")
         end
 
-        for index = 1, #options.checkboxes do
-            local checkbox = options.checkboxes[index]
-            local checkboxSetting = settings.RegisterProxySetting(
-                registeredCategory,
-                checkbox.variable,
-                settings.VarType.Boolean,
-                checkbox.label,
-                checkbox.defaultValue,
-                checkbox.getValue,
-                checkbox.setValue
-            )
-            if checkboxSetting == nil then
-                error("checkbox setting was not created")
+        for sectionIndex = 1, #options.checkboxSections do
+            local section = options.checkboxSections[sectionIndex]
+            local sectionInitializer = createSectionHeader(section.heading)
+            if sectionInitializer == nil then
+                error("settings section was not created")
             end
+            layout:AddInitializer(sectionInitializer)
 
-            local checkboxControl = settings.CreateCheckbox(
-                registeredCategory,
-                checkboxSetting,
-                checkbox.tooltip
-            )
-            if checkboxControl == nil then
-                error("checkbox control was not created")
+            for checkboxIndex = 1, #section.checkboxes do
+                local checkbox = section.checkboxes[checkboxIndex]
+                local checkboxSetting = settings.RegisterProxySetting(
+                    registeredCategory,
+                    checkbox.variable,
+                    settings.VarType.Boolean,
+                    checkbox.label,
+                    checkbox.defaultValue,
+                    checkbox.getValue,
+                    checkbox.setValue
+                )
+                if checkboxSetting == nil then
+                    error("checkbox setting was not created")
+                end
+
+                local checkboxControl = settings.CreateCheckbox(
+                    registeredCategory,
+                    checkboxSetting,
+                    checkbox.tooltip
+                )
+                if checkboxControl == nil then
+                    error("checkbox control was not created")
+                end
             end
         end
 
@@ -307,7 +327,7 @@ function Client:RefreshSettingsBalance(category, balanceText)
         return false
     end
 
-    data.name = "Current balance: " .. balanceText ..
+    data.name = "Tithe - Current balance: " .. balanceText ..
         " (income tracking not active)"
     return true
 end
