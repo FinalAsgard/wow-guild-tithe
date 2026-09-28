@@ -25,3 +25,11 @@ Use this checklist with the current World of Warcraft: Forever client.
 11. Enter `/agtdev unknown` and confirm the add-on reports an unknown command and suggests `/agtdev help` without raising an error.
 
 Record the Forever build from `/dump GetBuildInfo()` and any Lua error text when reporting a failure.
+
+## Sign-off
+
+- **Date:** 2026-09-27
+- **Client:** World of Warcraft: Forever (interfaces `16000`/`16001`)
+- **Result:** Every step above passed in the real client after the integration fixes on PR #13. No outstanding defects.
+- **Build:** Not recorded. The build number is captured only when reporting an unresolved failure.
+- **Signed off by:** Jon Zenor
