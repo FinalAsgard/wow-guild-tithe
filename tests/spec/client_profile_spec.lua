@@ -150,6 +150,25 @@ local function registerProfileTests(profile)
         test.assertContains(world.messages[1], "identity is unavailable")
     end)
 
+    test.test(profile .. " profile recovers state once identity is ready after a placeholder login", function()
+        local world = fixtures.newEnvironment(profile)
+        local addon = fixtures.loadAddon(world)
+
+        fixtures.fire(world, "ADDON_LOADED", "AsgardsGuildTithe")
+        fixtures.fire(world, "PLAYER_LOGIN")
+        fixtures.fire(world, "PLAYER_ENTERING_WORLD")
+        world.playerReady = true
+        fixtures.fire(world, "PLAYER_ENTERING_WORLD")
+        fixtures.fire(world, "PLAYER_ENTERING_WORLD")
+
+        local database = world.environment.AsgardsGuildTitheDB
+        test.assertTrue(addon.lifecycle.stateReady)
+        test.assertTrue(addon.lifecycle.settingsReady)
+        test.assertEqual("table", type(database.characters["jaina-camelot"]))
+        test.assertEqual(nil, database.characters["unknown-camelot"])
+        test.assertEqual(1, #world.messages)
+    end)
+
     test.test(profile .. " profile reports a missing essential capability once", function()
         local world = fixtures.newEnvironment(profile)
         world.environment.UnitName = nil
@@ -160,7 +179,8 @@ local function registerProfileTests(profile)
 
         fixtures.fire(world, "ADDON_LOADED", "AsgardsGuildTithe")
         fixtures.fire(world, "PLAYER_LOGIN")
-        fixtures.fire(world, "PLAYER_LOGIN")
+        fixtures.fire(world, "PLAYER_ENTERING_WORLD")
+        fixtures.fire(world, "PLAYER_ENTERING_WORLD")
 
         test.assertEqual(1, #world.messages)
         test.assertContains(world.messages[1], "saved character state is unavailable")

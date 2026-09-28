@@ -21,10 +21,13 @@ fi
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
+# Build into an empty staging directory so an older zip can never be the one
+# that gets validated.
+staging_dir="$work_dir/release"
 
 curl -fsSL "$packager_url" -o "$work_dir/release.sh"
 # -d: never upload anywhere. The result is only a local zip.
-"$packager_bash" "$work_dir/release.sh" -d -t "$repo_root" -r "$release_dir" | tee "$work_dir/packager.log"
+"$packager_bash" "$work_dir/release.sh" -d -t "$repo_root" -r "$staging_dir" | tee "$work_dir/packager.log"
 
 # The packager tags game versions from the manifest suffixes. A suffix it does
 # not recognize silently drops that client from the release.
@@ -33,6 +36,14 @@ if ! grep -q '^Build type: multi-version' "$work_dir/packager.log"; then
     exit 1
 fi
 
-zip_path="$(ls -t "$release_dir"/AsgardsGuildTithe-*.zip | head -n 1)"
-"$repo_root/tools/check-package.sh" "$zip_path"
+staged_zips=("$staging_dir"/AsgardsGuildTithe-*.zip)
+if [ "${#staged_zips[@]}" -ne 1 ] || [ ! -f "${staged_zips[0]}" ]; then
+    echo "Expected exactly one package in $staging_dir." >&2
+    exit 1
+fi
+"$repo_root/tools/check-package.sh" "${staged_zips[0]}"
+
+mkdir -p "$release_dir"
+zip_path="$release_dir/$(basename "${staged_zips[0]}")"
+mv -f "${staged_zips[0]}" "$zip_path"
 echo "Inspect the package with: unzip -l \"$zip_path\""

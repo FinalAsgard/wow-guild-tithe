@@ -46,6 +46,7 @@ test.test("lifecycle registers slash handling at add-on load and state at player
     test.assertTrue(lifecycle:Start())
     test.assertTrue(frame.registeredEvents.ADDON_LOADED)
     test.assertTrue(frame.registeredEvents.PLAYER_LOGIN)
+    test.assertTrue(frame.registeredEvents.PLAYER_ENTERING_WORLD)
     test.assertEqual("OnEvent", frame.scriptName)
     test.assertEqual(nil, environment.SLASH_AGT1)
 
@@ -102,6 +103,37 @@ test.test("lifecycle initializes state once when duplicate login events arrive",
 
     test.assertEqual(1, initializations)
     test.assertTrue(lifecycle.stateReady)
+end)
+
+test.test("lifecycle retries failed state initialization and stops after success", function()
+    local addon = loadRuntimeModules()
+    local attempts = 0
+    local messages = {}
+    local client = {
+        Print = function(_, message)
+            table.insert(messages, message)
+            return true
+        end,
+    }
+    local state = {
+        Initialize = function()
+            attempts = attempts + 1
+            if attempts < 3 then
+                return false, "current character identity is unavailable"
+            end
+            return true
+        end,
+    }
+    local lifecycle = addon.Lifecycle.Create(client, {}, state)
+
+    lifecycle:OnEvent("PLAYER_LOGIN")
+    lifecycle:OnEvent("PLAYER_ENTERING_WORLD")
+    lifecycle:OnEvent("PLAYER_ENTERING_WORLD")
+    lifecycle:OnEvent("PLAYER_ENTERING_WORLD")
+
+    test.assertEqual(3, attempts)
+    test.assertTrue(lifecycle.stateReady)
+    test.assertEqual(1, #messages)
 end)
 
 test.test("lifecycle initializes state at add-on load when the player is already logged in", function()

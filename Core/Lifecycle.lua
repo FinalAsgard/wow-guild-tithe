@@ -15,6 +15,7 @@ function Lifecycle.Create(client, router, state, settingsController)
         slashRegistrationAttempted = false,
         slashRegistered = false,
         state = state,
+        stateFailureReported = false,
         stateReady = false,
         settingsController = settingsController,
         settingsReady = false,
@@ -49,17 +50,21 @@ function Controller:InitializeState()
         return self.stateReady
     end
 
-    self.initialized = true
     if self.state ~= nil then
         local ok, initialized, stateError = pcall(self.state.Initialize, self.state)
         self.stateReady = ok and initialized == true
-        if not self.stateReady then
+        if not self.stateReady and not self.stateFailureReported then
+            -- Report once; later login events retry quietly.
+            self.stateFailureReported = true
             local failure = ok and stateError or initialized
             self.client:Print(addon.Identity.displayName ..
                 ": saved character state is unavailable" ..
                 (type(failure) == "string" and " (" .. failure .. ")." or "."))
         end
     end
+
+    -- A failed attempt (for example, identity not ready yet) stays retryable.
+    self.initialized = self.state == nil or self.stateReady
 
     if self.stateReady and self.settingsController ~= nil then
         local ok, registered = pcall(self.settingsController.Register, self.settingsController)
@@ -76,7 +81,7 @@ function Controller:OnEvent(eventName, loadedAddonName)
         if self.client:IsLoggedIn() then
             self:InitializeState()
         end
-    elseif eventName == "PLAYER_LOGIN" then
+    elseif eventName == "PLAYER_LOGIN" or eventName == "PLAYER_ENTERING_WORLD" then
         self:InitializeState()
     end
 end
@@ -93,6 +98,8 @@ function Controller:Start()
     end)
     local addonLoadedRegistered = self.client:RegisterEvent(frame, "ADDON_LOADED")
     local playerLoginRegistered = self.client:RegisterEvent(frame, "PLAYER_LOGIN")
+    -- Retry point when identity was not ready at PLAYER_LOGIN.
+    self.client:RegisterEvent(frame, "PLAYER_ENTERING_WORLD")
 
     if not handlerRegistered or not addonLoadedRegistered then
         self:RegisterSlash()
