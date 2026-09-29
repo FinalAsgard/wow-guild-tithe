@@ -21,5 +21,6 @@ Core/IncomeFeedback.lua
 Core/IncomeCoordinator.lua
 Core/IncomeCorrelator.lua
 Core/IncomeObserver.lua
+Core/TithePayment.lua
 Core/Lifecycle.lua
 AsgardsGuildTithe.lua

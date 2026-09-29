@@ -6,12 +6,14 @@ addon.Lifecycle = Lifecycle
 local Controller = {}
 Controller.__index = Controller
 
-function Lifecycle.Create(client, router, state, settingsController, incomeObserver)
+function Lifecycle.Create(client, router, state, settingsController, incomeObserver, tithePayment)
     return setmetatable({
         addonName = addon.Identity.addonName,
         client = client,
         incomeObserver = incomeObserver,
         incomeReady = false,
+        paymentReady = false,
+        tithePayment = tithePayment,
         initialized = false,
         router = router,
         slashRegistrationAttempted = false,
@@ -85,6 +87,13 @@ function Controller:InitializeState()
                 (type(failure) == "string" and " (" .. failure .. ")" or "") ..
                 ". Your saved balance is unchanged.")
         end
+    end
+
+    -- Guild-bank payments also need character state. A client without the
+    -- guild-bank events simply never offers a payment.
+    if self.stateReady and self.tithePayment ~= nil then
+        local ok, started = pcall(self.tithePayment.Start, self.tithePayment)
+        self.paymentReady = ok and started == true
     end
 
     return self.stateReady

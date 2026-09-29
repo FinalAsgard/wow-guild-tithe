@@ -447,6 +447,142 @@ function Client:ObserveMailCollection(onContext)
     return hooked
 end
 
+-- The player's current guild as { name, realm }, or nil when guildless or
+-- unknown. GetGuildInfo reports no realm for a guild on the player's realm.
+function Client:GetGuildIdentity()
+    local ok, name, _, _, realm = callFunction(self.environment.GetGuildInfo, "player")
+    if not ok or type(name) ~= "string" or name == "" then
+        return nil
+    end
+
+    if type(realm) ~= "string" or realm == "" then
+        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
+        realm = realmOk and currentRealm or nil
+    end
+    if type(realm) ~= "string" or realm == "" then
+        return nil
+    end
+
+    return { name = name, realm = realm }
+end
+
+-- Calls onOpen() / onClose() when the guild bank window opens or closes.
+-- Newer clients report it through the interaction manager (GuildBanker = 10).
+local GUILD_BANK_INTERACTION = 10
+
+function Client:ObserveGuildBank(onOpen, onClose)
+    if type(onOpen) ~= "function" or type(onClose) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function(_, eventName, interactionType)
+            if eventName == "GUILDBANKFRAME_OPENED"
+                or (eventName == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW"
+                    and interactionType == GUILD_BANK_INTERACTION)
+            then
+                onOpen()
+            elseif eventName == "GUILDBANKFRAME_CLOSED"
+                or (eventName == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE"
+                    and interactionType == GUILD_BANK_INTERACTION)
+            then
+                onClose()
+            end
+        end)
+    then
+        return false
+    end
+
+    local registered = false
+    local index
+    local events = {
+        "GUILDBANKFRAME_OPENED",
+        "GUILDBANKFRAME_CLOSED",
+        "PLAYER_INTERACTION_MANAGER_FRAME_SHOW",
+        "PLAYER_INTERACTION_MANAGER_FRAME_HIDE",
+    }
+    for index = 1, #events do
+        registered = self:RegisterEvent(frame, events[index]) or registered
+    end
+
+    self.guildBankFrame = frame
+    return registered
+end
+
+-- Asks the client to move `copper` from the player into the guild bank.
+-- Returns true when the request was made; completion is confirmed later by
+-- the player's carried money dropping by that amount.
+function Client:DepositGuildBankMoney(copper)
+    if copperAmount(copper) == nil or copper <= 0 then
+        return false
+    end
+    local ok = callFunction(self.environment.DepositGuildBankMoney, copper)
+    return ok == true
+end
+
+-- A small panel shown with the guild bank. Returns nil when the client
+-- cannot create frames. The panel exposes Show(lines, onDeposit), Hide(),
+-- and IsShown(); the Deposit button only appears when onDeposit is given.
+function Client:CreatePaymentPanel(title)
+    local createFrame = self.environment.CreateFrame
+    if type(createFrame) ~= "function" then
+        return nil
+    end
+
+    local parent = self.environment.GuildBankFrame or self.environment.UIParent
+    local ok, panel = pcall(function()
+        local frame = createFrame("Frame", nil, parent)
+        frame:SetSize(260, 96)
+        if self.environment.GuildBankFrame ~= nil then
+            frame:SetPoint("TOPLEFT", self.environment.GuildBankFrame, "TOPRIGHT", 4, 0)
+        else
+            frame:SetPoint("CENTER")
+        end
+
+        local heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        heading:SetPoint("TOPLEFT", 10, -10)
+        heading:SetText(title)
+
+        local body = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        body:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -6)
+        body:SetJustifyH("LEFT")
+
+        local button = createFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        button:SetSize(120, 22)
+        button:SetPoint("BOTTOMLEFT", 10, 10)
+        button:SetText("Deposit")
+
+        frame:Hide()
+        return { body = body, button = button, frame = frame }
+    end)
+    if not ok then
+        return nil
+    end
+
+    function panel:Show(lines, onDeposit)
+        self.body:SetText(table.concat(lines, "\n"))
+        self.button:SetScript("OnClick", onDeposit)
+        if onDeposit ~= nil then
+            self.button:Show()
+        else
+            self.button:Hide()
+        end
+        self.frame:Show()
+    end
+
+    function panel:Hide()
+        self.button:SetScript("OnClick", nil)
+        self.frame:Hide()
+    end
+
+    function panel:IsShown()
+        return self.frame:IsShown() == true
+    end
+
+    return panel
+end
+
 function Client:GetAccountDatabase()
     return self.environment[self.databaseName]
 end

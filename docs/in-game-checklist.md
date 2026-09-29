@@ -45,6 +45,17 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 18. When convenient: withdraw gold from the guild bank and confirm the balance does not change and no message appears.
 19. When convenient: buy an item from a vendor and sell it back for a refund. Confirm the refund is not tithed.
 
+## Guild-bank payment steps
+
+Run these on a guilded character that owes some tithe (earn a little income first), on both clients.
+
+1. Open the guild bank. Confirm a panel appears beside it showing your guild, the tithe amount, and what you will still owe.
+2. Click **Deposit**. Confirm your gold drops by that amount, chat shows `deposited <amount> to <guild>. Still owed: <remainder>.`, and reopening `/agtdev` shows the new balance.
+3. Open the guild bank again with nothing owed. Confirm no panel appears.
+4. With less gold than you owe, open the guild bank. Confirm the panel offers all the gold you carry, and after depositing, the remainder is still owed.
+5. Open the guild bank and close it without clicking. Confirm nothing is deposited and the balance is unchanged.
+6. Turn off **Print tithe updates** and pay once. Confirm the payment message still appears.
+
 ## WoW Forever
 
 ### Install
