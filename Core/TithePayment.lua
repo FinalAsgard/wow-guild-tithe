@@ -7,6 +7,9 @@ local _, addon = ...
 local TithePayment = {
     -- Seconds to wait for the character's money to drop after a deposit.
     CONFIRM_TIMEOUT = 10,
+    -- Seconds between the guild bank opening and an automatic deposit, so
+    -- the bank has finished opening before money is sent to it.
+    AUTO_DEPOSIT_DELAY = 1,
 }
 addon.TithePayment = TithePayment
 
@@ -177,7 +180,16 @@ function Payment:OnGuildBankOpened()
     end
     if self.pending == nil then
         self:ShowProposal()
-        self:DepositAutomatically()
+        self.bankVisit = (self.bankVisit or 0) + 1
+        local visit = self.bankVisit
+        if not self.client:After(TithePayment.AUTO_DEPOSIT_DELAY, function()
+            -- Only for the visit that scheduled it, while the bank is open.
+            if self.bankVisit == visit and self.sessionOpen and self.pending == nil then
+                self:DepositAutomatically()
+            end
+        end) then
+            self:DepositAutomatically()
+        end
     end
 end
 
@@ -220,6 +232,7 @@ end
 -- was already requested keeps waiting for confirmation until it times out.
 function Payment:OnGuildBankClosed()
     self.sessionOpen = false
+    self.bankVisit = (self.bankVisit or 0) + 1
     if self.panel ~= nil then
         self.panel:Hide()
     end

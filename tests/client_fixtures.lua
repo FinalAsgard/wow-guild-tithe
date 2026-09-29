@@ -60,7 +60,18 @@ local function newFrame(world)
         self.text = text
     end
     function frame:SetSize() end
-    function frame:SetPoint() end
+    function frame:SetPoint(point, relativeTo, relativePoint)
+        self.point = { point, relativeTo, relativePoint }
+    end
+    function frame:ClearAllPoints()
+        self.point = nil
+    end
+    function frame:SetParent(parent)
+        self.parent = parent
+    end
+    function frame:SetFrameStrata(strata)
+        self.strata = strata
+    end
     function frame:SetJustifyH() end
     function frame:CreateFontString()
         return newFrame(world)

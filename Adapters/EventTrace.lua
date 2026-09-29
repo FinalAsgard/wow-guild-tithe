@@ -40,10 +40,15 @@ local EVENTS = {
     "PLAYER_INTERACTION_MANAGER_FRAME_HIDE",
     "UI_INFO_MESSAGE",
     "UI_ERROR_MESSAGE",
+    "ADDON_ACTION_BLOCKED",
+    "ADDON_ACTION_FORBIDDEN",
 }
 
 -- Mail collection is a function call, not an event, so it is hooked.
 local MAIL_CALLS = { "TakeInboxMoney", "AutoLootMailItem" }
+
+-- Guild-bank money calls, whether made by this add-on or the game's window.
+local BANK_CALLS = { "DepositGuildBankMoney", "WithdrawGuildBankMoney" }
 
 local Trace = {}
 Trace.__index = Trace
@@ -151,6 +156,40 @@ function Trace:HookMailCalls()
         return
     end
     self.hooked = true
+
+    local function callerStack()
+        local stack = self.environment.debugstack
+        if type(stack) ~= "function" then
+            return nil
+        end
+        local ok, text = pcall(stack, 3, 4, 0)
+        return ok and sanitize(text) or nil
+    end
+
+    local bankIndex
+    for bankIndex = 1, #BANK_CALLS do
+        local callName = BANK_CALLS[bankIndex]
+        if type(self.environment[callName]) == "function" then
+            pcall(hook, callName, function(copper)
+                if self.active then
+                    -- The caller's stack tells this add-on's calls apart.
+                    self:Record("call", callName, pack(copper), { stack = callerStack() })
+                end
+            end)
+        end
+    end
+
+    -- This add-on's own chat lines show what it decided at each step.
+    local chat = self.environment.DEFAULT_CHAT_FRAME
+    if type(chat) == "table" and type(chat.AddMessage) == "function" then
+        pcall(hook, chat, "AddMessage", function(_, message)
+            if self.active and type(message) == "string"
+                and string.find(message, addon.Identity.displayName, 1, true) == 1
+            then
+                self:Record("chat", "message", pack(message))
+            end
+        end)
+    end
 
     local index
     for index = 1, #MAIL_CALLS do

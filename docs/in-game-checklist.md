@@ -47,7 +47,7 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 
 ## Guild-bank payment steps
 
-Run these on a guilded character that owes some tithe (earn a little income first), on both clients.
+Run these on a guilded character that owes some tithe (earn a little income first), on both clients. If anything looks wrong, run `/agtdev trace start` before opening the guild bank and `/agtdev trace stop` after, then `/reload` and share `AsgardsGuildTitheDevTraceDB`: the trace records every guild-bank deposit or withdrawal call (and whether the add-on made it), blocked-action events, and the add-on's own chat messages.
 
 1. In `/agtdev`, confirm the **Guild Bank** section shows **Deposit tithe automatically** checked. Open the guild bank. Confirm the tithe is deposited without a click: your gold drops by that amount, chat shows `deposited <amount> to <guild>. Still owed: <remainder>.`, and reopening `/agtdev` shows the new balance. If chat says the game blocked the automatic deposit, note it and continue: the **Deposit** button must appear instead and must work.
 2. Uncheck **Deposit tithe automatically**, earn a little income, and open the guild bank. Confirm nothing is deposited on its own and a panel beside the bank shows your guild, the tithe amount, and what you will still owe.

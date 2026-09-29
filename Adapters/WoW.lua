@@ -594,15 +594,23 @@ function Client:CreatePaymentPanel(title)
         return nil
     end
 
-    local parent = self.environment.GuildBankFrame or self.environment.UIParent
+    local environment = self.environment
     local ok, panel = pcall(function()
-        local frame = createFrame("Frame", nil, parent)
+        -- Newer clients need BackdropTemplate for a frame to take a backdrop.
+        local template = environment.BackdropTemplateMixin ~= nil and "BackdropTemplate" or nil
+        local frame = createFrame("Frame", nil, environment.UIParent, template)
         frame:SetSize(260, 96)
-        if self.environment.GuildBankFrame ~= nil then
-            frame:SetPoint("TOPLEFT", self.environment.GuildBankFrame, "TOPRIGHT", 4, 0)
-        else
-            frame:SetPoint("CENTER")
-        end
+        frame:SetPoint("CENTER")
+        -- Above the guild bank window, which would otherwise cover it.
+        pcall(frame.SetFrameStrata, frame, "DIALOG")
+        pcall(frame.SetBackdrop, frame, {
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 8, right = 8, top = 8, bottom = 8 },
+        })
 
         local heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         heading:SetPoint("TOPLEFT", 10, -10)
@@ -624,7 +632,27 @@ function Client:CreatePaymentPanel(title)
         return nil
     end
 
+    -- The guild bank window loads on demand, after this panel is created, so
+    -- the panel attaches beside it each time it is shown.
+    function panel:Attach()
+        local bank = environment.GuildBankFrame
+        if bank == nil or self.attachedTo == bank then
+            return
+        end
+        local frame = self.frame
+        local attached = pcall(function()
+            frame:SetParent(bank)
+            frame:ClearAllPoints()
+            frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", 4, 0)
+            frame:SetFrameStrata("DIALOG")
+        end)
+        if attached then
+            self.attachedTo = bank
+        end
+    end
+
     function panel:Show(lines, onDeposit)
+        self:Attach()
         self.body:SetText(table.concat(lines, "\n"))
         self.button:SetScript("OnClick", onDeposit)
         if onDeposit ~= nil then

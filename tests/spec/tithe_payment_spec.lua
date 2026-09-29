@@ -28,8 +28,10 @@ local function panel(addon)
     return addon.tithePayment.panel
 end
 
+-- Opens the guild bank and lets the automatic-deposit delay pass.
 local function openBank(world)
     fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+    fixtures.advance(world, 1)
 end
 
 local function lastMessage(world)
@@ -78,6 +80,24 @@ local function registerProfileTests(profile)
             panel(addon).body.text
         )
         test.assertTrue(panel(addon).button.shown)
+    end)
+
+    test.test(profile .. " the panel sits beside a guild bank window that loads after login", function()
+        local world, addon = newWorld(profile, 5000)
+        local frame = panel(addon).frame
+        test.assertEqual("DIALOG", frame.strata)
+
+        -- The game loads its guild bank window on demand, after login.
+        local bank = world.environment.CreateFrame("Frame")
+        world.environment.GuildBankFrame = bank
+        openBank(world)
+
+        test.assertEqual(bank, frame.parent)
+        test.assertEqual("TOPLEFT", frame.point[1])
+        test.assertEqual(bank, frame.point[2])
+        test.assertEqual("TOPRIGHT", frame.point[3])
+        test.assertEqual("DIALOG", frame.strata)
+        test.assertTrue(panel(addon):IsShown())
     end)
 
     test.test(profile .. " a confirmed deposit clears the debt and keeps the remainder", function()
@@ -224,7 +244,7 @@ local function registerProfileTests(profile)
         fixtures.click(panel(addon).button)
 
         local intent = character(world).pendingPayment
-        test.assertEqual("jaina-camelot:1790001000:1", intent.operationId)
+        test.assertEqual("jaina-camelot:1790001001:1", intent.operationId)
         test.assertEqual(5000, intent.amount)
         test.assertEqual("button", intent.method)
         test.assertEqual("jaina-camelot", intent.character.key)
@@ -233,7 +253,7 @@ local function registerProfileTests(profile)
         test.assertEqual("Knights of Camelot", intent.guild.name)
         test.assertEqual("Camelot", intent.guild.realm)
         test.assertEqual(CARRIED, intent.moneyBefore)
-        test.assertEqual(1790001000, intent.createdAt)
+        test.assertEqual(1790001001, intent.createdAt)
         test.assertEqual("pending", intent.status)
 
         fixtures.setMoney(world, CARRIED - 5000)
@@ -280,8 +300,8 @@ local function registerProfileTests(profile)
 
         test.assertEqual(0, savedBalance)
         local donation = donations[1]
-        test.assertEqual("jaina-camelot:1790001000:1", donation.operationId)
-        test.assertEqual(1790001003, donation.timestamp)
+        test.assertEqual("jaina-camelot:1790001001:1", donation.operationId)
+        test.assertEqual(1790001004, donation.timestamp)
         test.assertEqual(8000, donation.amount)
         test.assertEqual("button", donation.method)
         test.assertEqual("jaina-camelot", donation.character.key)
@@ -426,6 +446,34 @@ local function registerProfileTests(profile)
         test.assertEqual(0, character(world).outstandingCopper)
         test.assertEqual("automatic", donations[1].method)
         test.assertContains(lastMessage(world), "deposited 0g 50s 00c")
+    end)
+
+    test.test(profile .. " the automatic deposit waits a moment after the bank opens", function()
+        local world, addon = newWorld(profile, 5000, { autoDeposit = true })
+
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        test.assertEqual(0, #world.deposits)
+        test.assertTrue(panel(addon).button.shown)
+
+        fixtures.advance(world, 1)
+        test.assertEqual(1, #world.deposits)
+    end)
+
+    test.test(profile .. " closing the bank or clicking first cancels the automatic deposit", function()
+        local closed = newWorld(profile, 5000, { autoDeposit = true })
+        fixtures.fire(closed, "GUILDBANKFRAME_OPENED")
+        fixtures.fire(closed, "GUILDBANKFRAME_CLOSED")
+        fixtures.fire(closed, "GUILDBANKFRAME_OPENED")
+        fixtures.fire(closed, "GUILDBANKFRAME_CLOSED")
+        fixtures.advance(closed, 5)
+        test.assertEqual(0, #closed.deposits)
+
+        local clicked, clickedAddon = newWorld(profile, 5000, { autoDeposit = true })
+        fixtures.fire(clicked, "GUILDBANKFRAME_OPENED")
+        fixtures.click(panel(clickedAddon).button)
+        fixtures.advance(clicked, 1)
+        test.assertEqual(1, #clicked.deposits)
+        test.assertEqual("button", character(clicked).pendingPayment.method)
     end)
 
     test.test(profile .. " with auto-deposit off, only the button pays", function()
