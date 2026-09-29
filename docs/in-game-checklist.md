@@ -96,3 +96,10 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 - **Build:** `12.1.0` build `69933` (Sep 18 2026).
 - **Result:** Signed off by Jon Zenor: the add-on launches correctly on Retail. Smoke test on the final PR commit: no Lua errors, `/agtdev help` reports `client - WoW Retail.`, and settings persist across `/reload`.
 - **Signed off by:** Jon Zenor
+
+## Income tracking sign-off (PRD #3)
+
+- **Date:** 2026-09-29
+- **Result:** Signed off by Jon Zenor: "I tested the plugin and everything looks good." Covers the income tracking steps above.
+- **Clients and builds:** Not recorded separately.
+- **Signed off by:** Jon Zenor
