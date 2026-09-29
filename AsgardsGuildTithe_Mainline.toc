@@ -9,6 +9,7 @@
 Core/Identity.lua
 Adapters/ClientProfile.lua
 Adapters/WoW.lua
+Adapters/EventTrace.lua
 Core/Persistence.lua
 Core/CharacterState.lua
 Core/Accounting.lua

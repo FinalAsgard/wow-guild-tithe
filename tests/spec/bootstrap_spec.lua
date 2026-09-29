@@ -4,6 +4,7 @@ local MANIFEST_FILES = {
     "Core/Identity.lua",
     "Adapters/ClientProfile.lua",
     "Adapters/WoW.lua",
+    "Adapters/EventTrace.lua",
     "Core/Persistence.lua",
     "Core/CharacterState.lua",
     "Core/Accounting.lua",
@@ -24,6 +25,7 @@ local PRODUCTS = {
         databaseName = "AsgardsGuildTitheDB",
         displayName = "Asgard's Guild Tithe",
         otherDatabaseName = "AsgardsGuildTitheDevDB",
+        savedVariables = "AsgardsGuildTitheDB",
         slashCommand = "/agt",
         slashAlias = "/asgardstithe",
         slashKey = "AGT",
@@ -34,6 +36,8 @@ local PRODUCTS = {
         databaseName = "AsgardsGuildTitheDevDB",
         displayName = "Asgard's Guild Tithe (Dev)",
         otherDatabaseName = "AsgardsGuildTitheDB",
+        -- The event trace is a development-only capture tool.
+        savedVariables = "AsgardsGuildTitheDevDB, AsgardsGuildTitheDevTraceDB",
         slashCommand = "/agtdev",
         slashAlias = "/asgardstithedev",
         slashKey = "AGTDEV",
@@ -296,7 +300,7 @@ local function registerManifestTest(variant)
         test.assertEqual(variant.interface, metadata.Interface)
         test.assertEqual(variant.displayName, metadata.Title)
         test.assertEqual(variant.version, metadata.Version)
-        test.assertEqual(variant.databaseName, metadata.SavedVariables)
+        test.assertEqual(variant.savedVariables, metadata.SavedVariables)
         test.assertEqual(variant.client, metadata["X-Client"])
         test.assertEqual(nil, string.find(metadata.SavedVariables, variant.otherDatabaseName, 1, true))
     end)

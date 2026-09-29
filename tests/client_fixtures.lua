@@ -28,7 +28,13 @@ local function newFrame(world)
     local frame = { registeredEvents = {} }
     table.insert(world.frames, frame)
     function frame:RegisterEvent(eventName)
+        if world.unknownEvents ~= nil and world.unknownEvents[eventName] then
+            error("Attempt to register unknown event \"" .. eventName .. "\"")
+        end
         self.registeredEvents[eventName] = true
+    end
+    function frame:UnregisterAllEvents()
+        self.registeredEvents = {}
     end
     function frame:SetScript(_, handler)
         self.handler = handler
@@ -225,13 +231,14 @@ function Fixtures.newEnvironment(profile, options)
     return world
 end
 
--- Loads the profile's production manifest in order inside `world.environment`.
-function Fixtures.loadAddon(world)
+-- Loads the profile's manifest in order inside `world.environment`, as the
+-- production add-on by default or as `addonName` (e.g. the dev variant).
+function Fixtures.loadAddon(world, addonName)
     local addon = {}
     local files = manifestFiles(world.profile)
     local index
     for index = 1, #files do
-        test.loadAddonFileInEnvironment(files[index], addon, world.environment)
+        test.loadAddonFileInEnvironment(files[index], addon, world.environment, addonName)
     end
     world.addon = addon
     return addon

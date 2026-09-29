@@ -3,12 +3,13 @@
 ## Notes: Development build of Asgard's Guild Tithe.
 ## Author: FinalAsgard
 ## Version: 0.1.0-dev
-## SavedVariables: AsgardsGuildTitheDevDB
+## SavedVariables: AsgardsGuildTitheDevDB, AsgardsGuildTitheDevTraceDB
 ## X-Client: Retail
 
 Core/Identity.lua
 Adapters/ClientProfile.lua
 Adapters/WoW.lua
+Adapters/EventTrace.lua
 Core/Persistence.lua
 Core/CharacterState.lua
 Core/Accounting.lua
