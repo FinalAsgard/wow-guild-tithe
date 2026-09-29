@@ -46,8 +46,8 @@ Two-client re-check (PRD #14):
 
 - **Date:** 2026-09-28
 - **Client:** World of Warcraft: Forever (interfaces `16000`/`16001`)
-- **Result:** Signed off by Jon Zenor: the add-on launches correctly on Forever with the two-client changes (`_Camelot` and `_Mainline` manifests both present).
-- **Build:** Not recorded.
+- **Result:** Signed off by Jon Zenor: the add-on launches correctly on Forever with the two-client changes (`_Camelot` and `_Mainline` manifests both present). Smoke test on the final PR commit: no Lua errors, `/agtdev help` reports `client - WoW Forever.` (so Forever loaded `_Camelot`, not `_Mainline`), and settings persist across `/reload`.
+- **Build:** `1.60.1` build `70009` (Sep 23 2026), interface `16001`.
 - **Signed off by:** Jon Zenor
 
 ## WoW Retail
@@ -69,6 +69,6 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 - **Date:** 2026-09-28
 - **Client:** World of Warcraft Retail (live)
 - **Interface:** `120100`, confirmed with `/dump (select(4, GetBuildInfo()))` and matching both `_Mainline.toc` manifests
-- **Build:** Not recorded.
-- **Result:** Signed off by Jon Zenor: the add-on launches correctly on Retail.
+- **Build:** `12.1.0` build `69933` (Sep 18 2026).
+- **Result:** Signed off by Jon Zenor: the add-on launches correctly on Retail. Smoke test on the final PR commit: no Lua errors, `/agtdev help` reports `client - WoW Retail.`, and settings persist across `/reload`.
 - **Signed off by:** Jon Zenor
