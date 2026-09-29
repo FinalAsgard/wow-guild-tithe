@@ -23,10 +23,10 @@ Both checklists run these steps after installing. Replace `<AddOns>` with the cl
 
 ## Income tracking steps
 
-Run these on a guilded character after the shared steps, on both clients. Loot is classified as loot; other gains are reported as miscellaneous/system income until their sources are added.
+Run these on a guilded character after the shared steps, on both clients. Loot, quest rewards, and vendor sales are classified by source; other gains are reported as miscellaneous/system income until their sources are added.
 
 1. Note your carried gold, run `/reload`, and confirm no income message appears and the balance does not change: money you already carry never counts.
-2. Earn money in a way that is not loot (for example, sell an item). Confirm chat shows `reserved <amount> from miscellaneous/system income. Total owed: <total>.`, where the amount is your tithe percentage of the gain, and that reopening `/agtdev` shows the new total.
+2. Sell an item to a vendor. Confirm chat shows `reserved <amount> from vendor sale income. Total owed: <total>.`, where the amount is your tithe percentage of the sale, and that reopening `/agtdev` shows the new total.
 3. Spend money (for example, buy an item) and confirm no message appears and the balance is unchanged.
 4. Earn a very small amount (a few copper at 10%) and confirm no "0 copper reserved" message appears.
 5. Turn off **Miscellaneous/system income**, earn money, and confirm the balance does not change. Turn it back on.
@@ -34,8 +34,11 @@ Run these on a guilded character after the shared steps, on both clients. Loot i
 7. On a guildless character, earn money and confirm the balance does not change. After joining a guild, confirm new gains are tracked again.
 8. Kill a creature alone and loot its coin. Confirm the message says `from loot income`.
 9. In a group, loot coin that is shared with the party. Confirm your share is reported `from loot income`.
-10. Loot coin, wait a few seconds, then sell an item. Confirm the sale is not reported as loot.
+10. Loot coin, wait a few seconds, then sell an item. Confirm the sale is reported as a vendor sale, not loot.
 11. Turn off **Loot income**, loot coin, and confirm the balance does not change and no message appears. Turn it back on.
+12. Sell several items to a vendor quickly, one after another. Confirm each sale is reported once as a vendor sale and the total owed matches.
+13. Turn in a quest that rewards money. Confirm it is reported `from quest income`. A quest that rewards only items adds nothing.
+14. Turn off **Quest income** and **Vendor sales** one at a time, and confirm each stops only its own source. Turn them back on.
 
 ## WoW Forever
 

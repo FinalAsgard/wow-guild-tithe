@@ -42,8 +42,8 @@ function Observer:Start()
     end
 
     -- Source context is optional: without it every gain is miscellaneous.
-    self.client:ObserveIncomeContext(function(source, action)
-        self.correlator:Record(source, action, self.client:Now())
+    self.client:ObserveIncomeContext(function(source, action, amount)
+        self.correlator:Record(source, action, self.client:Now(), amount)
     end)
 
     self.started = true
@@ -98,7 +98,8 @@ function Observer:FinalizePending()
     local finalizedAt = self.client:Now()
     observation.source, observation.reason = self.correlator:Classify(
         observation.observedAt,
-        finalizedAt
+        finalizedAt,
+        observation.copper
     )
     self.correlator:Prune(finalizedAt)
     return self.coordinator:Finalize(observation)

@@ -232,10 +232,23 @@ local CONTEXT_EVENTS = {
     CHAT_MSG_MONEY = { source = "loot", action = "note" },
     LOOT_CLOSED = { source = "loot", action = "close" },
     LOOT_OPENED = { source = "loot", action = "open" },
+    MERCHANT_CLOSED = { source = "vendorSales", action = "close" },
+    MERCHANT_SHOW = { source = "vendorSales", action = "open" },
+    -- QUEST_TURNED_IN(questID, xpReward, moneyReward): the reward is the
+    -- exact copper the next money change should add (seen in captured traces).
+    QUEST_TURNED_IN = { source = "quests", action = "note", amountArgument = 3 },
 }
 
--- Calls onContext(source, action) for each recognized context event.
--- Payloads are not trusted: only the event name is used.
+local function copperAmount(value)
+    if type(value) ~= "number" or value < 0 or value ~= math.floor(value) then
+        return nil
+    end
+    return value
+end
+
+-- Calls onContext(source, action, amount) for each recognized context
+-- event. Payloads are not trusted: the only value read is a documented
+-- copper amount, and a malformed one is dropped (amount = nil).
 function Client:ObserveIncomeContext(onContext)
     if type(onContext) ~= "function" then
         return false
@@ -243,10 +256,14 @@ function Client:ObserveIncomeContext(onContext)
 
     local frame = self:CreateEventFrame()
     if frame == nil
-        or not self:SetEventHandler(frame, function(_, eventName)
+        or not self:SetEventHandler(frame, function(_, eventName, ...)
             local context = CONTEXT_EVENTS[eventName]
             if context ~= nil then
-                onContext(context.source, context.action)
+                local amount
+                if context.amountArgument ~= nil then
+                    amount = copperAmount((select(context.amountArgument, ...)))
+                end
+                onContext(context.source, context.action, amount)
             end
         end)
     then
