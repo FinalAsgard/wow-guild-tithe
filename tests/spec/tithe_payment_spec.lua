@@ -76,7 +76,7 @@ local function registerProfileTests(profile)
 
         test.assertTrue(panel(addon):IsShown())
         test.assertEqual(
-            "Pay to Knights of Camelot\nTithe: 0g 50s 00c\nStill owed after: 0g 00s 00c",
+            "Pay to Knights of Camelot\nTithe: 0g 50s 00c",
             panel(addon).body.text
         )
         test.assertTrue(panel(addon).button.shown)
@@ -154,7 +154,7 @@ local function registerProfileTests(profile)
             test.assertEqual("Asgard's Guild Tithe", tooltip.lines[1])
             test.assertEqual("Pay to Knights of Camelot", tooltip.lines[2])
             test.assertEqual("Tithe: 0g 50s 00c", tooltip.lines[3])
-            test.assertEqual("Still owed after: 0g 00s 00c", tooltip.lines[4])
+            test.assertEqual(nil, tooltip.lines[4])
             inline.scripts.OnLeave(inline)
             test.assertFalse(tooltip.shown)
 
@@ -170,6 +170,43 @@ local function registerProfileTests(profile)
             test.assertFalse(inline.shown)
             test.assertFalse(panel(addon):IsShown())
         end
+    end)
+
+    test.test(profile .. " a partial tithe's tooltip shows what will still be owed", function()
+        local world, addon = newWorld(profile, 5000, { money = 3000 })
+        local _, tooltip = loadBankWindow(world)
+        openBank(world)
+        local inline = panel(addon).inlineButton
+
+        inline.scripts.OnEnter(inline)
+
+        test.assertEqual("Tithe: 0g 30s 00c", tooltip.lines[3])
+        test.assertEqual("Still owed after: 0g 20s 00c", tooltip.lines[4])
+    end)
+
+    test.test(profile .. " the button appears when the bank window loads after the open event", function()
+        local world, addon = newWorld(profile, 5000)
+
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        test.assertTrue(panel(addon).frame.shown)
+        loadBankWindow(world)
+        fixtures.advance(world, 0.2)
+
+        test.assertTrue(panel(addon).inlineButton.shown)
+        test.assertFalse(panel(addon).frame.shown)
+        test.assertEqual("Give Tithe", panel(addon).inlineButton.text)
+    end)
+
+    test.test(profile .. " a slow-loading bank window still gets the button a second later", function()
+        local world, addon = newWorld(profile, 5000)
+
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        fixtures.advance(world, 0.5)
+        loadBankWindow(world)
+        fixtures.advance(world, 0.5)
+
+        test.assertTrue(panel(addon).inlineButton.shown)
+        test.assertFalse(panel(addon).frame.shown)
     end)
 
     test.test(profile .. " the Give Tithe button hides when the bank closes", function()

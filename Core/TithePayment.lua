@@ -10,6 +10,10 @@ local TithePayment = {
     -- Seconds between the guild bank opening and an automatic deposit, so
     -- the bank has finished opening before money is sent to it.
     AUTO_DEPOSIT_DELAY = 1,
+    -- Seconds before the offer is drawn again after the bank opens. The game
+    -- loads its guild bank window on the first visit, possibly after this
+    -- add-on hears the bank open, so the first drawing may not find it.
+    OFFER_REFRESH_DELAY = 0.2,
 }
 addon.TithePayment = TithePayment
 
@@ -126,11 +130,14 @@ function Payment:ShowProposal()
         self.panel:Hide()
         return
     end
-    self.panel:Show({
+    local lines = {
         "Pay to " .. proposal.guild.name,
         "Tithe: " .. self:Money(proposal.amount),
-        "Still owed after: " .. self:Money(proposal.remainder),
-    }, function()
+    }
+    if proposal.remainder > 0 then
+        table.insert(lines, "Still owed after: " .. self:Money(proposal.remainder))
+    end
+    self.panel:Show(lines, function()
         self:Pay()
     end)
 end
@@ -182,10 +189,18 @@ function Payment:OnGuildBankOpened()
         self:ShowProposal()
         self.bankVisit = (self.bankVisit or 0) + 1
         local visit = self.bankVisit
+        self.client:After(TithePayment.OFFER_REFRESH_DELAY, function()
+            if self.bankVisit == visit then
+                self:RefreshOffer()
+            end
+        end)
         if not self.client:After(TithePayment.AUTO_DEPOSIT_DELAY, function()
             -- Only for the visit that scheduled it, while the bank is open.
-            if self.bankVisit == visit and self.sessionOpen and self.pending == nil then
-                self:DepositAutomatically()
+            if self.bankVisit == visit and self.sessionOpen and self.pending == nil
+                and not self:DepositAutomatically()
+            then
+                -- A last redraw in case the bank window was slow to load.
+                self:RefreshOffer()
             end
         end) then
             self:DepositAutomatically()
