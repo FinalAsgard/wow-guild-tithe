@@ -17,7 +17,7 @@ Interface numbers are release metadata, not permanent constants. Confirm them fr
 
 ## Current foundation
 
-The add-on currently provides its Forever and Retail manifests, load lifecycle, client compatibility boundary, per-character saved state, exact tithe accounting service, money formatter, and extensible `/agt` command router. On clients with the supported native Settings API, `/agt` opens an AddOns settings page where the current character's outstanding balance is shown read-only and the whole-number tithe percentage, seven income-source preferences, and print-tithe-updates preference can be changed. Clients without that API keep loading normally and explain that settings are unavailable.
+The add-on currently provides its Forever and Retail manifests, load lifecycle, client compatibility boundary, per-character saved state, exact tithe accounting service, money formatter, and extensible `/agt` command router. On clients with the supported native Settings API, `/agt` opens an AddOns settings page where the current character's outstanding balance is shown read-only and the whole-number tithe percentage, seven income-source preferences, print-tithe-updates preference, and deposit-tithe-automatically preference can be changed. Clients without that API keep loading normally and explain that settings are unavailable.
 
 All direct WoW API access belongs in `Adapters/`; core modules are client-independent Lua. See [the persistence schema and recovery contract](docs/persistence.md) for migration and corruption behavior, and [the testing conventions](docs/testing.md) for the project boundary, client profiles, and test style.
 
@@ -29,7 +29,7 @@ The game does not mark refunds from being outbid at the auction house as returns
 
 ## Paying at the guild bank
 
-Opening your guild bank shows a small panel next to it with the guild that will receive the tithe, the amount (everything you owe, but never more than you carry), and what you will still owe afterwards. Click **Deposit** to pay. Your tithe balance goes down only after your carried gold actually drops by exactly that amount; a failed or unconfirmed deposit leaves the balance unchanged and tells you. Nothing is offered when you owe nothing, carry no gold, or are not in a guild, and closing the guild bank discards the offer. Payment messages always print, even when **Print tithe updates** is off.
+Opening your guild bank shows a small panel next to it with the guild that will receive the tithe, the amount (everything you owe, but never more than you carry), and what you will still owe afterwards. With **Deposit tithe automatically** checked (the default, in the settings' **Guild Bank** section), that amount is deposited as soon as the bank opens. With it unchecked, or whenever an automatic deposit fails, is not confirmed, or is blocked by the game, click **Deposit** to pay. If the game blocks an automatic deposit, the add-on does not try again until your next login or `/reload`, so you never see repeated errors. Your tithe balance goes down only after your carried gold actually drops by exactly that amount; a failed or unconfirmed deposit leaves the balance unchanged and tells you. Nothing is offered when you owe nothing, carry no gold, or are not in a guild, and closing the guild bank discards the offer. Payment messages always print, even when **Print tithe updates** is off.
 
 A deposit is counted once, even across a `/reload`. If you leave or switch guilds before a deposit is confirmed, it is not credited, and your balance stays as it was.
 

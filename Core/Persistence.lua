@@ -102,6 +102,7 @@ local function newCharacter(identity)
         outstandingCopper = 0,
         fractionalRemainder = 0,
         chatFeedback = true,
+        autoDeposit = true,
         sources = defaultSources(),
         resolvedPayments = {},
         paymentSequence = 0,
@@ -254,6 +255,11 @@ local function repairConfiguration(character, characterKey, report)
     if type(character.chatFeedback) ~= "boolean" then
         character.chatFeedback = true
         recordRepair(report, characterKey, "chatFeedback")
+    end
+
+    if type(character.autoDeposit) ~= "boolean" then
+        character.autoDeposit = true
+        recordRepair(report, characterKey, "autoDeposit")
     end
 
     if type(character.sources) ~= "table" then

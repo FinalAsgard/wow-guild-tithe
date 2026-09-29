@@ -49,12 +49,13 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 
 Run these on a guilded character that owes some tithe (earn a little income first), on both clients.
 
-1. Open the guild bank. Confirm a panel appears beside it showing your guild, the tithe amount, and what you will still owe.
-2. Click **Deposit**. Confirm your gold drops by that amount, chat shows `deposited <amount> to <guild>. Still owed: <remainder>.`, and reopening `/agtdev` shows the new balance.
-3. Open the guild bank again with nothing owed. Confirm no panel appears.
-4. With less gold than you owe, open the guild bank. Confirm the panel offers all the gold you carry, and after depositing, the remainder is still owed.
-5. Open the guild bank and close it without clicking. Confirm nothing is deposited and the balance is unchanged.
-6. Turn off **Print tithe updates** and pay once. Confirm the payment message still appears.
+1. In `/agtdev`, confirm the **Guild Bank** section shows **Deposit tithe automatically** checked. Open the guild bank. Confirm the tithe is deposited without a click: your gold drops by that amount, chat shows `deposited <amount> to <guild>. Still owed: <remainder>.`, and reopening `/agtdev` shows the new balance. If chat says the game blocked the automatic deposit, note it and continue: the **Deposit** button must appear instead and must work.
+2. Uncheck **Deposit tithe automatically**, earn a little income, and open the guild bank. Confirm nothing is deposited on its own and a panel beside the bank shows your guild, the tithe amount, and what you will still owe.
+3. Click **Deposit**. Confirm the same gold drop and chat message as step 1.
+4. Open the guild bank again with nothing owed. Confirm no panel appears and nothing is deposited.
+5. With the setting still off and less gold than you owe, open the guild bank. Confirm the panel offers all the gold you carry, and after depositing, the remainder is still owed.
+6. Open the guild bank and close it without clicking. Confirm nothing is deposited and the balance is unchanged.
+7. Turn off **Print tithe updates** and pay once. Confirm the payment message still appears.
 
 ## WoW Forever
 

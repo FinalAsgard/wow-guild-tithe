@@ -17,6 +17,8 @@ local function newWorld(profile, owed, options)
     local addon = fixtures.login(world)
     character(world).outstandingCopper = owed
     character(world).fractionalRemainder = 40
+    -- Button payments unless a test asks for automatic deposit.
+    character(world).autoDeposit = options.autoDeposit == true
     return world, addon
 end
 
@@ -402,6 +404,131 @@ local function registerProfileTests(profile)
 
         test.assertContains(panel(addon).body.text, "Pay to Horde Traders")
         test.assertContains(panel(addon).body.text, "Tithe: 0g 50s 00c")
+    end)
+
+    test.test(profile .. " with auto-deposit on, opening the bank pays without a click", function()
+        local world, addon = newWorld(profile, 5000, { autoDeposit = true })
+        local donations = {}
+        addon.tithePayment:OnDonation(function(donation)
+            table.insert(donations, donation)
+        end)
+
+        openBank(world)
+        test.assertEqual(1, #world.deposits)
+        test.assertEqual(5000, world.deposits[1])
+        test.assertEqual("automatic", character(world).pendingPayment.method)
+        test.assertEqual(5000, character(world).outstandingCopper)
+
+        fixtures.setMoney(world, CARRIED - 5000)
+
+        test.assertEqual(0, character(world).outstandingCopper)
+        test.assertEqual("automatic", donations[1].method)
+        test.assertContains(lastMessage(world), "deposited 0g 50s 00c")
+    end)
+
+    test.test(profile .. " with auto-deposit off, only the button pays", function()
+        local world, addon = newWorld(profile, 5000, { autoDeposit = true })
+        world.settings.bindings.AsgardsGuildTithe_AutoDeposit.setValue(false)
+        local donations = {}
+        addon.tithePayment:OnDonation(function(donation)
+            table.insert(donations, donation)
+        end)
+
+        openBank(world)
+        test.assertEqual(0, #world.deposits)
+        test.assertTrue(panel(addon).button.shown)
+        test.assertContains(panel(addon).body.text, "Tithe: 0g 50s 00c")
+
+        fixtures.click(panel(addon).button)
+        fixtures.setMoney(world, CARRIED - 5000)
+        test.assertEqual("button", donations[1].method)
+    end)
+
+    test.test(profile .. " a failed automatic deposit falls back to the button", function()
+        local world, addon = newWorld(profile, 5000, { autoDeposit = true })
+        world.depositError = "not now"
+
+        openBank(world)
+
+        test.assertEqual(5000, character(world).outstandingCopper)
+        test.assertContains(lastMessage(world), "deposit failed")
+        test.assertTrue(panel(addon).button.shown)
+        test.assertEqual(nil, character(world).pendingPayment)
+    end)
+
+    test.test(profile .. " an unconfirmed automatic deposit falls back to the button", function()
+        local world, addon = newWorld(profile, 5000, { autoDeposit = true })
+        openBank(world)
+
+        fixtures.advance(world, 11)
+
+        test.assertEqual(5000, character(world).outstandingCopper)
+        test.assertContains(lastMessage(world), "not confirmed")
+        test.assertTrue(panel(addon).button.shown)
+    end)
+
+    test.test(profile .. " a blocked automatic deposit falls back and is not retried this session", function()
+        local events = { "ADDON_ACTION_FORBIDDEN", "ADDON_ACTION_BLOCKED" }
+        local index
+        for index = 1, #events do
+            local world, addon = newWorld(profile, 5000, { autoDeposit = true })
+            local deposit = world.environment.DepositGuildBankMoney
+            world.environment.DepositGuildBankMoney = function(copper)
+                deposit(copper)
+                if #world.deposits == 1 then
+                    fixtures.fire(world, events[index], "AsgardsGuildTithe",
+                        "DepositGuildBankMoney()")
+                end
+            end
+
+            openBank(world)
+            test.assertEqual(5000, character(world).outstandingCopper, events[index])
+            test.assertEqual(nil, character(world).pendingPayment, events[index])
+            test.assertContains(lastMessage(world), "blocked the automatic deposit")
+            test.assertTrue(panel(addon).button.shown, events[index])
+
+            fixtures.fire(world, "GUILDBANKFRAME_CLOSED")
+            openBank(world)
+            test.assertEqual(1, #world.deposits, events[index])
+            test.assertTrue(panel(addon).button.shown, events[index])
+
+            fixtures.click(panel(addon).button)
+            test.assertEqual(2, #world.deposits, events[index])
+            test.assertEqual("button", character(world).pendingPayment.method)
+            fixtures.setMoney(world, CARRIED - 5000)
+            test.assertEqual(0, character(world).outstandingCopper, events[index])
+        end
+    end)
+
+    test.test(profile .. " a blocked action from another add-on changes nothing", function()
+        local world, addon = newWorld(profile, 5000, { autoDeposit = true })
+        openBank(world)
+
+        fixtures.fire(world, "ADDON_ACTION_BLOCKED", "SomeOtherAddon", "DepositGuildBankMoney()")
+        fixtures.fire(world, "ADDON_ACTION_BLOCKED", "AsgardsGuildTithe", "CastSpellByName()")
+        fixtures.setMoney(world, CARRIED - 5000)
+
+        test.assertEqual(0, character(world).outstandingCopper)
+    end)
+
+    test.test(profile .. " an automatic deposit and a click never both pay", function()
+        local world, addon = newWorld(profile, 5000, { autoDeposit = true })
+        openBank(world)
+
+        test.assertFalse(addon.tithePayment:Pay("button"))
+        fixtures.click(panel(addon).button)
+
+        test.assertEqual(1, #world.deposits)
+        test.assertEqual("automatic", character(world).pendingPayment.method)
+    end)
+
+    test.test(profile .. " auto-deposit offers nothing when nothing is owed", function()
+        local world, addon = newWorld(profile, 0, { autoDeposit = true })
+
+        openBank(world)
+
+        test.assertEqual(0, #world.deposits)
+        test.assertFalse(panel(addon):IsShown())
     end)
 
     test.test(profile .. " a deposit is never counted as income", function()

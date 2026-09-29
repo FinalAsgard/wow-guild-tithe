@@ -34,6 +34,7 @@ local function completeCharacter(overrides)
         outstandingCopper = 123456,
         fractionalRemainder = 78,
         chatFeedback = false,
+        autoDeposit = false,
         sources = {
             auctions = true,
             loot = false,
@@ -595,4 +596,42 @@ test.test("a payment resolves once and its operation id is never reused", functi
     test.assertEqual(addon.Persistence.MAX_RESOLVED_PAYMENTS,
         #state:GetCurrentCharacter().resolvedPayments)
     test.assertEqual(0, state:GetCurrentCharacter().outstandingCopper)
+end)
+
+test.test("existing characters gain auto-deposit on through field repair", function()
+    local addon = loadPersistenceModules()
+    local character = completeCharacter({ resolvedPayments = {}, paymentSequence = 2 })
+    character.autoDeposit = nil
+    local environment = newEnvironment("Jaina", "Camelot", {
+        schemaVersion = 3,
+        characters = { ["jaina-camelot"] = character },
+        quarantinedCharacters = {},
+    })
+
+    local database, report = createStore(addon, environment):Load()
+    local repaired = database.characters["jaina-camelot"]
+
+    test.assertTrue(repaired.autoDeposit)
+    test.assertEqual(1, #report.repairedFields)
+    test.assertEqual("autoDeposit", report.repairedFields[1].field)
+    test.assertEqual(37, repaired.percentage)
+    test.assertFalse(repaired.chatFeedback)
+    test.assertTrue(repaired.sources.auctions)
+    test.assertEqual(123456, repaired.outstandingCopper)
+    test.assertEqual(78, repaired.fractionalRemainder)
+end)
+
+test.test("the auto-deposit setting is saved per character and rejects non-booleans", function()
+    local addon = loadPersistenceModules()
+    local environment = newEnvironment("Jaina", "Camelot", nil)
+    local state = addon.CharacterState.Create(addon.Compatibility.Create(environment))
+    test.assertTrue(state:Initialize())
+    test.assertTrue(state:GetCurrentCharacter().autoDeposit)
+
+    test.assertFalse(state:SetAutoDeposit("no"))
+    test.assertTrue(state:SetAutoDeposit(false))
+
+    local reloaded = addon.CharacterState.Create(addon.Compatibility.Create(environment))
+    test.assertTrue(reloaded:Initialize())
+    test.assertFalse(reloaded:GetCurrentCharacter().autoDeposit)
 end)

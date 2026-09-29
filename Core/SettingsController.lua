@@ -65,6 +65,14 @@ local CHAT_FEEDBACK_SETTING = {
     defaultValue = true,
 }
 
+local AUTO_DEPOSIT_SETTING = {
+    variableSuffix = "AutoDeposit",
+    label = "Deposit tithe automatically",
+    tooltip = "Deposit your tithe as soon as you open the guild bank. " ..
+        "The Deposit button on the guild bank is always available too.",
+    defaultValue = true,
+}
+
 local function currentCharacter(state)
     local character = state:GetCurrentCharacter()
     if type(character) ~= "table" then
@@ -153,6 +161,23 @@ local function buildChatFeedbackCheckbox(state)
     }
 end
 
+local function buildAutoDepositCheckbox(state)
+    return {
+        variable = addon.Identity.settingsPrefix .. "_" ..
+            AUTO_DEPOSIT_SETTING.variableSuffix,
+        label = AUTO_DEPOSIT_SETTING.label,
+        tooltip = AUTO_DEPOSIT_SETTING.tooltip,
+        defaultValue = AUTO_DEPOSIT_SETTING.defaultValue,
+        getValue = function()
+            local character = currentCharacter(state)
+            return character and character.autoDeposit
+        end,
+        setValue = function(value)
+            return state:SetAutoDeposit(value)
+        end,
+    }
+end
+
 function SettingsController.Create(client, state, formatter)
     return setmetatable({
         client = client,
@@ -196,6 +221,10 @@ function Controller:Register()
             {
                 heading = "Feedback",
                 checkboxes = { buildChatFeedbackCheckbox(self.state) },
+            },
+            {
+                heading = "Guild Bank",
+                checkboxes = { buildAutoDepositCheckbox(self.state) },
             },
         },
     })

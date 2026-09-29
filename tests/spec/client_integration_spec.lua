@@ -10,6 +10,7 @@ local CHECKBOX_VARIABLES = {
     "AsgardsGuildTithe_Source_PlayerTrades",
     "AsgardsGuildTithe_Source_Miscellaneous",
     "AsgardsGuildTithe_ChatFeedback",
+    "AsgardsGuildTithe_AutoDeposit",
 }
 
 local function otherProfile(profile)
@@ -56,6 +57,7 @@ local function registerProfileTests(profile)
         test.assertContains(headings[1], "Current balance: 0g 00s 00c")
         test.assertEqual("Income Sources", headings[2])
         test.assertEqual("Feedback", headings[3])
+        test.assertEqual("Guild Bank", headings[4])
 
         -- Only the percentage and the eight preferences are editable.
         test.assertEqual(1 + #CHECKBOX_VARIABLES, #settings.bindingOrder)

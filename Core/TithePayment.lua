@@ -74,6 +74,9 @@ function Payment:Start()
         return true
     end
     self.panel = self.client:CreatePaymentPanel(addon.Identity.displayName)
+    self.client:ObserveActionBlocked(function(functionName)
+        self:OnActionBlocked(functionName)
+    end)
     self:ResumeSavedPayment()
     self.client:ObserveMoneyChanges(function()
         self:OnMoneyChanged()
@@ -163,6 +166,42 @@ function Payment:OnGuildBankOpened()
         return
     end
     if self.pending == nil then
+        self:ShowProposal()
+        self:DepositAutomatically()
+    end
+end
+
+-- With the setting on, pays the proposal without a click. The button stays
+-- as the fallback, and after the client blocks an automatic deposit it is
+-- not tried again this session, so the player never sees repeated errors.
+function Payment:DepositAutomatically()
+    local character = self.state:GetCurrentCharacter()
+    if type(character) ~= "table"
+        or character.autoDeposit ~= true
+        or self.autoDepositBlocked
+        or self:CurrentProposal() == nil
+    then
+        return false
+    end
+    return self:Pay("automatic")
+end
+
+function Payment:OnActionBlocked(functionName)
+    if functionName ~= nil
+        and not string.find(tostring(functionName), "DepositGuildBankMoney", 1, true)
+    then
+        return
+    end
+    local pending = self.pending
+    if pending == nil or pending.intent.method ~= "automatic" then
+        return
+    end
+
+    self.autoDepositBlocked = true
+    self:Resolve(pending, "rejected")
+    self:Say("the game blocked the automatic deposit, so your tithe balance is unchanged. " ..
+        "Use the Deposit button on the guild bank.")
+    if self.sessionOpen then
         self:ShowProposal()
     end
 end

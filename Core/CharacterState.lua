@@ -150,6 +150,15 @@ function State:SetChatFeedback(enabled)
     return true
 end
 
+function State:SetAutoDeposit(enabled)
+    if not self.initialized or type(enabled) ~= "boolean" then
+        return false
+    end
+
+    self.character.autoDeposit = enabled
+    return true
+end
+
 function State:SetSourceEnabled(source, enabled)
     if not self.initialized
         or SOURCE_DEFAULTS[source] == nil

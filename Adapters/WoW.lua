@@ -533,6 +533,29 @@ function Client:ObserveGuildBank(onOpen, onClose)
     return registered
 end
 
+-- Calls onBlocked(functionName) when the client refuses a protected call
+-- made by this add-on (ADDON_ACTION_BLOCKED / ADDON_ACTION_FORBIDDEN).
+function Client:ObserveActionBlocked(onBlocked)
+    if type(onBlocked) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function(_, _, addonName, functionName)
+            if addonName == addon.Identity.addonName then
+                onBlocked(functionName)
+            end
+        end)
+    then
+        return false
+    end
+
+    local blocked = self:RegisterEvent(frame, "ADDON_ACTION_BLOCKED")
+    local forbidden = self:RegisterEvent(frame, "ADDON_ACTION_FORBIDDEN")
+    return blocked or forbidden
+end
+
 -- Asks the client to move `copper` from the player into the guild bank.
 -- Returns true when the request was made; completion is confirmed later by
 -- the player's carried money dropping by that amount.
