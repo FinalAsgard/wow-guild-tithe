@@ -300,7 +300,7 @@ test.test("settings expose all source and chat preferences with fresh-character 
     local autoDeposit = api.checkboxes[9]
     test.assertEqual("AsgardsGuildTithe_AutoDeposit", autoDeposit.setting.variable)
     test.assertContains(autoDeposit.tooltip, "open the guild bank")
-    test.assertContains(autoDeposit.tooltip, "Deposit button")
+    test.assertContains(autoDeposit.tooltip, "Pay Tithe button")
 
     local index
     for index = 1, #PREFERENCE_CASES do

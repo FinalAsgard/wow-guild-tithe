@@ -69,7 +69,7 @@ local AUTO_DEPOSIT_SETTING = {
     variableSuffix = "AutoDeposit",
     label = "Deposit tithe automatically",
     tooltip = "Deposit your tithe as soon as you open the guild bank. " ..
-        "The Deposit button on the guild bank is always available too.",
+        "The Pay Tithe button on the guild bank is always available too.",
     defaultValue = true,
 }
 

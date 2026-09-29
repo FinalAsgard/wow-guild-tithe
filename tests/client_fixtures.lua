@@ -72,6 +72,13 @@ local function newFrame(world)
     function frame:SetFrameStrata(strata)
         self.strata = strata
     end
+    frame.enabled = true
+    function frame:Enable()
+        self.enabled = true
+    end
+    function frame:Disable()
+        self.enabled = false
+    end
     function frame:SetJustifyH() end
     function frame:CreateFontString()
         return newFrame(world)

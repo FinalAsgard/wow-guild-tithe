@@ -585,9 +585,12 @@ function Client:DepositGuildBankMoney(copper)
     return ok == true
 end
 
--- A small panel shown with the guild bank. Returns nil when the client
--- cannot create frames. The panel exposes Show(lines, onDeposit), Hide(),
--- and IsShown(); the Deposit button only appears when onDeposit is given.
+-- The tithe offer shown with the guild bank. Returns nil when the client
+-- cannot create frames. It exposes Show(lines, onDeposit), Hide(), and
+-- IsShown(). When the guild bank window's Withdraw button can be found, the
+-- offer is a "Pay Tithe" button just left of it, with the lines in its
+-- tooltip; otherwise it is a small panel beside the bank. The pay button
+-- only works when onDeposit is given.
 function Client:CreatePaymentPanel(title)
     local createFrame = self.environment.CreateFrame
     if type(createFrame) ~= "function" then
@@ -632,6 +635,66 @@ function Client:CreatePaymentPanel(title)
         return nil
     end
 
+    -- The game's Withdraw button, under its current or older name.
+    local function findWithdrawButton()
+        local bank = environment.GuildBankFrame
+        if type(bank) ~= "table" then
+            return nil
+        end
+        return bank.WithdrawButton or environment.GuildBankFrameWithdrawButton
+    end
+
+    local function showTooltip(owner)
+        local tooltip = environment.GameTooltip
+        if type(tooltip) ~= "table" or type(panel.lines) ~= "table" then
+            return
+        end
+        pcall(function()
+            tooltip:SetOwner(owner, "ANCHOR_TOP")
+            tooltip:SetText(title)
+            local index
+            for index = 1, #panel.lines do
+                tooltip:AddLine(panel.lines[index], 1, 1, 1)
+            end
+            tooltip:Show()
+        end)
+    end
+
+    -- The pay button inside the guild bank window, or nil when the window's
+    -- Withdraw button cannot be found.
+    function panel:Inline()
+        local withdraw = findWithdrawButton()
+        if withdraw == nil then
+            return nil
+        end
+        if self.inlineButton ~= nil and self.inlineAnchor == withdraw then
+            return self.inlineButton
+        end
+        local created, button = pcall(function()
+            local inline = createFrame("Button", nil, environment.GuildBankFrame,
+                "UIPanelButtonTemplate")
+            inline:SetSize(100, 22)
+            inline:SetPoint("RIGHT", withdraw, "LEFT", -4, 0)
+            inline:SetScript("OnEnter", showTooltip)
+            inline:SetScript("OnLeave", function()
+                local tooltip = environment.GameTooltip
+                if type(tooltip) == "table" then
+                    pcall(tooltip.Hide, tooltip)
+                end
+            end)
+            return inline
+        end)
+        if not created then
+            return nil
+        end
+        if self.inlineButton ~= nil then
+            self.inlineButton:Hide()
+        end
+        self.inlineButton = button
+        self.inlineAnchor = withdraw
+        return button
+    end
+
     -- The guild bank window loads on demand, after this panel is created, so
     -- the panel attaches beside it each time it is shown.
     function panel:Attach()
@@ -652,8 +715,24 @@ function Client:CreatePaymentPanel(title)
     end
 
     function panel:Show(lines, onDeposit)
-        self:Attach()
+        self.lines = lines
         self.body:SetText(table.concat(lines, "\n"))
+        local inline = self:Inline()
+        if inline ~= nil then
+            self.frame:Hide()
+            inline:SetText(onDeposit ~= nil and "Pay Tithe" or "Depositing...")
+            inline:SetScript("OnClick", onDeposit)
+            if onDeposit ~= nil then
+                pcall(inline.Enable, inline)
+            else
+                pcall(inline.Disable, inline)
+            end
+            inline:Show()
+            self.inlineShown = true
+            return
+        end
+        self.inlineShown = false
+        self:Attach()
         self.button:SetScript("OnClick", onDeposit)
         if onDeposit ~= nil then
             self.button:Show()
@@ -666,9 +745,17 @@ function Client:CreatePaymentPanel(title)
     function panel:Hide()
         self.button:SetScript("OnClick", nil)
         self.frame:Hide()
+        if self.inlineButton ~= nil then
+            self.inlineButton:SetScript("OnClick", nil)
+            self.inlineButton:Hide()
+        end
+        self.inlineShown = false
     end
 
     function panel:IsShown()
+        if self.inlineShown then
+            return self.inlineButton:IsShown() == true
+        end
         return self.frame:IsShown() == true
     end
 

@@ -100,6 +100,91 @@ local function registerProfileTests(profile)
         test.assertTrue(panel(addon):IsShown())
     end)
 
+    -- Loads a guild bank window whose Withdraw button is found by `naming`.
+    local function loadBankWindow(world, naming)
+        local bank = world.environment.CreateFrame("Frame")
+        local withdraw = world.environment.CreateFrame("Button")
+        if naming == "global" then
+            world.environment.GuildBankFrameWithdrawButton = withdraw
+        else
+            bank.WithdrawButton = withdraw
+        end
+        world.environment.GuildBankFrame = bank
+        local tooltip = { lines = {} }
+        function tooltip:SetOwner(owner)
+            self.owner = owner
+        end
+        function tooltip:SetText(text)
+            self.lines = { text }
+        end
+        function tooltip:AddLine(text)
+            table.insert(self.lines, text)
+        end
+        function tooltip:Show()
+            self.shown = true
+        end
+        function tooltip:Hide()
+            self.shown = false
+        end
+        world.environment.GameTooltip = tooltip
+        return withdraw, tooltip
+    end
+
+    test.test(profile .. " the Pay Tithe button sits left of the bank's Withdraw button", function()
+        local namings = { "parentKey", "global" }
+        local index
+        for index = 1, #namings do
+            local world, addon = newWorld(profile, 5000)
+            local withdraw, tooltip = loadBankWindow(world, namings[index])
+
+            openBank(world)
+            local inline = panel(addon).inlineButton
+
+            test.assertTrue(inline.shown, namings[index])
+            test.assertFalse(panel(addon).frame.shown, namings[index])
+            test.assertTrue(panel(addon):IsShown(), namings[index])
+            test.assertEqual("Pay Tithe", inline.text)
+            test.assertTrue(inline.enabled)
+            test.assertEqual("RIGHT", inline.point[1])
+            test.assertEqual(withdraw, inline.point[2])
+            test.assertEqual("LEFT", inline.point[3])
+
+            inline.scripts.OnEnter(inline)
+            test.assertTrue(tooltip.shown)
+            test.assertEqual("Asgard's Guild Tithe", tooltip.lines[1])
+            test.assertEqual("Pay to Knights of Camelot", tooltip.lines[2])
+            test.assertEqual("Tithe: 0g 50s 00c", tooltip.lines[3])
+            test.assertEqual("Still owed after: 0g 00s 00c", tooltip.lines[4])
+            inline.scripts.OnLeave(inline)
+            test.assertFalse(tooltip.shown)
+
+            fixtures.click(inline)
+            test.assertEqual(1, #world.deposits)
+            test.assertEqual("Depositing...", inline.text)
+            test.assertFalse(inline.enabled)
+            fixtures.click(inline)
+            test.assertEqual(1, #world.deposits)
+
+            fixtures.setMoney(world, CARRIED - 5000)
+            test.assertEqual(0, character(world).outstandingCopper)
+            test.assertFalse(inline.shown)
+            test.assertFalse(panel(addon):IsShown())
+        end
+    end)
+
+    test.test(profile .. " the Pay Tithe button hides when the bank closes", function()
+        local world, addon = newWorld(profile, 5000)
+        loadBankWindow(world)
+        openBank(world)
+        local inline = panel(addon).inlineButton
+
+        fixtures.fire(world, "GUILDBANKFRAME_CLOSED")
+        fixtures.click(inline)
+
+        test.assertFalse(inline.shown)
+        test.assertEqual(0, #world.deposits)
+    end)
+
     test.test(profile .. " a confirmed deposit clears the debt and keeps the remainder", function()
         local world, addon = newWorld(profile, 5000)
         openBank(world)
