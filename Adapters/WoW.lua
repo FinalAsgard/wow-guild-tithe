@@ -675,6 +675,9 @@ function Client:CreatePaymentPanel(title)
                 "UIPanelButtonTemplate")
             inline:SetSize(100, 22)
             inline:SetPoint("RIGHT", withdraw, "LEFT", -4, 0)
+            -- Disabled buttons ignore the mouse unless told otherwise, and
+            -- the tooltip is how a disabled Give Tithe explains itself.
+            pcall(inline.SetMotionScriptsWhileDisabled, inline, true)
             inline:SetScript("OnEnter", showTooltip)
             inline:SetScript("OnLeave", function()
                 local tooltip = environment.GameTooltip

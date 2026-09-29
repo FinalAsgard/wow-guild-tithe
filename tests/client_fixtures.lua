@@ -72,6 +72,9 @@ local function newFrame(world)
     function frame:SetFrameStrata(strata)
         self.strata = strata
     end
+    function frame:SetMotionScriptsWhileDisabled(enabled)
+        self.motionWhileDisabled = enabled
+    end
     frame.enabled = true
     function frame:Enable()
         self.enabled = true
