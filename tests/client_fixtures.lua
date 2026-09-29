@@ -235,6 +235,9 @@ function Fixtures.newEnvironment(profile, options)
         GetTime = function()
             return world.now
         end,
+        GetServerTime = function()
+            return 1790000000 + world.now
+        end,
         IsLoggedIn = function()
             return false
         end,
@@ -267,6 +270,12 @@ function Fixtures.newEnvironment(profile, options)
             end
             return world.guildName, "Member", 3, world.guildRealm
         end
+        -- `world.guildClubId` stands in for the stable id newer clients expose.
+        environment.C_Club = {
+            GetGuildClubId = function()
+                return world.inGuild and world.guildClubId or nil
+            end,
+        }
         -- Records deposit requests; `world.depositError` makes the call fail.
         -- The money itself moves only when a test changes carried money.
         world.deposits = {}

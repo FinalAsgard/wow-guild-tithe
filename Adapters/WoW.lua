@@ -215,6 +215,19 @@ end
 
 -- Runs callback once after `seconds`. Returns false when the client has no
 -- timer, so callers can act immediately instead.
+-- Wall-clock seconds for saved records; GetTime() restarts with the client.
+function Client:Timestamp()
+    local ok, now = callFunction(self.environment.GetServerTime)
+    if not ok or type(now) ~= "number" then
+        ok, now = callFunction(self.environment.time)
+    end
+    if not ok or type(now) ~= "number" then
+        return nil
+    end
+
+    return now
+end
+
 function Client:After(seconds, callback)
     local timers = self.environment.C_Timer
     if type(timers) ~= "table" or type(timers.After) ~= "function" or type(callback) ~= "function" then
@@ -463,7 +476,17 @@ function Client:GetGuildIdentity()
         return nil
     end
 
-    return { name = name, realm = realm }
+    -- Newer clients expose a stable guild club id; the realm-qualified name
+    -- is the fallback identity everywhere else.
+    local identity = { name = name, realm = realm }
+    local clubs = self.environment.C_Club
+    if type(clubs) == "table" then
+        local idOk, clubId = callFunction(clubs.GetGuildClubId)
+        if idOk and (type(clubId) == "string" or type(clubId) == "number") then
+            identity.id = tostring(clubId)
+        end
+    end
+    return identity
 end
 
 -- Calls onOpen() / onClose() when the guild bank window opens or closes.

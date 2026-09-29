@@ -23,13 +23,42 @@ function TithePayment.Propose(outstandingCopper, carriedCopper)
     return math.min(outstandingCopper, carriedCopper)
 end
 
+local function normalized(value)
+    return (string.lower(value):gsub("%s+", ""))
+end
+
+-- Guilds match by stable id when both sides have one, otherwise by
+-- realm-qualified name.
+function TithePayment.SameGuild(first, second)
+    if type(first) ~= "table" or type(second) ~= "table" then
+        return false
+    end
+    if first.id ~= nil and second.id ~= nil then
+        return first.id == second.id
+    end
+    return type(first.name) == "string" and type(second.name) == "string"
+        and type(first.realm) == "string" and type(second.realm) == "string"
+        and string.lower(first.name) == string.lower(second.name)
+        and normalized(first.realm) == normalized(second.realm)
+end
+
 function TithePayment.Create(client, state, formatter)
     return setmetatable({
         client = client,
         formatter = formatter or addon.MoneyFormatter,
+        listeners = {},
         sessionOpen = false,
         state = state,
     }, Payment)
+end
+
+-- Calls listener(donation) once for each confirmed payment, after the
+-- reduced balance is saved. The donation holds operationId, timestamp,
+-- amount, method, character {key, name, realm}, and guild {id, name, realm}.
+function Payment:OnDonation(listener)
+    if type(listener) == "function" then
+        table.insert(self.listeners, listener)
+    end
 end
 
 function Payment:Say(message)
@@ -45,6 +74,7 @@ function Payment:Start()
         return true
     end
     self.panel = self.client:CreatePaymentPanel(addon.Identity.displayName)
+    self:ResumeSavedPayment()
     self.client:ObserveMoneyChanges(function()
         self:OnMoneyChanged()
     end)
@@ -96,6 +126,34 @@ function Payment:ShowProposal()
     end)
 end
 
+-- A payment saved before a reload is confirmed if carried money already
+-- shows the deposit, and otherwise keeps waiting for it with a fresh timeout.
+function Payment:ResumeSavedPayment()
+    local intent = self.state:GetPendingPayment()
+    if intent == nil then
+        return
+    end
+    local current = self.client:GetCarriedMoney()
+    self.pending = { intent = intent, lastMoney = current }
+    if current ~= nil and intent.moneyBefore - current == intent.amount then
+        self:Reconcile(self.pending)
+        return
+    end
+    self:StartTimeout(self.pending)
+end
+
+function Payment:StartTimeout(pending)
+    if not self.client:After(TithePayment.CONFIRM_TIMEOUT, function()
+        if self.pending == pending then
+            self:Expire()
+        end
+    end) then
+        -- Without a timer a stuck payment could block every later one, so
+        -- the next money change or bank visit is its only chance to confirm.
+        pending.untimed = true
+    end
+end
+
 function Payment:OnGuildBankOpened()
     self.sessionOpen = true
     -- Without a client timer, an unconfirmed payment from an earlier visit
@@ -120,7 +178,8 @@ end
 
 -- Requests the deposit for the current proposal. Only one payment can be
 -- in flight at a time, and the balance is untouched until it confirms.
-function Payment:Pay()
+-- `method` records how the payment was started (default "button").
+function Payment:Pay(method)
     if self.pending ~= nil or not self.sessionOpen then
         return false
     end
@@ -130,37 +189,56 @@ function Payment:Pay()
         return false
     end
 
-    local pending = {
+    local character = self.state:GetCurrentCharacter()
+    local identity = character.identity or {}
+    local moneyBefore = self.client:GetCarriedMoney()
+    local createdAt = self.client:Timestamp() or self.client:Now() or 0
+    local intent = {
+        operationId = self.state:NextPaymentOperationId(createdAt),
         amount = proposal.amount,
+        method = method or "button",
+        character = {
+            key = self.state:GetCharacterKey(),
+            name = identity.displayName,
+            realm = identity.displayRealm,
+        },
         guild = proposal.guild,
-        lastMoney = self.client:GetCarriedMoney(),
+        moneyBefore = moneyBefore,
+        createdAt = createdAt,
+        status = "pending",
     }
-    self.pending = pending
-    if self.panel ~= nil then
-        self.panel:Show({ "Depositing " .. self:Money(pending.amount) .. "..." })
+    if not self.state:BeginPayment(intent) then
+        self:Say("nothing was deposited (the payment could not be saved).")
+        return false
     end
 
-    if not self.client:DepositGuildBankMoney(pending.amount) then
-        self.pending = nil
+    local pending = { intent = intent, lastMoney = moneyBefore }
+    self.pending = pending
+    if self.panel ~= nil then
+        self.panel:Show({ "Depositing " .. self:Money(intent.amount) .. "..." })
+    end
+
+    if not self.client:DepositGuildBankMoney(intent.amount) then
+        self:Resolve(pending, "rejected")
         self:Say("the guild bank deposit failed. Your tithe balance is unchanged.")
         self:ShowProposal()
         return false
     end
 
-    if not self.client:After(TithePayment.CONFIRM_TIMEOUT, function()
-        if self.pending == pending then
-            self:Expire()
-        end
-    end) then
-        -- Without a timer a stuck payment could block every later one, so
-        -- the next money change or bank visit is its only chance to confirm.
-        pending.untimed = true
-    end
+    self:StartTimeout(pending)
     return true
 end
 
+-- Ends `pending` with a terminal status that leaves the balance unchanged.
+function Payment:Resolve(pending, status)
+    if self.pending == pending then
+        self.pending = nil
+    end
+    self.state:ResolvePayment(pending.intent.operationId, status)
+end
+
 function Payment:Expire()
-    self.pending = nil
+    self:Resolve(self.pending, "expired")
     self:Say("the deposit was not confirmed, so your tithe balance is unchanged. Try again at the guild bank.")
     if self.sessionOpen then
         self:ShowProposal()
@@ -178,29 +256,74 @@ function Payment:OnMoneyChanged()
     end
     local previous = pending.lastMoney
     pending.lastMoney = current
-    if previous == nil or previous - current ~= pending.amount then
+    if previous == nil or previous - current ~= pending.intent.amount then
         return
     end
-    self.pending = nil
+    self:Reconcile(pending)
+end
+
+-- Credits the deposit only to the guild it was made for. If the character
+-- left or switched guilds meanwhile, the payment stays unresolved and the
+-- balance is untouched rather than credited to the wrong guild.
+function Payment:Reconcile(pending)
+    local intent = pending.intent
+    if not TithePayment.SameGuild(intent.guild, self.client:GetGuildIdentity()) then
+        self:Resolve(pending, "unresolved")
+        self:Say("your guild changed before the deposit to " .. intent.guild.name ..
+            " was confirmed, so your tithe balance is unchanged.")
+        return
+    end
     self:Confirm(pending)
 end
 
 function Payment:Confirm(pending)
+    local intent = pending.intent
+    if self.pending == pending then
+        self.pending = nil
+    end
     local character = self.state:GetCurrentCharacter()
     if type(character) ~= "table" then
         self:Say("the deposit went through, but your tithe balance could not be updated.")
         return
     end
 
-    local remaining = math.max(0, character.outstandingCopper - pending.amount)
-    if not self.state:SetFinancialState(remaining, character.fractionalRemainder) then
-        self:Say("the deposit went through, but your tithe balance could not be updated.")
+    -- Only the requested amount is ever credited, and never below zero.
+    local remaining = math.max(0, character.outstandingCopper - intent.amount)
+    if not self.state:ResolvePayment(intent.operationId, "confirmed",
+        remaining, character.fractionalRemainder)
+    then
+        -- Already resolved (a replayed signal) or not saved: credit nothing.
         return
     end
 
-    self:Say("deposited " .. self:Money(pending.amount) .. " to " .. pending.guild.name ..
+    self:Say("deposited " .. self:Money(intent.amount) .. " to " .. intent.guild.name ..
         ". Still owed: " .. self:Money(remaining) .. ".")
+    self:Publish(intent)
     if self.sessionOpen then
         self:ShowProposal()
+    end
+end
+
+function Payment:Publish(intent)
+    local donation = {
+        operationId = intent.operationId,
+        timestamp = self.client:Timestamp() or intent.createdAt,
+        amount = intent.amount,
+        method = intent.method,
+        character = {
+            key = intent.character.key,
+            name = intent.character.name,
+            realm = intent.character.realm,
+        },
+        guild = {
+            id = intent.guild.id,
+            name = intent.guild.name,
+            realm = intent.guild.realm,
+        },
+    }
+    local index
+    for index = 1, #self.listeners do
+        -- A failing listener must not undo or repeat a saved payment.
+        pcall(self.listeners[index], donation)
     end
 end

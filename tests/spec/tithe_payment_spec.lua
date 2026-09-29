@@ -32,6 +32,36 @@ local function lastMessage(world)
     return world.messages[#world.messages]
 end
 
+local function database(world)
+    return world.environment.AsgardsGuildTitheDB
+end
+
+-- Logs in against saved data, collecting completed donations from the start
+-- the way a history listener registered at composition time would.
+local function loginWithDonations(profile, options)
+    local world = fixtures.newEnvironment(profile, options)
+    local addon = fixtures.loadAddon(world)
+    local donations = {}
+    addon.tithePayment:OnDonation(function(donation)
+        table.insert(donations, donation)
+    end)
+    fixtures.fire(world, "ADDON_LOADED", "AsgardsGuildTithe")
+    world.playerReady = true
+    fixtures.fire(world, "PLAYER_LOGIN")
+    return world, addon, donations
+end
+
+-- Starts a payment of `owed`, then reloads with carried money `after`.
+local function reloadDuringPayment(profile, owed, after)
+    local world, addon = newWorld(profile, owed)
+    openBank(world)
+    fixtures.click(panel(addon).button)
+    return loginWithDonations(profile, {
+        database = fixtures.snapshot(database(world)),
+        money = after,
+    })
+end
+
 local function registerProfileTests(profile)
     test.test(profile .. " the guild bank offers the full tithe with recipient and remainder", function()
         local world, addon = newWorld(profile, 5000)
@@ -182,6 +212,196 @@ local function registerProfileTests(profile)
         fixtures.setMoney(world, CARRIED - 5000)
 
         test.assertContains(lastMessage(world), "deposited 0g 50s 00c")
+    end)
+
+    test.test(profile .. " a payment is saved as a pending intent until it resolves", function()
+        local world, addon = newWorld(profile, 5000)
+        openBank(world)
+        fixtures.click(panel(addon).button)
+
+        local intent = character(world).pendingPayment
+        test.assertEqual("jaina-camelot:1790001000:1", intent.operationId)
+        test.assertEqual(5000, intent.amount)
+        test.assertEqual("button", intent.method)
+        test.assertEqual("jaina-camelot", intent.character.key)
+        test.assertEqual("Jaina", intent.character.name)
+        test.assertEqual("Camelot", intent.character.realm)
+        test.assertEqual("Knights of Camelot", intent.guild.name)
+        test.assertEqual("Camelot", intent.guild.realm)
+        test.assertEqual(CARRIED, intent.moneyBefore)
+        test.assertEqual(1790001000, intent.createdAt)
+        test.assertEqual("pending", intent.status)
+
+        fixtures.setMoney(world, CARRIED - 5000)
+
+        test.assertEqual(nil, character(world).pendingPayment)
+        test.assertEqual(intent.operationId, character(world).resolvedPayments[1])
+    end)
+
+    test.test(profile .. " replayed money signals confirm a payment once", function()
+        local world, addon = newWorld(profile, 5000)
+        local donations = {}
+        addon.tithePayment:OnDonation(function(donation)
+            table.insert(donations, donation)
+        end)
+        openBank(world)
+        fixtures.click(panel(addon).button)
+
+        fixtures.setMoney(world, CARRIED - 5000)
+        fixtures.fire(world, "PLAYER_MONEY")
+        fixtures.setMoney(world, CARRIED - 10000)
+        fixtures.advance(world, 30)
+
+        test.assertEqual(1, #donations)
+        test.assertEqual(1, #character(world).resolvedPayments)
+        test.assertEqual(0, character(world).outstandingCopper)
+    end)
+
+    test.test(profile .. " the donation event carries the payment and follows the saved balance", function()
+        local world, addon = newWorld(profile, 8000)
+        world.guildClubId = 42
+        local savedBalance
+        local donations = {}
+        addon.tithePayment:OnDonation(function(donation)
+            savedBalance = character(world).outstandingCopper
+            table.insert(donations, donation)
+        end)
+        addon.tithePayment:OnDonation(function()
+            error("a broken listener")
+        end)
+        openBank(world)
+        fixtures.click(panel(addon).button)
+        fixtures.advance(world, 3)
+        fixtures.setMoney(world, CARRIED - 8000)
+
+        test.assertEqual(0, savedBalance)
+        local donation = donations[1]
+        test.assertEqual("jaina-camelot:1790001000:1", donation.operationId)
+        test.assertEqual(1790001003, donation.timestamp)
+        test.assertEqual(8000, donation.amount)
+        test.assertEqual("button", donation.method)
+        test.assertEqual("jaina-camelot", donation.character.key)
+        test.assertEqual("Jaina", donation.character.name)
+        test.assertEqual("Camelot", donation.character.realm)
+        test.assertEqual("42", donation.guild.id)
+        test.assertEqual("Knights of Camelot", donation.guild.name)
+        test.assertEqual("Camelot", donation.guild.realm)
+        test.assertContains(lastMessage(world), "deposited 0g 80s 00c")
+    end)
+
+    test.test(profile .. " a deposit that lands before a reload is confirmed once after it", function()
+        local world, addon, donations = reloadDuringPayment(profile, 5000, CARRIED - 5000)
+
+        test.assertEqual(0, character(world).outstandingCopper)
+        test.assertEqual(40, character(world).fractionalRemainder)
+        test.assertEqual(1, #donations)
+        test.assertEqual(nil, character(world).pendingPayment)
+
+        local again, _, againDonations = loginWithDonations(profile, {
+            database = fixtures.snapshot(database(world)),
+            money = CARRIED - 5000,
+        })
+        test.assertEqual(0, character(again).outstandingCopper)
+        test.assertEqual(0, #againDonations)
+    end)
+
+    test.test(profile .. " a payment still in flight at a reload waits for its deposit", function()
+        local world, addon, donations = reloadDuringPayment(profile, 5000, CARRIED)
+
+        test.assertEqual(5000, character(world).outstandingCopper)
+        test.assertTrue(character(world).pendingPayment ~= nil)
+        fixtures.setMoney(world, CARRIED - 5000)
+
+        test.assertEqual(0, character(world).outstandingCopper)
+        test.assertEqual(1, #donations)
+    end)
+
+    test.test(profile .. " a payment still unconfirmed after a reload expires safely", function()
+        local world, addon, donations = reloadDuringPayment(profile, 5000, CARRIED - 700)
+
+        fixtures.advance(world, 11)
+
+        test.assertEqual(5000, character(world).outstandingCopper)
+        test.assertEqual(nil, character(world).pendingPayment)
+        test.assertEqual(0, #donations)
+        test.assertContains(lastMessage(world), "not confirmed")
+        openBank(world)
+        test.assertTrue(panel(addon).button.shown)
+    end)
+
+    test.test(profile .. " expired and failed payments leave no pending intent", function()
+        local world, addon = newWorld(profile, 5000)
+        openBank(world)
+        fixtures.click(panel(addon).button)
+        fixtures.advance(world, 11)
+        test.assertEqual(nil, character(world).pendingPayment)
+        test.assertEqual(1, #character(world).resolvedPayments)
+
+        world.depositError = "not allowed"
+        fixtures.click(panel(addon).button)
+        test.assertEqual(nil, character(world).pendingPayment)
+        test.assertEqual(2, #character(world).resolvedPayments)
+        test.assertEqual(5000, character(world).outstandingCopper)
+    end)
+
+    test.test(profile .. " leaving or switching guilds mid-payment never credits a guild", function()
+        local changes = {
+            function(world)
+                world.guildName = "Horde Traders"
+            end,
+            function(world)
+                world.inGuild = false
+            end,
+            function(world)
+                world.guildRealm = "Avalon"
+            end,
+        }
+        local index
+        for index = 1, #changes do
+            local world, addon = newWorld(profile, 5000)
+            local donations = {}
+            addon.tithePayment:OnDonation(function(donation)
+                table.insert(donations, donation)
+            end)
+            openBank(world)
+            fixtures.click(panel(addon).button)
+
+            changes[index](world)
+            fixtures.setMoney(world, CARRIED - 5000)
+
+            test.assertEqual(5000, character(world).outstandingCopper, "change " .. index)
+            test.assertEqual(0, #donations, "change " .. index)
+            test.assertEqual(nil, character(world).pendingPayment, "change " .. index)
+            test.assertContains(lastMessage(world), "guild changed")
+        end
+    end)
+
+    test.test(profile .. " a stable guild id decides the guild over its name", function()
+        local renamed, renamedAddon = newWorld(profile, 5000)
+        renamed.guildClubId = "42"
+        openBank(renamed)
+        fixtures.click(panel(renamedAddon).button)
+        renamed.guildName = "Knights of Avalon"
+        fixtures.setMoney(renamed, CARRIED - 5000)
+        test.assertEqual(0, character(renamed).outstandingCopper)
+
+        local other, otherAddon = newWorld(profile, 5000)
+        other.guildClubId = "42"
+        openBank(other)
+        fixtures.click(panel(otherAddon).button)
+        other.guildClubId = "77"
+        fixtures.setMoney(other, CARRIED - 5000)
+        test.assertEqual(5000, character(other).outstandingCopper)
+    end)
+
+    test.test(profile .. " the whole balance is offered to the guild the character is in now", function()
+        local world, addon = newWorld(profile, 5000)
+        world.guildName = "Horde Traders"
+
+        openBank(world)
+
+        test.assertContains(panel(addon).body.text, "Pay to Horde Traders")
+        test.assertContains(panel(addon).body.text, "Tithe: 0g 50s 00c")
     end)
 
     test.test(profile .. " a deposit is never counted as income", function()
