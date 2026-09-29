@@ -167,8 +167,37 @@ local function registerProfileTests(profile)
 
             fixtures.setMoney(world, CARRIED - 5000)
             test.assertEqual(0, character(world).outstandingCopper)
-            test.assertFalse(inline.shown)
-            test.assertFalse(panel(addon):IsShown())
+            test.assertTrue(inline.shown)
+            test.assertEqual("Give Tithe", inline.text)
+            test.assertFalse(inline.enabled)
+            fixtures.click(inline)
+            test.assertEqual(1, #world.deposits)
+        end
+    end)
+
+    test.test(profile .. " with nothing to give the button stays, disabled, and says why", function()
+        local cases = {
+            { owed = 0, text = "no tithe is owed" },
+            { owed = 5000, money = 0, text = "you carry no gold" },
+        }
+        local index
+        for index = 1, #cases do
+            local case = cases[index]
+            local world, addon = newWorld(profile, case.owed, {
+                autoDeposit = true,
+                money = case.money,
+            })
+            local _, tooltip = loadBankWindow(world)
+
+            openBank(world)
+            local inline = panel(addon).inlineButton
+
+            test.assertTrue(inline.shown, "case " .. index)
+            test.assertEqual("Give Tithe", inline.text)
+            test.assertFalse(inline.enabled, "case " .. index)
+            test.assertEqual(0, #world.deposits)
+            inline.scripts.OnEnter(inline)
+            test.assertContains(tooltip.lines[2], case.text)
         end
     end)
 

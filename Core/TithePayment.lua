@@ -121,13 +121,20 @@ function Payment:CurrentProposal()
     }
 end
 
+local UNAVAILABLE_TEXT = {
+    ["character state is unavailable"] = "Your tithe balance is unavailable right now.",
+    ["not in a guild"] = "You are not in a guild.",
+    ["nothing to pay"] = "Nothing to give right now: no tithe is owed, or you carry no gold.",
+}
+
 function Payment:ShowProposal()
     if self.panel == nil then
         return
     end
-    local proposal = self:CurrentProposal()
+    local proposal, reason = self:CurrentProposal()
     if proposal == nil then
-        self.panel:Hide()
+        -- The button stays in the bank window, disabled, saying why.
+        self.panel:ShowUnavailable({ UNAVAILABLE_TEXT[reason] or "Nothing to give right now." })
         return
     end
     local lines = {

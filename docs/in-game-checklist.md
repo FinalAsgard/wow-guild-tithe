@@ -52,7 +52,7 @@ Run these on a guilded character that owes some tithe (earn a little income firs
 1. In `/agtdev`, confirm the **Guild Bank** section shows **Deposit tithe automatically** checked. Open the guild bank. Confirm the tithe is deposited without a click: your gold drops by that amount, chat shows `deposited <amount> to <guild>. Still owed: <remainder>.`, and reopening `/agtdev` shows the new balance. If chat says the game blocked the automatic deposit, note it and continue: the **Give Tithe** button must appear instead and must work.
 2. Uncheck **Deposit tithe automatically**, earn a little income, and open the guild bank. Confirm nothing is deposited on its own and a **Give Tithe** button appears just left of the bank's **Withdraw** button. Hover it and confirm the tooltip shows your guild, the tithe amount, and what you will still owe. (If instead a small panel appears beside the bank, note it: the add-on could not find the Withdraw button.)
 3. Click **Give Tithe**. Confirm it reads "Depositing..." until the deposit lands. Confirm the same gold drop and chat message as step 1.
-4. Open the guild bank again with nothing owed. Confirm no **Give Tithe** button appears and nothing is deposited.
+4. Open the guild bank again with nothing owed. Confirm **Give Tithe** is still there but greyed out, its tooltip says nothing is owed, and nothing is deposited.
 5. With the setting still off and less gold than you owe, open the guild bank. Confirm the tooltip offers all the gold you carry, and after depositing, the remainder is still owed.
 6. Open the guild bank and close it without clicking. Confirm nothing is deposited and the balance is unchanged.
 7. Turn off **Print tithe updates** and pay once. Confirm the payment message still appears.
@@ -115,4 +115,11 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 - **Date:** 2026-09-29
 - **Result:** Signed off by Jon Zenor: "I tested the plugin and everything looks good." Covers the income tracking steps above.
 - **Clients and builds:** Not recorded separately.
+- **Signed off by:** Jon Zenor
+
+## Guild-bank payment sign-off (PRD #4)
+
+- **Date:** 2026-09-29
+- **Result:** Signed off by Jon Zenor on both clients: "All testing checks out in retail and Forever." Automatic deposit works and resets the balance to zero, the **Give Tithe** button appears in the guild bank window and works, and `/agt clear` updates the open settings page live. Found during testing and fixed: the offer was hidden under the bank window, the button was missing on the first bank visit after login, and the button now stays disabled instead of disappearing when nothing is owed.
+- **Clients and builds:** WoW Forever 1.60.1 (70058); WoW Retail, build not recorded.
 - **Signed off by:** Jon Zenor

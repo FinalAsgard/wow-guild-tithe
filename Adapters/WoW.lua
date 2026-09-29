@@ -742,6 +742,24 @@ function Client:CreatePaymentPanel(title)
         self.frame:Show()
     end
 
+    -- Nothing can be given now. The in-bank button stays, disabled, with
+    -- `lines` in its tooltip; the side panel is simply hidden.
+    function panel:ShowUnavailable(lines)
+        local inline = self:Inline()
+        if inline == nil then
+            self:Hide()
+            return
+        end
+        self.lines = lines
+        self.body:SetText(table.concat(lines, "\n"))
+        self.frame:Hide()
+        inline:SetText("Give Tithe")
+        inline:SetScript("OnClick", nil)
+        pcall(inline.Disable, inline)
+        inline:Show()
+        self.inlineShown = true
+    end
+
     function panel:Hide()
         self.button:SetScript("OnClick", nil)
         self.frame:Hide()
