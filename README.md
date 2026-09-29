@@ -1,6 +1,6 @@
 # Asgard's Guild Tithe
 
-A World of Warcraft add-on for configuring and accounting for a guild tithe. It watches the character's carried money and reserves the configured percentage of new income for the guild. Source-specific income classification is being added, and guild-bank deposits are planned for a later PRD.
+A World of Warcraft add-on for configuring and accounting for a guild tithe. It watches the character's carried money, works out where each gain came from, and reserves the configured percentage of income from the sources you enable. Guild-bank deposits are planned for a later PRD.
 
 ## Supported clients
 

@@ -4,6 +4,8 @@ local fixtures = require("tests.client_fixtures")
 -- through the real add-on under the matching client profile. The fake clock
 -- follows the captured timestamps, carried money follows each entry's
 -- recorded money, and every captured event is fired with its arguments.
+-- Only entries of kind "event" are replayed: hooked function calls (such as
+-- mail collection) and markers are skipped.
 local TraceReplay = {}
 
 local PROFILES = {
@@ -23,7 +25,10 @@ function TraceReplay.run(trace, options)
     assert(profile ~= nil, "unknown trace client " .. tostring(trace.header.client))
 
     local entries = trace.entries
-    local world = fixtures.newEnvironment(profile, { money = entries[1].money })
+    -- A trimmed trace records the balance from before its first entry.
+    local world = fixtures.newEnvironment(profile, {
+        money = trace.baselineMoney or entries[1].money,
+    })
     fixtures.login(world)
     if options.prepare ~= nil then
         options.prepare(world)

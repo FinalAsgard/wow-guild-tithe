@@ -166,3 +166,15 @@ test.test("correlator: a negative or non-numeric note amount is ignored", functi
 
     test.assertEqual("quests", (correlator:Classify(10.1, 10.4, 777)))
 end)
+
+test.test("correlator: exact-amount notes wait longer than timing-only notes", function()
+    local correlator = newCorrelator()
+    correlator:Record("mailbox", "note", 10, 700)
+    correlator:Record("loot", "note", 10)
+
+    test.assertEqual("miscellaneous", (correlator:Classify(15, 15.3, 999)))
+    test.assertEqual("mailbox", (correlator:Classify(15, 15.3, 700)))
+
+    correlator:Record("mailbox", "note", 20, 700)
+    test.assertEqual("miscellaneous", (correlator:Classify(35, 35.3, 700)))
+end)

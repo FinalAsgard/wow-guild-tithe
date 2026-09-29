@@ -120,6 +120,18 @@ local function registerProfileTests(profile)
         test.assertEqual(100, character(world).outstandingCopper)
     end)
 
+    test.test(profile .. " a refund whose money arrives seconds later is still excluded", function()
+        local world = newWorld(profile, { ["0:3"] = 5000 })
+
+        fixtures.fire(world, "MERCHANT_SHOW")
+        world.environment.C_Container.ContainerRefundItemPurchase(0, 3)
+        fixtures.advance(world, 3)
+        fixtures.setMoney(world, STARTING_MONEY + 5000)
+
+        test.assertEqual(0, character(world).outstandingCopper)
+        test.assertEqual(0, #world.messages)
+    end)
+
     test.test(profile .. " a refund without a reported price is excluded by timing", function()
         local world = newWorld(profile)
 

@@ -124,8 +124,11 @@ function Trace:Record(kind, name, args, extra)
     end
 
     table.insert(entries, entry)
+    local database = self:Database()
     while #entries > EventTrace.MAX_ENTRIES do
-        table.remove(entries, 1)
+        -- Keep the carried money from just before the first retained entry,
+        -- so a replay of a trimmed trace starts from the right balance.
+        database.baselineMoney = table.remove(entries, 1).money
     end
 end
 

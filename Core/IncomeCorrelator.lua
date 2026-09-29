@@ -5,6 +5,11 @@ local _, addon = ...
 local IncomeCorrelator = {
     -- How close (seconds) a single corroborating message must be to a gain.
     NOTE_WINDOW = 1.0,
+    -- A note naming an exact amount (a collected mail, a refund price, a
+    -- guild-bank withdrawal, a quest reward) can only explain a gain of that
+    -- size and is used up when it does, so it may wait longer for the
+    -- server's money update to arrive on a slow connection.
+    AMOUNT_NOTE_WINDOW = 10.0,
     -- How long (seconds) an interaction still explains gains after it closes.
     CLOSE_GRACE = 1.0,
     -- An interaction whose close event never arrives stops counting after
@@ -48,6 +53,13 @@ function IncomeCorrelator.Create()
         notes = {},
         sessions = {},
     }, Correlator)
+end
+
+local function noteWindow(note)
+    if note.amount ~= nil then
+        return IncomeCorrelator.AMOUNT_NOTE_WINDOW
+    end
+    return IncomeCorrelator.NOTE_WINDOW
 end
 
 local function isTime(value)
@@ -99,7 +111,7 @@ function Correlator:Prune(now)
     local index
     for index = 1, #self.notes do
         local note = self.notes[index]
-        if note.at + IncomeCorrelator.NOTE_WINDOW >= now then
+        if note.at + noteWindow(note) >= now then
             table.insert(kept, note)
         end
     end
@@ -132,7 +144,7 @@ local function explainingNote(notes, source, observedAt, finalizedAt, copper)
     for index = 1, #notes do
         local note = notes[index]
         if note.source == source
-            and note.at >= observedAt - IncomeCorrelator.NOTE_WINDOW
+            and note.at >= observedAt - noteWindow(note)
             and note.at <= finalizedAt
             and (note.amount == nil or note.amount == copper)
         then

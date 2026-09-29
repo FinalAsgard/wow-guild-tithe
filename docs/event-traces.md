@@ -43,7 +43,7 @@ The trace is the `AsgardsGuildTitheDevTraceDB` table in that file. Attach the fi
 
 ## Replaying traces as tests
 
-`tests/trace_replay.lua` replays a captured trace through the real add-on under the matching client profile. The fake clock follows the captured timestamps, carried money follows each entry, and every captured event is fired with its arguments. `tests/spec/trace_replay_spec.lua` asserts the exact tithe results. Add a new capture by saving only its `AsgardsGuildTitheDevTraceDB` table (with no character data) under `tests/fixtures/traces/<client>/` and adding a replay test.
+`tests/trace_replay.lua` replays a captured trace through the real add-on under the matching client profile. The fake clock follows the captured timestamps, carried money follows each entry, and every captured event is fired with its arguments. Hooked function-call entries, such as mail collection, are not replayed. A trace that outgrew the 2,000-entry limit records `baselineMoney`, the balance before its first kept entry, and replay starts from it. `tests/spec/trace_replay_spec.lua` asserts the exact tithe results for event-based replay. Add a new capture by saving only its `AsgardsGuildTitheDevTraceDB` table (with no character data) under `tests/fixtures/traces/<client>/` and adding a replay test.
 
 ## Observed timings
 

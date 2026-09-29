@@ -122,6 +122,23 @@ test.test("dev trace keeps only the newest entries", function()
     test.assertEqual(6, entries(world)[1].args[1])
 end)
 
+test.test("a trimmed trace keeps the balance from before its first entry", function()
+    local world, addon = loginDev("Retail", { money = 100 })
+    addon.EventTrace.MAX_ENTRIES = 2
+    trace(world, "start")
+
+    world.money = 150
+    fixtures.fire(world, "UI_INFO_MESSAGE", 1)
+    world.money = 175
+    fixtures.fire(world, "PLAYER_MONEY")
+    fixtures.fire(world, "UI_INFO_MESSAGE", 2)
+
+    local database = world.environment.AsgardsGuildTitheDevTraceDB
+    test.assertEqual(2, #database.entries)
+    test.assertEqual("PLAYER_MONEY", database.entries[1].name)
+    test.assertEqual(150, database.baselineMoney)
+end)
+
 test.test("dev trace records mail money collection with invoice details", function()
     local world = fixtures.newEnvironment("Retail")
     local environment = world.environment

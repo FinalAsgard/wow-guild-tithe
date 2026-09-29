@@ -123,6 +123,18 @@ local function registerProfileTests(profile)
         test.assertEqual(2300, character(world).outstandingCopper)
     end)
 
+    test.test(profile .. " mail money that arrives seconds after collection is still mail income", function()
+        local world = newWorld(profile, { { money = 10000 } }, { mailbox = true })
+
+        fixtures.fire(world, "MAIL_SHOW")
+        fixtures.fire(world, "MAIL_INBOX_UPDATE")
+        world.environment.TakeInboxMoney(1)
+        fixtures.advance(world, 3)
+        fixtures.setMoney(world, STARTING_MONEY + 10000)
+
+        test.assertContains(lastMessage(world), "from mailbox income")
+    end)
+
     test.test(profile .. " a gain that does not match the collected mail is not mail income", function()
         local world = newWorld(profile, { { money = 10000 } }, { mailbox = true })
 
