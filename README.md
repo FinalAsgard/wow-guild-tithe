@@ -1,6 +1,6 @@
 # Asgard's Guild Tithe
 
-A World of Warcraft add-on for configuring and accounting for a guild tithe. It watches the character's carried money, works out where each gain came from, and reserves the configured percentage of income from the sources you enable. When you open your guild bank, it offers to deposit what you owe.
+A World of Warcraft add-on for configuring and accounting for a guild tithe. It watches the character's carried money, works out where each gain came from, and reserves the configured percentage of income from the sources you enable. When you open your guild bank, it gives your tithe automatically, or with a **Give Tithe** button in the bank window.
 
 ## Supported clients
 
@@ -27,7 +27,7 @@ At login the add-on records the character's carried money as a starting point, s
 
 The game does not mark refunds from being outbid at the auction house as returns, so that money counts as mailbox income, which is off by default.
 
-## Paying at the guild bank
+## Giving your tithe at the guild bank
 
 Opening your guild bank adds a **Give Tithe** button to the guild bank window, just left of its **Withdraw** button. Hovering it shows the guild that will receive the tithe, the amount (everything you owe, but never more than you carry), and what you will still owe afterwards. If the add-on cannot find the Withdraw button on your client, the same offer appears in a small panel beside the guild bank instead. With **Deposit tithe automatically** checked (the default, in the settings' **Guild Bank** section), that amount is deposited a second after the bank opens. With it unchecked, or whenever an automatic deposit fails, is not confirmed, or is blocked by the game, click **Give Tithe** to pay. If the game blocks an automatic deposit, the add-on does not try again until your next login or `/reload`, so you never see repeated errors. Your tithe balance goes down only after your carried gold actually drops by exactly that amount; a failed or unconfirmed deposit leaves the balance unchanged and tells you. When you owe nothing or carry no gold, **Give Tithe** stays in the window but is greyed out, and its tooltip says why. Closing the guild bank discards the offer. Payment messages always print, even when **Print tithe updates** is off.
 
