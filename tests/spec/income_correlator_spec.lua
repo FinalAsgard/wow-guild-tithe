@@ -66,7 +66,7 @@ local CASES = {
     {
         name = "a loot window that never closed stops counting after the limit",
         records = { { 10, "loot", "open" } },
-        observedAt = 200, finalizedAt = 200.3,
+        observedAt = 2000, finalizedAt = 2000.3,
         source = "miscellaneous",
     },
     {

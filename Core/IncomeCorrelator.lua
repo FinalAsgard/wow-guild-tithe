@@ -8,8 +8,11 @@ local IncomeCorrelator = {
     -- How long (seconds) an interaction still explains gains after it closes.
     CLOSE_GRACE = 1.0,
     -- An interaction whose close event never arrives stops counting after
-    -- this many seconds, so it cannot claim unrelated later gains.
-    MAX_OPEN = 120,
+    -- this many seconds, so it cannot claim unrelated later gains. It must
+    -- outlast real sessions: players browse vendors, negotiate trades, and
+    -- sit at the guild bank for many minutes, and a guild-bank withdrawal
+    -- must never fall through to miscellaneous and be tithed.
+    MAX_OPEN = 1800,
     -- Upper bound on remembered notes, oldest dropped first.
     MAX_NOTES = 32,
     -- Most specific source first. Sources not listed never classify.

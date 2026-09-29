@@ -31,6 +31,11 @@ function Observer:Start()
     if baseline == nil then
         return false, "carried money is unavailable"
     end
+    -- Without guild membership every gain would be unresolved, so report
+    -- the missing capability once instead of silently tracking nothing.
+    if self.client:IsInGuild() == nil then
+        return false, "guild membership is unavailable"
+    end
     self.baseline = baseline
     self.pending = nil
     self.correlator:Reset()

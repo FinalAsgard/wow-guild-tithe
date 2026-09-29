@@ -131,6 +131,35 @@ local function registerProfileTests(profile)
         test.assertEqual(0, #world.messages)
     end)
 
+    test.test(profile .. " long vendor, trade, and guild-bank sessions keep their meaning", function()
+        local world = newWorld(profile)
+
+        fixtures.fire(world, "MERCHANT_SHOW")
+        fixtures.advance(world, 600)
+        fixtures.setMoney(world, STARTING_MONEY + 1000)
+        test.assertContains(world.messages[#world.messages], "from vendor sale income")
+        fixtures.fire(world, "MERCHANT_CLOSED")
+        fixtures.advance(world, 5)
+
+        fixtures.fire(world, "TRADE_SHOW")
+        fixtures.advance(world, 300)
+        fixtures.setMoney(world, STARTING_MONEY + 2000, false)
+        fixtures.fire(world, "TRADE_CLOSED")
+        fixtures.settle(world)
+        test.assertContains(world.messages[#world.messages], "from player trade income")
+        fixtures.advance(world, 5)
+
+        -- A withdrawal after ten minutes at the guild bank, with no hooked
+        -- withdraw call, must still be excluded rather than tithed.
+        local owed = character(world).outstandingCopper
+        local messages = #world.messages
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        fixtures.advance(world, 600)
+        fixtures.setMoney(world, STARTING_MONEY + 102000)
+        test.assertEqual(owed, character(world).outstandingCopper)
+        test.assertEqual(messages, #world.messages)
+    end)
+
     test.test(profile .. " depositing into the guild bank changes nothing", function()
         local world = newWorld(profile)
         local before = fixtures.snapshot(character(world))
