@@ -1,12 +1,25 @@
 # Asgard's Guild Tithe
 
-A World of Warcraft: Forever add-on foundation for configuring and accounting for a guild tithe. Live income tracking and guild-bank deposits are planned for later PRDs.
+A World of Warcraft add-on foundation for configuring and accounting for a guild tithe. Live income tracking and guild-bank deposits are planned for later PRDs.
+
+## Supported clients
+
+| Client | Status | Production manifest | Interface |
+|---|---|---|---|
+| World of Warcraft: Forever | Supported | `AsgardsGuildTithe_Camelot.toc` | `16000`, `16001` |
+| World of Warcraft Retail (live) | Supported | `AsgardsGuildTithe_Mainline.toc` | `120100` |
+| WoW Classic Era, progression Classic, Anniversary, and seasonal Classic | Not supported | — | — |
+| Retail PTR, alpha, and beta | Not supported | — | — |
+
+Both supported clients get the same add-on name, commands, settings, and saved-data format from one source tree and one version. Each game installation keeps its own SavedVariables, and nothing is synchronized between Forever and Retail. Each client loads only its own manifest. Retail uses `_Mainline`, the suffix the WoW packager and CurseForge tag as Retail. Forever also accepts `_Mainline`, but it always prefers its own `_Camelot` manifest, so the two manifests must always ship together. On an unsupported client the add-on reports that once and leaves saved data untouched.
+
+Interface numbers are release metadata, not permanent constants. Confirm them from each running client with `/dump (select(4, GetBuildInfo()))` after every game patch and before each release, and update both manifests for that client together.
 
 ## Current foundation
 
-The add-on currently provides its Forever manifest, load lifecycle, client compatibility boundary, per-character saved state, exact tithe accounting service, money formatter, and extensible `/agt` command router. On clients with the supported native Settings API, `/agt` opens an AddOns settings page where the current character's outstanding balance is shown read-only and the whole-number tithe percentage, seven income-source preferences, and routine chat-feedback preference can be changed. The balance display explicitly notes that live income tracking is not active yet. Clients without that API keep loading normally and explain that settings are unavailable.
+The add-on currently provides its Forever and Retail manifests, load lifecycle, client compatibility boundary, per-character saved state, exact tithe accounting service, money formatter, and extensible `/agt` command router. On clients with the supported native Settings API, `/agt` opens an AddOns settings page where the current character's outstanding balance is shown read-only and the whole-number tithe percentage, seven income-source preferences, and routine chat-feedback preference can be changed. The balance display explicitly notes that live income tracking is not active yet. Clients without that API keep loading normally and explain that settings are unavailable.
 
-All direct WoW API access belongs in `Adapters/WoW.lua`; core modules are client-independent Lua. See [the persistence schema and recovery contract](docs/persistence.md) for migration and corruption behavior, and [the testing conventions](docs/testing.md) for the project boundary and test style.
+All direct WoW API access belongs in `Adapters/`; core modules are client-independent Lua. See [the persistence schema and recovery contract](docs/persistence.md) for migration and corruption behavior, and [the testing conventions](docs/testing.md) for the project boundary, client profiles, and test style.
 
 ## Verify the scaffold
 
@@ -16,4 +29,4 @@ Run the automated suite with Lua 5.1:
 lua5.1 tests/run.lua
 ```
 
-For Windows development setup, use the [isolated development install](docs/development-install.md), then follow the [initial in-game checklist](docs/in-game-checklist.md).
+For Windows development setup, use the [isolated development install](docs/development-install.md), then follow the [in-game checklists](docs/in-game-checklist.md). To build and inspect the multi-client release zip, see [release packaging](docs/packaging.md).

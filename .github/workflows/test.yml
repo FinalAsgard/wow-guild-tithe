@@ -28,6 +28,18 @@ jobs:
       - name: Run automated tests
         run: lua5.1 tests/run.lua
 
+  package:
+    name: Release package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and validate the multi-client package without uploading
+        run: tools/build-package.sh
+
   windows-installer:
     name: Windows development installer
     runs-on: windows-latest
@@ -35,29 +47,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Exercise idempotent junction install
+      - name: Exercise Forever and Retail junction installs
         shell: pwsh
-        run: |
-          $wowRoot = Join-Path $env:RUNNER_TEMP "wow-test\_classic_beta_"
-          New-Item -ItemType Directory -Path (Join-Path $wowRoot "Interface\AddOns") -Force | Out-Null
-          ./tools/Install-Dev.ps1 -WowRoot $wowRoot
-          ./tools/Install-Dev.ps1 -WowRoot $wowRoot
-
-          $destination = Join-Path $wowRoot "Interface\AddOns\AsgardsGuildTitheDev"
-          $item = Get-Item -LiteralPath $destination -Force
-          if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
-            throw "Development install is not a junction."
-          }
-
-          $blockedRoot = Join-Path $env:RUNNER_TEMP "wow-blocked\_classic_beta_"
-          $blockedDestination = Join-Path $blockedRoot "Interface\AddOns\AsgardsGuildTitheDev"
-          New-Item -ItemType Directory -Path $blockedDestination -Force | Out-Null
-          $refused = $false
-          try {
-            ./tools/Install-Dev.ps1 -WowRoot $blockedRoot
-          } catch {
-            $refused = $true
-          }
-          if (-not $refused) {
-            throw "Installer replaced an existing real directory."
-          }
+        run: ./tests/Install-Dev.Tests.ps1

@@ -1,10 +1,10 @@
-## Interface: 16000, 16001
+## Interface: 120100
 ## Title: Asgard's Guild Tithe
 ## Notes: Tracks a configurable guild tithe.
 ## Author: FinalAsgard
 ## Version: 0.1.0
 ## SavedVariables: AsgardsGuildTitheDB
-## X-Client: Forever
+## X-Client: Retail
 
 Core/Identity.lua
 Adapters/ClientProfile.lua
