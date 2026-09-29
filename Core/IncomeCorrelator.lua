@@ -15,7 +15,13 @@ local IncomeCorrelator = {
     -- Most specific source first. Sources not listed never classify.
     -- Corroborating notes are checked before open interactions, because a
     -- note names one gain while an interaction (e.g. an open vendor) is broad.
-    PRECEDENCE = { "quests", "loot", "vendorSales" },
+    -- Exclusions (known non-income, such as money returned to the sender)
+    -- sit above the sources they could be confused with.
+    PRECEDENCE = { "quests", "returnedMail", "auctions", "mailbox", "loot", "vendorSales" },
+    -- Context that identifies a known non-income transfer, with its reason.
+    EXCLUSIONS = {
+        returnedMail = "mail returned to sender is your own money coming back",
+    },
 }
 addon.IncomeCorrelator = IncomeCorrelator
 
@@ -105,7 +111,8 @@ local function sessionExplains(session, observedAt)
     return observedAt <= session.closedAt + IncomeCorrelator.CLOSE_GRACE
 end
 
-local function noteExplains(notes, source, observedAt, finalizedAt, copper)
+-- Returns the index of the first note for `source` that explains the gain.
+local function explainingNote(notes, source, observedAt, finalizedAt, copper)
     local index
     for index = 1, #notes do
         local note = notes[index]
@@ -114,33 +121,47 @@ local function noteExplains(notes, source, observedAt, finalizedAt, copper)
             and note.at <= finalizedAt
             and (note.amount == nil or note.amount == copper)
         then
-            return true
+            return index
         end
     end
-    return false
+    return nil
 end
 
--- Returns source, reason for a gain of `copper` observed at `observedAt` and
--- finalized at `finalizedAt`. Notes that arrive after the money change but
--- before finalization still count, so reordered events classify the same way.
+local function result(source, reason)
+    local exclusion = IncomeCorrelator.EXCLUSIONS[source]
+    if exclusion ~= nil then
+        return source, exclusion, true
+    end
+    return source, reason, false
+end
+
+-- Returns source, reason, excluded for a gain of `copper` observed at
+-- `observedAt` and finalized at `finalizedAt`. Notes that arrive after the
+-- money change but before finalization still count, so reordered events
+-- classify the same way. A note naming an exact amount is used up by the
+-- gain it explains, so one mail or reward cannot explain two gains.
 function Correlator:Classify(observedAt, finalizedAt, copper)
     if not isTime(observedAt) or not isTime(finalizedAt) then
-        return "miscellaneous", "no clock to correlate source context"
+        return "miscellaneous", "no clock to correlate source context", false
     end
 
     local index
     for index = 1, #IncomeCorrelator.PRECEDENCE do
         local source = IncomeCorrelator.PRECEDENCE[index]
-        if noteExplains(self.notes, source, observedAt, finalizedAt, copper) then
-            return source, source .. " message corroborated the gain"
+        local noteIndex = explainingNote(self.notes, source, observedAt, finalizedAt, copper)
+        if noteIndex ~= nil then
+            if self.notes[noteIndex].amount ~= nil then
+                table.remove(self.notes, noteIndex)
+            end
+            return result(source, source .. " message corroborated the gain")
         end
     end
     for index = 1, #IncomeCorrelator.PRECEDENCE do
         local source = IncomeCorrelator.PRECEDENCE[index]
         if sessionExplains(self.sessions[source], observedAt) then
-            return source, source .. " interaction was open"
+            return result(source, source .. " interaction was open")
         end
     end
 
-    return "miscellaneous", "no specific source context"
+    return "miscellaneous", "no specific source context", false
 end

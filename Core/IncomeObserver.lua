@@ -96,7 +96,7 @@ function Observer:FinalizePending()
     self.pending = nil
 
     local finalizedAt = self.client:Now()
-    observation.source, observation.reason = self.correlator:Classify(
+    observation.source, observation.reason, observation.excluded = self.correlator:Classify(
         observation.observedAt,
         finalizedAt,
         observation.copper

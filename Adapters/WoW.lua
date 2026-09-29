@@ -278,7 +278,93 @@ function Client:ObserveIncomeContext(onContext)
     end
 
     self.contextFrame = frame
+    self:ObserveMailCollection(onContext)
     return registered
+end
+
+-- Reads what the client says about inbox mail `index`: its attached money,
+-- whether it was returned to sender, and its auction invoice type.
+function Client:ReadInboxMail(index)
+    local headerOk, _, _, _, _, money, _, _, _, _, wasReturned =
+        callFunction(self.environment.GetInboxHeaderInfo, index)
+    if not headerOk or copperAmount(money) == nil then
+        return nil
+    end
+
+    local invoiceOk, invoiceType = callFunction(self.environment.GetInboxInvoiceInfo, index)
+    return {
+        invoiceType = invoiceOk and invoiceType or nil,
+        money = money,
+        returned = wasReturned ~= nil and wasReturned ~= false and wasReturned ~= 0,
+    }
+end
+
+function Client:SnapshotInbox()
+    local ok, count = callFunction(self.environment.GetInboxNumItems)
+    local snapshot = {}
+    if ok and type(count) == "number" then
+        local index
+        for index = 1, count do
+            snapshot[index] = self:ReadInboxMail(index)
+        end
+    end
+    self.inboxSnapshot = snapshot
+end
+
+-- Collecting mail money is a function call rather than an event, so the
+-- collect calls are hooked. The inbox is snapshotted whenever it updates,
+-- because the client may clear a mail's money as soon as it is collected.
+-- Money from returned mail is reported as a return, auction sale proceeds
+-- (a "seller" invoice) as auctions, and anything else as ordinary mail.
+local MAIL_COLLECT_CALLS = { "TakeInboxMoney", "AutoLootMailItem" }
+
+function Client:ObserveMailCollection(onContext)
+    local hook = self.environment.hooksecurefunc
+    if type(hook) ~= "function" or self.mailHooked then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function()
+            self:SnapshotInbox()
+        end)
+    then
+        return false
+    end
+    self:RegisterEvent(frame, "MAIL_SHOW")
+    self:RegisterEvent(frame, "MAIL_INBOX_UPDATE")
+    self.mailFrame = frame
+
+    local hooked = false
+    local index
+    for index = 1, #MAIL_COLLECT_CALLS do
+        local callName = MAIL_COLLECT_CALLS[index]
+        if type(self.environment[callName]) == "function" then
+            hooked = pcall(hook, callName, function(mailIndex)
+                -- Prefer the live mail; fall back to the snapshot if the
+                -- client already cleared its money. A stale snapshot entry
+                -- carries the wrong amount, so it cannot match the gain.
+                local mail = self:ReadInboxMail(mailIndex)
+                if (mail == nil or mail.money <= 0) and self.inboxSnapshot ~= nil then
+                    mail = self.inboxSnapshot[mailIndex]
+                end
+                if mail == nil or mail.money <= 0 then
+                    return
+                end
+                local source = "mailbox"
+                if mail.returned then
+                    source = "returnedMail"
+                elseif mail.invoiceType == "seller" then
+                    source = "auctions"
+                end
+                onContext(source, "note", mail.money)
+            end) or hooked
+        end
+    end
+
+    self.mailHooked = hooked
+    return hooked
 end
 
 function Client:GetAccountDatabase()

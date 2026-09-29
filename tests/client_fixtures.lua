@@ -298,6 +298,56 @@ function Fixtures.setMoney(world, copper, settle)
     end
 end
 
+-- Installs a fake inbox. Each mail is { money = copper, invoiceType = "seller"
+-- or nil, returned = true or nil }. Collecting a mail through the hooked
+-- TakeInboxMoney/AutoLootMailItem clears its money first, as the client can.
+-- Must be called before the add-on loads.
+function Fixtures.installMailbox(world, mails)
+    local environment = world.environment
+    world.inbox = mails
+    environment.GetInboxNumItems = function()
+        return #world.inbox
+    end
+    environment.GetInboxHeaderInfo = function(index)
+        local mail = world.inbox[index]
+        if mail == nil then
+            return nil
+        end
+        return nil, nil, "Sender", "Subject", mail.money, 0, 30, false, false,
+            mail.returned and 1 or nil, false, true, false
+    end
+    environment.GetInboxInvoiceInfo = function(index)
+        local mail = world.inbox[index]
+        return mail and mail.invoiceType or nil
+    end
+    local function collect(index)
+        local mail = world.inbox[index]
+        if mail ~= nil then
+            mail.money = 0
+        end
+    end
+    environment.TakeInboxMoney = collect
+    environment.AutoLootMailItem = collect
+    environment.hooksecurefunc = function(name, hook)
+        local original = environment[name]
+        environment[name] = function(...)
+            original(...)
+            hook(...)
+        end
+    end
+end
+
+-- Opens the mailbox, collects mail `index` through `callName`, and credits
+-- `copper` (default: the mail's money) to the character.
+function Fixtures.collectMail(world, index, callName, copper)
+    Fixtures.fire(world, "MAIL_SHOW")
+    Fixtures.fire(world, "MAIL_INBOX_UPDATE")
+    local amount = copper or world.inbox[index].money
+    world.environment[callName or "TakeInboxMoney"](index)
+    Fixtures.advance(world, 0.1)
+    Fixtures.setMoney(world, world.money + amount)
+end
+
 -- Loads the add-on and runs the normal load then login sequence.
 function Fixtures.login(world)
     local addon = Fixtures.loadAddon(world)

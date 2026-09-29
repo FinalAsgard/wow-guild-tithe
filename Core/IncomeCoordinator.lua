@@ -29,6 +29,12 @@ end
 -- Guild membership and settings are read now, at finalization; any result
 -- other than "accrued" leaves balance and fractional remainder untouched.
 function Coordinator:Finalize(observation)
+    -- A known non-income transfer never reaches accounting, whatever the
+    -- guild or source settings are.
+    if observation.excluded then
+        return terminal(observation, "excluded", observation.reason)
+    end
+
     local character = self.state:GetCurrentCharacter()
     if type(character) ~= "table" then
         return terminal(observation, "unresolved", "current character state is unavailable")
