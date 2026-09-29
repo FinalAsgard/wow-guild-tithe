@@ -60,8 +60,8 @@ local SOURCE_SETTINGS = {
 
 local CHAT_FEEDBACK_SETTING = {
     variableSuffix = "ChatFeedback",
-    label = "Routine chat feedback",
-    tooltip = "Show routine Asgard's Guild Tithe activity messages in chat.",
+    label = "Print tithe updates",
+    tooltip = "Print a message in your chat window each time income adds to your tithe. Only you see it.",
     defaultValue = true,
 }
 

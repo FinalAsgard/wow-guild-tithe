@@ -62,3 +62,7 @@ quarantine isolation, reload round trips, and no-write handling of future
 schemas. See [the schema and recovery contract](persistence.md).
 
 The test runner exits nonzero after reporting every failure. CI also parses every Lua file with Lua 5.1, runs the suite, bootstraps all four manifests (production and development for Forever and Retail), checks that their module lists stay identical, builds and validates the release package (see [packaging](packaging.md)), and runs `tests/Install-Dev.Tests.ps1` on Windows to exercise the junction installer for Forever and Retail layouts, custom roots, repeat installs, conflicting junctions, and real-directory refusal.
+
+## Event traces
+
+The development build can record real client event sequences for building replay fixtures. See [capturing event traces](event-traces.md). The trace code lives in `Adapters/EventTrace.lua`, and only the development build registers its command and SavedVariables.

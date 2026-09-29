@@ -9,6 +9,7 @@
 Core/Identity.lua
 Adapters/ClientProfile.lua
 Adapters/WoW.lua
+Adapters/EventTrace.lua
 Core/Persistence.lua
 Core/CharacterState.lua
 Core/Accounting.lua
@@ -16,5 +17,9 @@ Core/TitheService.lua
 Core/MoneyFormatter.lua
 Core/CommandRouter.lua
 Core/SettingsController.lua
+Core/IncomeFeedback.lua
+Core/IncomeCoordinator.lua
+Core/IncomeCorrelator.lua
+Core/IncomeObserver.lua
 Core/Lifecycle.lua
 AsgardsGuildTithe.lua

@@ -24,10 +24,17 @@ local function manifestFiles(profile)
     return files
 end
 
-local function newFrame()
+local function newFrame(world)
     local frame = { registeredEvents = {} }
+    table.insert(world.frames, frame)
     function frame:RegisterEvent(eventName)
+        if world.unknownEvents ~= nil and world.unknownEvents[eventName] then
+            error("Attempt to register unknown event \"" .. eventName .. "\"")
+        end
         self.registeredEvents[eventName] = true
+    end
+    function frame:UnregisterAllEvents()
+        self.registeredEvents = {}
     end
     function frame:SetScript(_, handler)
         self.handler = handler
@@ -157,28 +164,42 @@ local PROFILE_APIS = {
 -- Returns a WoW-like global environment for `profile`. `options.declaredClient`
 -- overrides the manifest's X-Client value (nil keeps the profile's own name),
 -- `options.settings = false` omits the native Settings API, `options.database`
--- seeds the production SavedVariables, and `options.playerName` sets the
--- character reported once the player is ready.
+-- seeds the production SavedVariables, `options.playerName` sets the
+-- character reported once the player is ready, `options.money` sets carried
+-- copper (false omits the money API), and `options.inGuild` sets guild
+-- membership (false = guildless; `options.guildApi = false` omits the API).
 function Fixtures.newEnvironment(profile, options)
     options = options or {}
     local world = {
-        frame = newFrame(),
+        frames = {},
+        inGuild = options.inGuild ~= false,
         messages = {},
+        money = options.money or 0,
+        now = 1000,
         playerName = options.playerName or "Jaina",
         playerReady = false,
+        timers = {},
     }
 
     local environment = {
         CreateFrame = function()
-            return world.frame
+            return newFrame(world)
         end,
         DEFAULT_CHAT_FRAME = {
             AddMessage = function(_, message)
                 table.insert(world.messages, message)
             end,
         },
+        C_Timer = {
+            After = function(seconds, callback)
+                table.insert(world.timers, { at = world.now + seconds, callback = callback })
+            end,
+        },
         GetRealmName = function()
             return "Camelot"
+        end,
+        GetTime = function()
+            return world.now
         end,
         IsLoggedIn = function()
             return false
@@ -195,6 +216,16 @@ function Fixtures.newEnvironment(profile, options)
     setmetatable(environment, { __index = _G })
     environment._G = environment
     environment.AsgardsGuildTitheDB = options.database
+    if options.money ~= false then
+        environment.GetMoney = function()
+            return world.money
+        end
+    end
+    if options.guildApi ~= false then
+        environment.IsInGuild = function()
+            return world.inGuild
+        end
+    end
     if options.settings ~= false then
         world.settings = installSettings(environment)
     end
@@ -210,20 +241,149 @@ function Fixtures.newEnvironment(profile, options)
     return world
 end
 
--- Loads the profile's production manifest in order inside `world.environment`.
-function Fixtures.loadAddon(world)
+-- Loads the profile's manifest in order inside `world.environment`, as the
+-- production add-on by default or as `addonName` (e.g. the dev variant).
+function Fixtures.loadAddon(world, addonName)
     local addon = {}
     local files = manifestFiles(world.profile)
     local index
     for index = 1, #files do
-        test.loadAddonFileInEnvironment(files[index], addon, world.environment)
+        test.loadAddonFileInEnvironment(files[index], addon, world.environment, addonName)
     end
     world.addon = addon
     return addon
 end
 
+-- Delivers a client event to every frame that registered for it.
 function Fixtures.fire(world, eventName, ...)
-    world.frame.handler(world.frame, eventName, ...)
+    local index
+    for index = 1, #world.frames do
+        local frame = world.frames[index]
+        if frame.registeredEvents[eventName] and frame.handler ~= nil then
+            frame.handler(frame, eventName, ...)
+        end
+    end
+end
+
+-- Moves the fake clock forward and runs any timers that come due, in order.
+function Fixtures.advance(world, seconds)
+    local target = world.now + seconds
+    while true do
+        local nextIndex
+        local index
+        for index = 1, #world.timers do
+            local timer = world.timers[index]
+            if timer.at <= target and (nextIndex == nil or timer.at < world.timers[nextIndex].at) then
+                nextIndex = index
+            end
+        end
+        if nextIndex == nil then
+            break
+        end
+        local timer = table.remove(world.timers, nextIndex)
+        world.now = math.max(world.now, timer.at)
+        timer.callback()
+    end
+    world.now = target
+end
+
+-- Seconds that let a pending gain finalize and its grouped chat message print.
+Fixtures.SETTLE_SECONDS = 2
+
+-- Lets pending gains finalize and grouped chat messages print.
+function Fixtures.settle(world)
+    Fixtures.advance(world, Fixtures.SETTLE_SECONDS)
+end
+
+-- Changes carried money and fires the client's money event. By default the
+-- gain is then allowed to finalize and report; pass settle = false to
+-- inspect it while it is still waiting for context.
+function Fixtures.setMoney(world, copper, settle)
+    world.money = copper
+    Fixtures.fire(world, "PLAYER_MONEY")
+    if settle ~= false then
+        Fixtures.settle(world)
+    end
+end
+
+-- Installs a fake inbox. Each mail is { money = copper, invoiceType = "seller"
+-- or nil, returned = true or nil }. Collecting a mail through the hooked
+-- TakeInboxMoney/AutoLootMailItem clears its money first, as the client can.
+-- Must be called before the add-on loads.
+function Fixtures.installMailbox(world, mails)
+    local environment = world.environment
+    world.inbox = mails
+    environment.GetInboxNumItems = function()
+        return #world.inbox
+    end
+    environment.GetInboxHeaderInfo = function(index)
+        local mail = world.inbox[index]
+        if mail == nil then
+            return nil
+        end
+        return nil, nil, "Sender", "Subject", mail.money, 0, 30, false, false,
+            mail.returned and 1 or nil, false, true, false
+    end
+    environment.GetInboxInvoiceInfo = function(index)
+        local mail = world.inbox[index]
+        return mail and mail.invoiceType or nil
+    end
+    local function collect(index)
+        local mail = world.inbox[index]
+        if mail ~= nil then
+            mail.money = 0
+        end
+    end
+    environment.TakeInboxMoney = collect
+    environment.AutoLootMailItem = collect
+    Fixtures.installHooks(world)
+end
+
+-- Installs a hooksecurefunc that runs the hook after the original call, for
+-- both global functions (name, hook) and table methods (table, name, hook).
+function Fixtures.installHooks(world)
+    local environment = world.environment
+    environment.hooksecurefunc = function(first, second, third)
+        local owner, name, hook = environment, first, second
+        if type(first) == "table" then
+            owner, name, hook = first, second, third
+        end
+        local original = owner[name]
+        owner[name] = function(...)
+            original(...)
+            hook(...)
+        end
+    end
+end
+
+-- Installs the guild-bank withdrawal and item-refund calls. `purchases` maps
+-- "bag:slot" to the copper paid for a refundable item. Must be called before
+-- the add-on loads.
+function Fixtures.installTransferCalls(world, purchases)
+    local environment = world.environment
+    environment.WithdrawGuildBankMoney = function() end
+    environment.C_Container = {
+        ContainerRefundItemPurchase = function() end,
+        GetContainerItemPurchaseInfo = function(bag, slot)
+            local money = purchases[bag .. ":" .. slot]
+            if money == nil then
+                return nil
+            end
+            return { currencyCount = 0, hasEnchants = false, itemCount = 1, money = money, refundSeconds = 3600 }
+        end,
+    }
+    Fixtures.installHooks(world)
+end
+
+-- Opens the mailbox, collects mail `index` through `callName`, and credits
+-- `copper` (default: the mail's money) to the character.
+function Fixtures.collectMail(world, index, callName, copper)
+    Fixtures.fire(world, "MAIL_SHOW")
+    Fixtures.fire(world, "MAIL_INBOX_UPDATE")
+    local amount = copper or world.inbox[index].money
+    world.environment[callName or "TakeInboxMoney"](index)
+    Fixtures.advance(world, 0.1)
+    Fixtures.setMoney(world, world.money + amount)
 end
 
 -- Loads the add-on and runs the normal load then login sequence.

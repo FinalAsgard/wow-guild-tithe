@@ -162,6 +162,291 @@ function Client:GetCurrentCharacterIdentity()
     }
 end
 
+-- Carried money in copper, or nil when the client cannot report it.
+function Client:GetCarriedMoney()
+    local ok, copper = callFunction(self.environment.GetMoney)
+    if not ok or type(copper) ~= "number" or copper < 0 or copper ~= math.floor(copper) then
+        return nil
+    end
+
+    return copper
+end
+
+-- true/false for guild membership, or nil when the client cannot report it.
+function Client:IsInGuild()
+    local ok, inGuild = callFunction(self.environment.IsInGuild)
+    if not ok then
+        return nil
+    end
+
+    return inGuild ~= nil and inGuild ~= false
+end
+
+-- Calls onChange() whenever the client reports that carried money changed.
+-- Client event names stay here so Core modules only see the normalized call.
+function Client:ObserveMoneyChanges(onChange)
+    if type(onChange) ~= "function" or type(self.environment.GetMoney) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function()
+            onChange()
+        end)
+        or not self:RegisterEvent(frame, "PLAYER_MONEY")
+    then
+        return false
+    end
+
+    self.moneyFrame = frame
+    return true
+end
+
+-- Seconds from the client's monotonic clock, or nil when unavailable.
+function Client:Now()
+    local ok, now = callFunction(self.environment.GetTime)
+    if not ok or type(now) ~= "number" then
+        return nil
+    end
+
+    return now
+end
+
+-- Runs callback once after `seconds`. Returns false when the client has no
+-- timer, so callers can act immediately instead.
+function Client:After(seconds, callback)
+    local timers = self.environment.C_Timer
+    if type(timers) ~= "table" or type(timers.After) ~= "function" or type(callback) ~= "function" then
+        return false
+    end
+
+    local ok = pcall(timers.After, seconds, callback)
+    return ok
+end
+
+-- Client events that describe where the next money change came from, mapped
+-- to normalized source context. "open"/"close" bracket an interaction;
+-- "note" is a single corroborating message.
+local CONTEXT_EVENTS = {
+    CHAT_MSG_MONEY = { source = "loot", action = "note" },
+    LOOT_CLOSED = { source = "loot", action = "close" },
+    LOOT_OPENED = { source = "loot", action = "open" },
+    MERCHANT_CLOSED = { source = "vendorSales", action = "close" },
+    MERCHANT_SHOW = { source = "vendorSales", action = "open" },
+    -- QUEST_TURNED_IN(questID, xpReward, moneyReward): the reward is the
+    -- exact copper the next money change should add (seen in captured traces).
+    QUEST_TURNED_IN = { source = "quests", action = "note", amountArgument = 3 },
+    -- A completed trade adds money around TRADE_CLOSED; a cancelled trade
+    -- adds none, so it never produces a gain to classify.
+    TRADE_CLOSED = { source = "playerTrades", action = "close" },
+    TRADE_SHOW = { source = "playerTrades", action = "open" },
+    -- Money gained while the guild bank is open is a withdrawal (excluded).
+    -- Guild-bank money update events are deliberately not used: they also
+    -- fire for guild funds changes that never touch the player's money.
+    GUILDBANKFRAME_CLOSED = { source = "guildBankWithdrawal", action = "close" },
+    GUILDBANKFRAME_OPENED = { source = "guildBankWithdrawal", action = "open" },
+}
+
+-- Newer clients report interaction windows by Enum.PlayerInteractionType.
+local INTERACTION_TYPES = {
+    [1] = "playerTrades", -- TradePartner
+    [10] = "guildBankWithdrawal", -- GuildBanker
+}
+local INTERACTION_ACTIONS = {
+    PLAYER_INTERACTION_MANAGER_FRAME_HIDE = "close",
+    PLAYER_INTERACTION_MANAGER_FRAME_SHOW = "open",
+}
+
+local function copperAmount(value)
+    if type(value) ~= "number" or value < 0 or value ~= math.floor(value) then
+        return nil
+    end
+    return value
+end
+
+-- Calls onContext(source, action, amount) for each recognized context
+-- event. Payloads are not trusted: the only value read is a documented
+-- copper amount, and a malformed one is dropped (amount = nil).
+function Client:ObserveIncomeContext(onContext)
+    if type(onContext) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function(_, eventName, ...)
+            local context = CONTEXT_EVENTS[eventName]
+            if context ~= nil then
+                local amount
+                if context.amountArgument ~= nil then
+                    amount = copperAmount((select(context.amountArgument, ...)))
+                end
+                onContext(context.source, context.action, amount)
+                return
+            end
+
+            local action = INTERACTION_ACTIONS[eventName]
+            local source = action and INTERACTION_TYPES[(...)]
+            if source ~= nil then
+                onContext(source, action)
+            end
+        end)
+    then
+        return false
+    end
+
+    local registered = false
+    local eventName
+    for eventName in pairs(CONTEXT_EVENTS) do
+        -- An event this client lacks is skipped; the others still work.
+        registered = self:RegisterEvent(frame, eventName) or registered
+    end
+    for eventName in pairs(INTERACTION_ACTIONS) do
+        registered = self:RegisterEvent(frame, eventName) or registered
+    end
+
+    self.contextFrame = frame
+    self:ObserveMailCollection(onContext)
+    self:ObserveTransferCalls(onContext)
+    return registered
+end
+
+-- Copper the character paid for the refundable item in `bag`/`slot`, or nil.
+function Client:ReadPurchasePrice(bag, slot, isEquipped)
+    local containers = self.environment.C_Container
+    if type(containers) == "table" then
+        local ok, info = callFunction(containers.GetContainerItemPurchaseInfo, bag, slot, isEquipped)
+        if ok and type(info) == "table" then
+            return copperAmount(info.money)
+        end
+    end
+
+    local ok, money = callFunction(self.environment.GetContainerItemPurchaseInfo, bag, slot, isEquipped)
+    return ok and copperAmount(money) or nil
+end
+
+-- Hooks the calls that return money the player already had: withdrawing
+-- from the guild bank and refunding a purchased item. Each becomes an
+-- exclusion note carrying the exact amount when the client reports it.
+function Client:ObserveTransferCalls(onContext)
+    local hook = self.environment.hooksecurefunc
+    if type(hook) ~= "function" or self.transfersHooked then
+        return false
+    end
+
+    local hooked = false
+    local function hookCall(owner, callName, handler)
+        if type(owner) == "table" and type(owner[callName]) == "function" then
+            local ok
+            if owner == self.environment then
+                ok = pcall(hook, callName, handler)
+            else
+                ok = pcall(hook, owner, callName, handler)
+            end
+            hooked = ok or hooked
+        end
+    end
+
+    hookCall(self.environment, "WithdrawGuildBankMoney", function(copper)
+        onContext("guildBankWithdrawal", "note", copperAmount(copper))
+    end)
+
+    local function onRefund(bag, slot, isEquipped)
+        onContext("refund", "note", self:ReadPurchasePrice(bag, slot, isEquipped))
+    end
+    hookCall(self.environment.C_Container, "ContainerRefundItemPurchase", onRefund)
+    hookCall(self.environment, "ContainerRefundItemPurchase", onRefund)
+
+    self.transfersHooked = hooked
+    return hooked
+end
+
+-- Reads what the client says about inbox mail `index`: its attached money,
+-- whether it was returned to sender, and its auction invoice type.
+function Client:ReadInboxMail(index)
+    local headerOk, _, _, _, _, money, _, _, _, _, wasReturned =
+        callFunction(self.environment.GetInboxHeaderInfo, index)
+    if not headerOk or copperAmount(money) == nil then
+        return nil
+    end
+
+    local invoiceOk, invoiceType = callFunction(self.environment.GetInboxInvoiceInfo, index)
+    return {
+        invoiceType = invoiceOk and invoiceType or nil,
+        money = money,
+        returned = wasReturned ~= nil and wasReturned ~= false and wasReturned ~= 0,
+    }
+end
+
+function Client:SnapshotInbox()
+    local ok, count = callFunction(self.environment.GetInboxNumItems)
+    local snapshot = {}
+    if ok and type(count) == "number" then
+        local index
+        for index = 1, count do
+            snapshot[index] = self:ReadInboxMail(index)
+        end
+    end
+    self.inboxSnapshot = snapshot
+end
+
+-- Collecting mail money is a function call rather than an event, so the
+-- collect calls are hooked. The inbox is snapshotted whenever it updates,
+-- because the client may clear a mail's money as soon as it is collected.
+-- Money from returned mail is reported as a return, auction sale proceeds
+-- (a "seller" invoice) as auctions, and anything else as ordinary mail.
+local MAIL_COLLECT_CALLS = { "TakeInboxMoney", "AutoLootMailItem" }
+
+function Client:ObserveMailCollection(onContext)
+    local hook = self.environment.hooksecurefunc
+    if type(hook) ~= "function" or self.mailHooked then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function()
+            self:SnapshotInbox()
+        end)
+    then
+        return false
+    end
+    self:RegisterEvent(frame, "MAIL_SHOW")
+    self:RegisterEvent(frame, "MAIL_INBOX_UPDATE")
+    self.mailFrame = frame
+
+    local hooked = false
+    local index
+    for index = 1, #MAIL_COLLECT_CALLS do
+        local callName = MAIL_COLLECT_CALLS[index]
+        if type(self.environment[callName]) == "function" then
+            hooked = pcall(hook, callName, function(mailIndex)
+                -- Prefer the live mail; fall back to the snapshot if the
+                -- client already cleared its money. A stale snapshot entry
+                -- carries the wrong amount, so it cannot match the gain.
+                local mail = self:ReadInboxMail(mailIndex)
+                if (mail == nil or mail.money <= 0) and self.inboxSnapshot ~= nil then
+                    mail = self.inboxSnapshot[mailIndex]
+                end
+                if mail == nil or mail.money <= 0 then
+                    return
+                end
+                local source = "mailbox"
+                if mail.returned then
+                    source = "returnedMail"
+                elseif mail.invoiceType == "seller" then
+                    source = "auctions"
+                end
+                onContext(source, "note", mail.money)
+            end) or hooked
+        end
+    end
+
+    self.mailHooked = hooked
+    return hooked
+end
+
 function Client:GetAccountDatabase()
     return self.environment[self.databaseName]
 end
@@ -230,7 +515,7 @@ function Client:RegisterSettingsCategory(options)
         end
 
         local balanceInitializer = createSectionHeader("Tithe - Current balance: " ..
-            options.balanceText .. " (income tracking not active)")
+            options.balanceText)
         if balanceInitializer == nil then
             error("balance display was not created")
         end
@@ -349,8 +634,7 @@ function Client:RefreshSettingsBalance(category, balanceText)
         return false
     end
 
-    data.name = "Tithe - Current balance: " .. balanceText ..
-        " (income tracking not active)"
+    data.name = "Tithe - Current balance: " .. balanceText
     return true
 end
 

@@ -244,7 +244,7 @@ test.test("settings display the formatted balance read-only and hide the remaind
     test.assertTrue(controller:Register())
 
     test.assertEqual(
-        "Tithe - Current balance: 12g 34s 56c (income tracking not active)",
+        "Tithe - Current balance: 12g 34s 56c",
         api.balanceHeading
     )
     test.assertEqual(3, #api.layout.initializers)
@@ -262,14 +262,14 @@ test.test("opening settings refreshes the balance from current character state",
 
     test.assertTrue(controller:Register())
     test.assertEqual(
-        "Tithe - Current balance: 0g 00s 00c (income tracking not active)",
+        "Tithe - Current balance: 0g 00s 00c",
         api.balanceHeading
     )
     test.assertTrue(state:SetFinancialState(123456, 78))
 
     test.assertTrue(controller:Open())
     test.assertEqual(
-        "Tithe - Current balance: 12g 34s 56c (income tracking not active)",
+        "Tithe - Current balance: 12g 34s 56c",
         api.balanceHeading
     )
 end)

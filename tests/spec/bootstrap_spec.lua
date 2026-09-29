@@ -4,6 +4,7 @@ local MANIFEST_FILES = {
     "Core/Identity.lua",
     "Adapters/ClientProfile.lua",
     "Adapters/WoW.lua",
+    "Adapters/EventTrace.lua",
     "Core/Persistence.lua",
     "Core/CharacterState.lua",
     "Core/Accounting.lua",
@@ -11,6 +12,10 @@ local MANIFEST_FILES = {
     "Core/MoneyFormatter.lua",
     "Core/CommandRouter.lua",
     "Core/SettingsController.lua",
+    "Core/IncomeFeedback.lua",
+    "Core/IncomeCoordinator.lua",
+    "Core/IncomeCorrelator.lua",
+    "Core/IncomeObserver.lua",
     "Core/Lifecycle.lua",
     "AsgardsGuildTithe.lua",
 }
@@ -21,6 +26,7 @@ local PRODUCTS = {
         databaseName = "AsgardsGuildTitheDB",
         displayName = "Asgard's Guild Tithe",
         otherDatabaseName = "AsgardsGuildTitheDevDB",
+        savedVariables = "AsgardsGuildTitheDB",
         slashCommand = "/agt",
         slashAlias = "/asgardstithe",
         slashKey = "AGT",
@@ -31,6 +37,8 @@ local PRODUCTS = {
         databaseName = "AsgardsGuildTitheDevDB",
         displayName = "Asgard's Guild Tithe (Dev)",
         otherDatabaseName = "AsgardsGuildTitheDB",
+        -- The event trace is a development-only capture tool.
+        savedVariables = "AsgardsGuildTitheDevDB, AsgardsGuildTitheDevTraceDB",
         slashCommand = "/agtdev",
         slashAlias = "/asgardstithedev",
         slashKey = "AGTDEV",
@@ -150,13 +158,18 @@ end
 
 local function registerBootstrapTest(variant)
     test.test(variant.displayName .. " composes and bootstraps from " .. variant.toc, function()
-        local frame = { registeredEvents = {} }
-        function frame:RegisterEvent(eventName)
-            self.registeredEvents[eventName] = true
-        end
-        function frame:SetScript(scriptName, handler)
-            self.scriptName = scriptName
-            self.handler = handler
+        local frames = {}
+        local function newFrame()
+            local created = { registeredEvents = {} }
+            function created:RegisterEvent(eventName)
+                self.registeredEvents[eventName] = true
+            end
+            function created:SetScript(scriptName, handler)
+                self.scriptName = scriptName
+                self.handler = handler
+            end
+            table.insert(frames, created)
+            return created
         end
 
         local settings = newSettingsAPI()
@@ -165,7 +178,13 @@ local function registerBootstrapTest(variant)
         local environment = {
             CreateFrame = function(frameType)
                 test.assertEqual("Frame", frameType)
-                return frame
+                return newFrame()
+            end,
+            GetMoney = function()
+                return 12345
+            end,
+            IsInGuild = function()
+                return true
             end,
             CreateSettingsListSectionHeaderInitializer = function(name)
                 local initializer = { data = { name = name } }
@@ -226,6 +245,10 @@ local function registerBootstrapTest(variant)
             )
         end
 
+        -- The lifecycle frame is created at load; income observation adds
+        -- its own frame only after character state is ready.
+        test.assertEqual(1, #frames)
+        local frame = frames[1]
         test.assertTrue(frame.registeredEvents.ADDON_LOADED)
         test.assertTrue(frame.registeredEvents.PLAYER_LOGIN)
         test.assertEqual("OnEvent", frame.scriptName)
@@ -265,6 +288,11 @@ local function registerBootstrapTest(variant)
         test.assertEqual(73, settings.openedCategoryID)
         test.assertEqual(0, #messages)
         test.assertEqual(variant.client == "Forever" and "forever" or "retail", addon.clientProfile.id)
+        test.assertTrue(addon.lifecycle.incomeReady)
+        -- Income tracking adds a money frame and a source-context frame.
+        test.assertEqual(3, #frames)
+        test.assertTrue(frames[2].registeredEvents.PLAYER_MONEY)
+        test.assertTrue(frames[3].registeredEvents.LOOT_OPENED)
     end)
 end
 
@@ -275,7 +303,7 @@ local function registerManifestTest(variant)
         test.assertEqual(variant.interface, metadata.Interface)
         test.assertEqual(variant.displayName, metadata.Title)
         test.assertEqual(variant.version, metadata.Version)
-        test.assertEqual(variant.databaseName, metadata.SavedVariables)
+        test.assertEqual(variant.savedVariables, metadata.SavedVariables)
         test.assertEqual(variant.client, metadata["X-Client"])
         test.assertEqual(nil, string.find(metadata.SavedVariables, variant.otherDatabaseName, 1, true))
     end)
