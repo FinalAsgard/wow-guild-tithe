@@ -556,6 +556,24 @@ function Client:ObserveActionBlocked(onBlocked)
     return blocked or forbidden
 end
 
+-- Calls onDeposit(copper) after every guild-bank money deposit request,
+-- including ones made from Blizzard's own guild-bank window.
+function Client:ObserveGuildBankDeposits(onDeposit)
+    local hook = self.environment.hooksecurefunc
+    if type(onDeposit) ~= "function"
+        or type(hook) ~= "function"
+        or type(self.environment.DepositGuildBankMoney) ~= "function"
+        or self.depositsHooked
+    then
+        return false
+    end
+
+    self.depositsHooked = pcall(hook, "DepositGuildBankMoney", function(copper)
+        onDeposit(copperAmount(copper))
+    end)
+    return self.depositsHooked
+end
+
 -- Asks the client to move `copper` from the player into the guild bank.
 -- Returns true when the request was made; completion is confirmed later by
 -- the player's carried money dropping by that amount.

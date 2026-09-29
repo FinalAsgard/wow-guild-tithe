@@ -56,6 +56,7 @@ Run these on a guilded character that owes some tithe (earn a little income firs
 5. With the setting still off and less gold than you owe, open the guild bank. Confirm the panel offers all the gold you carry, and after depositing, the remainder is still owed.
 6. Open the guild bank and close it without clicking. Confirm nothing is deposited and the balance is unchanged.
 7. Turn off **Print tithe updates** and pay once. Confirm the payment message still appears.
+8. With some tithe owed, deposit a smaller amount of gold yourself through the guild bank's own **Deposit** money window (not the add-on panel). Confirm chat shows `deposited <amount> to <guild>. Still owed: <remainder>.` and the balance went down by that amount. Then withdraw some gold and confirm the balance does not change.
 
 ## WoW Forever
 

@@ -74,6 +74,9 @@ function Payment:Start()
         return true
     end
     self.panel = self.client:CreatePaymentPanel(addon.Identity.displayName)
+    self.client:ObserveGuildBankDeposits(function(copper)
+        self:OnManualDeposit(copper)
+    end)
     self.client:ObserveActionBlocked(function(functionName)
         self:OnActionBlocked(functionName)
     end)
@@ -235,35 +238,18 @@ function Payment:Pay(method)
         return false
     end
 
-    local character = self.state:GetCurrentCharacter()
-    local identity = character.identity or {}
-    local moneyBefore = self.client:GetCarriedMoney()
-    local createdAt = self.client:Timestamp() or self.client:Now() or 0
-    local intent = {
-        operationId = self.state:NextPaymentOperationId(createdAt),
-        amount = proposal.amount,
-        method = method or "button",
-        character = {
-            key = self.state:GetCharacterKey(),
-            name = identity.displayName,
-            realm = identity.displayRealm,
-        },
-        guild = proposal.guild,
-        moneyBefore = moneyBefore,
-        createdAt = createdAt,
-        status = "pending",
-    }
-    if not self.state:BeginPayment(intent) then
+    local pending = self:BeginPending(proposal.amount, method or "button", proposal.guild)
+    if pending == nil then
         self:Say("nothing was deposited (the payment could not be saved).")
         return false
     end
-
-    local pending = { intent = intent, lastMoney = moneyBefore }
-    self.pending = pending
+    local intent = pending.intent
     if self.panel ~= nil then
         self.panel:Show({ "Depositing " .. self:Money(intent.amount) .. "..." })
     end
 
+    -- The deposit hook also sees this call, but this payment is already in
+    -- flight, so it can never be counted a second time as a manual deposit.
     if not self.client:DepositGuildBankMoney(intent.amount) then
         self:Resolve(pending, "rejected")
         self:Say("the guild bank deposit failed. Your tithe balance is unchanged.")
@@ -275,6 +261,60 @@ function Payment:Pay(method)
     return true
 end
 
+-- Saves a new pending intent for `amount` and makes it the one in flight.
+function Payment:BeginPending(amount, method, guild)
+    local character = self.state:GetCurrentCharacter()
+    local moneyBefore = self.client:GetCarriedMoney()
+    if type(character) ~= "table" or moneyBefore == nil then
+        return nil
+    end
+    local identity = character.identity or {}
+    local createdAt = self.client:Timestamp() or self.client:Now() or 0
+    local intent = {
+        operationId = self.state:NextPaymentOperationId(createdAt),
+        amount = amount,
+        method = method,
+        character = {
+            key = self.state:GetCharacterKey(),
+            name = identity.displayName,
+            realm = identity.displayRealm,
+        },
+        guild = guild,
+        moneyBefore = moneyBefore,
+        createdAt = createdAt,
+        status = "pending",
+    }
+    if not self.state:BeginPayment(intent) then
+        return nil
+    end
+
+    local pending = { intent = intent, lastMoney = moneyBefore }
+    self.pending = pending
+    return pending
+end
+
+-- A deposit the player made through the game's own guild-bank window. It
+-- becomes a pending intent like any other and counts only when carried
+-- money drops by exactly the deposited amount. While another payment is in
+-- flight it is ignored rather than guessed at.
+function Payment:OnManualDeposit(copper)
+    if not self.sessionOpen
+        or self.pending ~= nil
+        or type(copper) ~= "number"
+        or copper <= 0
+    then
+        return
+    end
+    local guild = self.client:GetGuildIdentity()
+    if guild == nil then
+        return
+    end
+    local pending = self:BeginPending(copper, "manual", guild)
+    if pending ~= nil then
+        self:StartTimeout(pending)
+    end
+end
+
 -- Ends `pending` with a terminal status that leaves the balance unchanged.
 function Payment:Resolve(pending, status)
     if self.pending == pending then
@@ -284,7 +324,12 @@ function Payment:Resolve(pending, status)
 end
 
 function Payment:Expire()
-    self:Resolve(self.pending, "expired")
+    local pending = self.pending
+    self:Resolve(pending, "expired")
+    if pending.intent.method == "manual" then
+        self:Say("your guild-bank deposit was not confirmed, so it was not counted toward your tithe.")
+        return
+    end
     self:Say("the deposit was not confirmed, so your tithe balance is unchanged. Try again at the guild bank.")
     if self.sessionOpen then
         self:ShowProposal()

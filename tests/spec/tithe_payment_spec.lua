@@ -14,6 +14,8 @@ local function newWorld(profile, owed, options)
         inGuild = options.inGuild,
         money = options.money or CARRIED,
     })
+    -- Hooks let Blizzard-window deposits and withdrawals be observed.
+    fixtures.installTransferCalls(world, {})
     local addon = fixtures.login(world)
     character(world).outstandingCopper = owed
     character(world).fractionalRemainder = 40
@@ -529,6 +531,152 @@ local function registerProfileTests(profile)
 
         test.assertEqual(0, #world.deposits)
         test.assertFalse(panel(addon):IsShown())
+    end)
+
+    local function manualWorld(owed, options)
+        local world, addon = newWorld(profile, owed, options)
+        local donations = {}
+        addon.tithePayment:OnDonation(function(donation)
+            table.insert(donations, donation)
+        end)
+        return world, addon, donations
+    end
+
+    -- A deposit typed into the game's own guild-bank money window.
+    local function depositByHand(world, copper)
+        world.environment.DepositGuildBankMoney(copper)
+    end
+
+    test.test(profile .. " manual deposits reduce the debt but record the full amount", function()
+        local cases = {
+            { owed = 5000, deposit = 2000, remaining = 3000 },
+            { owed = 5000, deposit = 5000, remaining = 0 },
+            { owed = 5000, deposit = 8000, remaining = 0 },
+            { owed = 0, deposit = 3000, remaining = 0 },
+        }
+        local index
+        for index = 1, #cases do
+            local case = cases[index]
+            local world, addon, donations = manualWorld(case.owed)
+            openBank(world)
+
+            depositByHand(world, case.deposit)
+            test.assertEqual("manual", character(world).pendingPayment.method, "case " .. index)
+            fixtures.setMoney(world, CARRIED - case.deposit)
+
+            test.assertEqual(case.remaining, character(world).outstandingCopper, "case " .. index)
+            test.assertEqual(40, character(world).fractionalRemainder, "case " .. index)
+            test.assertEqual(1, #donations, "case " .. index)
+            test.assertEqual(case.deposit, donations[1].amount, "case " .. index)
+            test.assertEqual("manual", donations[1].method, "case " .. index)
+            test.assertEqual("Knights of Camelot", donations[1].guild.name, "case " .. index)
+            test.assertContains(lastMessage(world), "deposited " .. addon.MoneyFormatter.Format(case.deposit))
+        end
+    end)
+
+    test.test(profile .. " withdrawals, spending, and unmatched drops are never credited", function()
+        local world, addon, donations = manualWorld(5000)
+        openBank(world)
+
+        world.environment.WithdrawGuildBankMoney(3000)
+        fixtures.setMoney(world, CARRIED + 3000)
+        fixtures.setMoney(world, CARRIED + 1000)
+        test.assertEqual(nil, character(world).pendingPayment)
+
+        depositByHand(world, 2000)
+        fixtures.setMoney(world, CARRIED - 500)
+        fixtures.advance(world, 11)
+
+        test.assertEqual(5000, character(world).outstandingCopper)
+        test.assertEqual(0, #donations)
+        test.assertEqual(nil, character(world).pendingPayment)
+        test.assertContains(lastMessage(world), "was not counted toward your tithe")
+    end)
+
+    test.test(profile .. " a deposit call outside a guild-bank session is ignored", function()
+        local world, addon, donations = manualWorld(5000)
+
+        depositByHand(world, 2000)
+        fixtures.setMoney(world, CARRIED - 2000)
+
+        test.assertEqual(5000, character(world).outstandingCopper)
+        test.assertEqual(0, #donations)
+        test.assertEqual(0, #character(world).resolvedPayments)
+    end)
+
+    test.test(profile .. " duplicate signals credit a manual deposit once", function()
+        local world, addon, donations = manualWorld(5000)
+        openBank(world)
+
+        depositByHand(world, 2000)
+        fixtures.setMoney(world, CARRIED - 2000)
+        fixtures.fire(world, "PLAYER_MONEY")
+        fixtures.setMoney(world, CARRIED - 4000)
+        fixtures.advance(world, 30)
+
+        test.assertEqual(3000, character(world).outstandingCopper)
+        test.assertEqual(1, #donations)
+        test.assertEqual(1, #character(world).resolvedPayments)
+    end)
+
+    test.test(profile .. " each manual deposit gets its own operation id", function()
+        local world, addon, donations = manualWorld(5000)
+        openBank(world)
+
+        depositByHand(world, 1000)
+        fixtures.setMoney(world, CARRIED - 1000)
+        depositByHand(world, 1000)
+        fixtures.setMoney(world, CARRIED - 2000)
+
+        test.assertEqual(2, #donations)
+        test.assertTrue(donations[1].operationId ~= donations[2].operationId)
+        test.assertEqual(3000, character(world).outstandingCopper)
+    end)
+
+    test.test(profile .. " button and automatic deposits are never also counted as manual", function()
+        local world, addon, donations = manualWorld(5000)
+        openBank(world)
+        fixtures.click(panel(addon).button)
+        fixtures.setMoney(world, CARRIED - 5000)
+
+        local auto, _, autoDonations = manualWorld(5000, { autoDeposit = true })
+        openBank(auto)
+        fixtures.setMoney(auto, CARRIED - 5000)
+
+        test.assertEqual(1, #donations)
+        test.assertEqual("button", donations[1].method)
+        test.assertEqual(1, #autoDonations)
+        test.assertEqual("automatic", autoDonations[1].method)
+        test.assertEqual(1, #character(auto).resolvedPayments)
+    end)
+
+    test.test(profile .. " a manual deposit during an automatic one is not guessed at", function()
+        local world, addon, donations = manualWorld(5000, { autoDeposit = true })
+        openBank(world)
+
+        depositByHand(world, 2000)
+        fixtures.setMoney(world, CARRIED - 2000)
+        test.assertEqual(5000, character(world).outstandingCopper)
+
+        fixtures.setMoney(world, CARRIED - 7000)
+        test.assertEqual(0, character(world).outstandingCopper)
+        test.assertEqual(1, #donations)
+        test.assertEqual("automatic", donations[1].method)
+    end)
+
+    test.test(profile .. " a manual deposit that lands before a reload is credited once", function()
+        local world = newWorld(profile, 5000)
+        openBank(world)
+        depositByHand(world, 2000)
+
+        local reloaded, _, donations = loginWithDonations(profile, {
+            database = fixtures.snapshot(database(world)),
+            money = CARRIED - 2000,
+        })
+
+        test.assertEqual(3000, character(reloaded).outstandingCopper)
+        test.assertEqual(1, #donations)
+        test.assertEqual("manual", donations[1].method)
     end)
 
     test.test(profile .. " a deposit is never counted as income", function()
