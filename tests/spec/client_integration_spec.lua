@@ -187,3 +187,53 @@ test.test("Forever registers slash through the native API and Retail through Sla
     test.assertEqual("function", type(forever.environment.SlashCmdList.AGT))
     test.assertEqual("function", type(retail.environment.SlashCmdList.AGT))
 end)
+
+local function registerClearTests(profile)
+    test.test(profile .. " /agt clear resets the balance and reports what was cleared", function()
+        local world = fixtures.newEnvironment(profile, { money = 100000 })
+        fixtures.login(world)
+        local character = world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]
+        character.outstandingCopper = 12345
+        character.fractionalRemainder = 67
+        character.percentage = 25
+
+        world.environment.SlashCmdList.AGT("clear")
+
+        test.assertEqual(0, character.outstandingCopper)
+        test.assertEqual(0, character.fractionalRemainder)
+        test.assertEqual(25, character.percentage)
+        test.assertEqual(
+            "Asgard's Guild Tithe: cleared your tithe balance (was 1g 23s 45c).",
+            world.messages[#world.messages]
+        )
+    end)
+
+    test.test(profile .. " /agt clear withdraws an open guild-bank offer", function()
+        local world = fixtures.newEnvironment(profile, { money = 100000 })
+        local addon = fixtures.login(world)
+        local character = world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]
+        character.outstandingCopper = 5000
+        character.autoDeposit = false
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        test.assertTrue(addon.tithePayment.panel:IsShown())
+
+        world.environment.SlashCmdList.AGT("clear")
+
+        test.assertFalse(addon.tithePayment.panel:IsShown())
+        test.assertEqual(0, #world.deposits)
+    end)
+
+    test.test(profile .. " /agt help lists the clear command", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+
+        world.environment.SlashCmdList.AGT("help")
+
+        test.assertContains(world.messages[1], "/agt clear - clear the current tithe balance")
+    end)
+end
+
+local clearIndex
+for clearIndex = 1, #fixtures.PROFILES do
+    registerClearTests(fixtures.PROFILES[clearIndex])
+end

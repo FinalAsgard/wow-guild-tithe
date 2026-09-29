@@ -157,6 +157,13 @@ function Payment:StartTimeout(pending)
     end
 end
 
+-- Re-reads the balance into an open guild-bank offer, e.g. after it changed.
+function Payment:RefreshOffer()
+    if self.sessionOpen and self.pending == nil then
+        self:ShowProposal()
+    end
+end
+
 function Payment:OnGuildBankOpened()
     self.sessionOpen = true
     -- Without a client timer, an unconfirmed payment from an earlier visit
