@@ -11,6 +11,9 @@ local MANIFEST_FILES = {
     "Core/MoneyFormatter.lua",
     "Core/CommandRouter.lua",
     "Core/SettingsController.lua",
+    "Core/IncomeFeedback.lua",
+    "Core/IncomeCoordinator.lua",
+    "Core/IncomeObserver.lua",
     "Core/Lifecycle.lua",
     "AsgardsGuildTithe.lua",
 }
@@ -150,13 +153,18 @@ end
 
 local function registerBootstrapTest(variant)
     test.test(variant.displayName .. " composes and bootstraps from " .. variant.toc, function()
-        local frame = { registeredEvents = {} }
-        function frame:RegisterEvent(eventName)
-            self.registeredEvents[eventName] = true
-        end
-        function frame:SetScript(scriptName, handler)
-            self.scriptName = scriptName
-            self.handler = handler
+        local frames = {}
+        local function newFrame()
+            local created = { registeredEvents = {} }
+            function created:RegisterEvent(eventName)
+                self.registeredEvents[eventName] = true
+            end
+            function created:SetScript(scriptName, handler)
+                self.scriptName = scriptName
+                self.handler = handler
+            end
+            table.insert(frames, created)
+            return created
         end
 
         local settings = newSettingsAPI()
@@ -165,7 +173,13 @@ local function registerBootstrapTest(variant)
         local environment = {
             CreateFrame = function(frameType)
                 test.assertEqual("Frame", frameType)
-                return frame
+                return newFrame()
+            end,
+            GetMoney = function()
+                return 12345
+            end,
+            IsInGuild = function()
+                return true
             end,
             CreateSettingsListSectionHeaderInitializer = function(name)
                 local initializer = { data = { name = name } }
@@ -226,6 +240,10 @@ local function registerBootstrapTest(variant)
             )
         end
 
+        -- The lifecycle frame is created at load; income observation adds
+        -- its own frame only after character state is ready.
+        test.assertEqual(1, #frames)
+        local frame = frames[1]
         test.assertTrue(frame.registeredEvents.ADDON_LOADED)
         test.assertTrue(frame.registeredEvents.PLAYER_LOGIN)
         test.assertEqual("OnEvent", frame.scriptName)
@@ -265,6 +283,9 @@ local function registerBootstrapTest(variant)
         test.assertEqual(73, settings.openedCategoryID)
         test.assertEqual(0, #messages)
         test.assertEqual(variant.client == "Forever" and "forever" or "retail", addon.clientProfile.id)
+        test.assertTrue(addon.lifecycle.incomeReady)
+        test.assertEqual(2, #frames)
+        test.assertTrue(frames[2].registeredEvents.PLAYER_MONEY)
     end)
 end
 

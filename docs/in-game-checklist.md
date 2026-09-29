@@ -11,15 +11,27 @@ Both checklists run these steps after installing. Replace `<AddOns>` with the cl
 1. Log in to a character and confirm no Asgard's Guild Tithe Lua error appears during loading.
 2. Enter `/agtdev` and confirm the native Settings window opens to **AddOns > Asgard's Guild Tithe (Dev)**. If the client does not expose the supported Settings API, confirm chat instead reports that settings are unavailable and suggests `/agtdev help`.
 3. When settings are available, confirm the page has visually distinct **Tithe**, **Income Sources**, and **Feedback** sections. Confirm **Tithe percentage** starts at `10`, shows its value as a whole-number percentage, accepts whole numbers from `0` through `100`, and does not allow values outside that range.
-4. Confirm **Current balance** displays `0g 00s 00c` for a fresh character, states that income tracking is not active yet, and has no editable control or fractional-remainder display.
-5. Under **Income Sources**, confirm **Loot income**, **Quest income**, **Vendor sales**, **Player trades**, and **Miscellaneous/system income** start enabled, while **Auction income** and **Mailbox income** start disabled. Under **Feedback**, confirm **Routine chat feedback** starts enabled. The source options configure the future income observer; selling an item does not change the balance yet.
-6. Change the percentage and each checkbox, close and reopen settings with `/agtdev`, and confirm every new value appears immediately while the balance remains unchanged.
+4. Confirm **Current balance** displays `0g 00s 00c` for a fresh character and has no editable control or fractional-remainder display.
+5. Under **Income Sources**, confirm **Loot income**, **Quest income**, **Vendor sales**, **Player trades**, and **Miscellaneous/system income** start enabled, while **Auction income** and **Mailbox income** start disabled. Under **Feedback**, confirm **Routine chat feedback** starts enabled.
+6. Change the percentage and each checkbox, close and reopen settings with `/agtdev`, and confirm every new value appears immediately. Changing settings never changes the balance.
 7. Run `/reload`, reopen settings, and confirm the chosen percentage and checkbox values remain.
 8. Fully exit and restart the client, reopen settings, and confirm those values remain after a complete SavedVariables round trip.
 9. Log in to another character, confirm it receives the defaults, choose different values, then return to the first character and confirm each character stayed isolated.
 10. Enter `/agtdev help` and confirm both the `help` and `settings` commands appear once, followed by a line naming the running client.
 11. Enter `/agtdev unknown` and confirm the add-on reports an unknown command and suggests `/agtdev help` without raising an error.
 12. If the production add-on is also installed, enable it on its own and confirm `/agt` and `/asgardstithe` open **Asgard's Guild Tithe** settings with values independent of the development variant.
+
+## Income tracking steps
+
+Run these on a guilded character after the shared steps, on both clients. Until source-specific classification lands, every gain is reported as miscellaneous/system income.
+
+1. Note your carried gold, run `/reload`, and confirm no income message appears and the balance does not change: money you already carry never counts.
+2. Earn money in any way (for example, sell an item). Confirm chat shows `reserved <amount> from miscellaneous/system income. Total owed: <total>.`, where the amount is your tithe percentage of the gain, and that reopening `/agtdev` shows the new total.
+3. Spend money (for example, buy an item) and confirm no message appears and the balance is unchanged.
+4. Earn a very small amount (a few copper at 10%) and confirm no "0 copper reserved" message appears.
+5. Turn off **Miscellaneous/system income**, earn money, and confirm the balance does not change. Turn it back on.
+6. Turn off **Routine chat feedback**, earn money, and confirm the balance still increases with no chat message. Turn it back on.
+7. On a guildless character, earn money and confirm the balance does not change. After joining a guild, confirm new gains are tracked again.
 
 ## WoW Forever
 

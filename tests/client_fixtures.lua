@@ -24,8 +24,9 @@ local function manifestFiles(profile)
     return files
 end
 
-local function newFrame()
+local function newFrame(world)
     local frame = { registeredEvents = {} }
+    table.insert(world.frames, frame)
     function frame:RegisterEvent(eventName)
         self.registeredEvents[eventName] = true
     end
@@ -157,20 +158,24 @@ local PROFILE_APIS = {
 -- Returns a WoW-like global environment for `profile`. `options.declaredClient`
 -- overrides the manifest's X-Client value (nil keeps the profile's own name),
 -- `options.settings = false` omits the native Settings API, `options.database`
--- seeds the production SavedVariables, and `options.playerName` sets the
--- character reported once the player is ready.
+-- seeds the production SavedVariables, `options.playerName` sets the
+-- character reported once the player is ready, `options.money` sets carried
+-- copper (false omits the money API), and `options.inGuild` sets guild
+-- membership (false = guildless; `options.guildApi = false` omits the API).
 function Fixtures.newEnvironment(profile, options)
     options = options or {}
     local world = {
-        frame = newFrame(),
+        frames = {},
+        inGuild = options.inGuild ~= false,
         messages = {},
+        money = options.money or 0,
         playerName = options.playerName or "Jaina",
         playerReady = false,
     }
 
     local environment = {
         CreateFrame = function()
-            return world.frame
+            return newFrame(world)
         end,
         DEFAULT_CHAT_FRAME = {
             AddMessage = function(_, message)
@@ -195,6 +200,16 @@ function Fixtures.newEnvironment(profile, options)
     setmetatable(environment, { __index = _G })
     environment._G = environment
     environment.AsgardsGuildTitheDB = options.database
+    if options.money ~= false then
+        environment.GetMoney = function()
+            return world.money
+        end
+    end
+    if options.guildApi ~= false then
+        environment.IsInGuild = function()
+            return world.inGuild
+        end
+    end
     if options.settings ~= false then
         world.settings = installSettings(environment)
     end
@@ -222,8 +237,21 @@ function Fixtures.loadAddon(world)
     return addon
 end
 
+-- Delivers a client event to every frame that registered for it.
 function Fixtures.fire(world, eventName, ...)
-    world.frame.handler(world.frame, eventName, ...)
+    local index
+    for index = 1, #world.frames do
+        local frame = world.frames[index]
+        if frame.registeredEvents[eventName] and frame.handler ~= nil then
+            frame.handler(frame, eventName, ...)
+        end
+    end
+end
+
+-- Changes carried money and fires the client's money event.
+function Fixtures.setMoney(world, copper)
+    world.money = copper
+    Fixtures.fire(world, "PLAYER_MONEY")
 end
 
 -- Loads the add-on and runs the normal load then login sequence.

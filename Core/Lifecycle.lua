@@ -6,10 +6,12 @@ addon.Lifecycle = Lifecycle
 local Controller = {}
 Controller.__index = Controller
 
-function Lifecycle.Create(client, router, state, settingsController)
+function Lifecycle.Create(client, router, state, settingsController, incomeObserver)
     return setmetatable({
         addonName = addon.Identity.addonName,
         client = client,
+        incomeObserver = incomeObserver,
+        incomeReady = false,
         initialized = false,
         router = router,
         slashRegistrationAttempted = false,
@@ -69,6 +71,20 @@ function Controller:InitializeState()
     if self.stateReady and self.settingsController ~= nil then
         local ok, registered = pcall(self.settingsController.Register, self.settingsController)
         self.settingsReady = ok and registered == true
+    end
+
+    -- Income observation needs character state; this block runs once, on the
+    -- attempt that makes state ready, so a failure is reported only once.
+    if self.stateReady and self.incomeObserver ~= nil then
+        local ok, started, startError = pcall(self.incomeObserver.Start, self.incomeObserver)
+        self.incomeReady = ok and started == true
+        if not self.incomeReady then
+            local failure = ok and startError or started
+            self.client:Print(addon.Identity.displayName ..
+                ": income tracking is unavailable on this client" ..
+                (type(failure) == "string" and " (" .. failure .. ")" or "") ..
+                ". Your saved balance is unchanged.")
+        end
     end
 
     return self.stateReady

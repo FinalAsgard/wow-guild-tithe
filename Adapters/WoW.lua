@@ -162,6 +162,47 @@ function Client:GetCurrentCharacterIdentity()
     }
 end
 
+-- Carried money in copper, or nil when the client cannot report it.
+function Client:GetCarriedMoney()
+    local ok, copper = callFunction(self.environment.GetMoney)
+    if not ok or type(copper) ~= "number" or copper < 0 or copper ~= math.floor(copper) then
+        return nil
+    end
+
+    return copper
+end
+
+-- true/false for guild membership, or nil when the client cannot report it.
+function Client:IsInGuild()
+    local ok, inGuild = callFunction(self.environment.IsInGuild)
+    if not ok then
+        return nil
+    end
+
+    return inGuild ~= nil and inGuild ~= false
+end
+
+-- Calls onChange() whenever the client reports that carried money changed.
+-- Client event names stay here so Core modules only see the normalized call.
+function Client:ObserveMoneyChanges(onChange)
+    if type(onChange) ~= "function" or type(self.environment.GetMoney) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function()
+            onChange()
+        end)
+        or not self:RegisterEvent(frame, "PLAYER_MONEY")
+    then
+        return false
+    end
+
+    self.moneyFrame = frame
+    return true
+end
+
 function Client:GetAccountDatabase()
     return self.environment[self.databaseName]
 end
@@ -230,7 +271,7 @@ function Client:RegisterSettingsCategory(options)
         end
 
         local balanceInitializer = createSectionHeader("Tithe - Current balance: " ..
-            options.balanceText .. " (income tracking not active)")
+            options.balanceText)
         if balanceInitializer == nil then
             error("balance display was not created")
         end
@@ -349,8 +390,7 @@ function Client:RefreshSettingsBalance(category, balanceText)
         return false
     end
 
-    data.name = "Tithe - Current balance: " .. balanceText ..
-        " (income tracking not active)"
+    data.name = "Tithe - Current balance: " .. balanceText
     return true
 end
 
