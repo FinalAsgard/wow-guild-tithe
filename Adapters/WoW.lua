@@ -203,6 +203,67 @@ function Client:ObserveMoneyChanges(onChange)
     return true
 end
 
+-- Seconds from the client's monotonic clock, or nil when unavailable.
+function Client:Now()
+    local ok, now = callFunction(self.environment.GetTime)
+    if not ok or type(now) ~= "number" then
+        return nil
+    end
+
+    return now
+end
+
+-- Runs callback once after `seconds`. Returns false when the client has no
+-- timer, so callers can act immediately instead.
+function Client:After(seconds, callback)
+    local timers = self.environment.C_Timer
+    if type(timers) ~= "table" or type(timers.After) ~= "function" or type(callback) ~= "function" then
+        return false
+    end
+
+    local ok = pcall(timers.After, seconds, callback)
+    return ok
+end
+
+-- Client events that describe where the next money change came from, mapped
+-- to normalized source context. "open"/"close" bracket an interaction;
+-- "note" is a single corroborating message.
+local CONTEXT_EVENTS = {
+    CHAT_MSG_MONEY = { source = "loot", action = "note" },
+    LOOT_CLOSED = { source = "loot", action = "close" },
+    LOOT_OPENED = { source = "loot", action = "open" },
+}
+
+-- Calls onContext(source, action) for each recognized context event.
+-- Payloads are not trusted: only the event name is used.
+function Client:ObserveIncomeContext(onContext)
+    if type(onContext) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function(_, eventName)
+            local context = CONTEXT_EVENTS[eventName]
+            if context ~= nil then
+                onContext(context.source, context.action)
+            end
+        end)
+    then
+        return false
+    end
+
+    local registered = false
+    local eventName
+    for eventName in pairs(CONTEXT_EVENTS) do
+        -- An event this client lacks is skipped; the others still work.
+        registered = self:RegisterEvent(frame, eventName) or registered
+    end
+
+    self.contextFrame = frame
+    return registered
+end
+
 function Client:GetAccountDatabase()
     return self.environment[self.databaseName]
 end

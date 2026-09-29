@@ -19,6 +19,7 @@ Core/CommandRouter.lua
 Core/SettingsController.lua
 Core/IncomeFeedback.lua
 Core/IncomeCoordinator.lua
+Core/IncomeCorrelator.lua
 Core/IncomeObserver.lua
 Core/Lifecycle.lua
 AsgardsGuildTithe.lua

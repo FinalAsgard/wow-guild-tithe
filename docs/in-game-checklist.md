@@ -23,15 +23,19 @@ Both checklists run these steps after installing. Replace `<AddOns>` with the cl
 
 ## Income tracking steps
 
-Run these on a guilded character after the shared steps, on both clients. Until source-specific classification lands, every gain is reported as miscellaneous/system income.
+Run these on a guilded character after the shared steps, on both clients. Loot is classified as loot; other gains are reported as miscellaneous/system income until their sources are added.
 
 1. Note your carried gold, run `/reload`, and confirm no income message appears and the balance does not change: money you already carry never counts.
-2. Earn money in any way (for example, sell an item). Confirm chat shows `reserved <amount> from miscellaneous/system income. Total owed: <total>.`, where the amount is your tithe percentage of the gain, and that reopening `/agtdev` shows the new total.
+2. Earn money in a way that is not loot (for example, sell an item). Confirm chat shows `reserved <amount> from miscellaneous/system income. Total owed: <total>.`, where the amount is your tithe percentage of the gain, and that reopening `/agtdev` shows the new total.
 3. Spend money (for example, buy an item) and confirm no message appears and the balance is unchanged.
 4. Earn a very small amount (a few copper at 10%) and confirm no "0 copper reserved" message appears.
 5. Turn off **Miscellaneous/system income**, earn money, and confirm the balance does not change. Turn it back on.
 6. Turn off **Print tithe updates**, earn money, and confirm the balance still increases with no chat message. Turn it back on.
 7. On a guildless character, earn money and confirm the balance does not change. After joining a guild, confirm new gains are tracked again.
+8. Kill a creature alone and loot its coin. Confirm the message says `from loot income`.
+9. In a group, loot coin that is shared with the party. Confirm your share is reported `from loot income`.
+10. Loot coin, wait a few seconds, then sell an item. Confirm the sale is not reported as loot.
+11. Turn off **Loot income**, loot coin, and confirm the balance does not change and no message appears. Turn it back on.
 
 ## WoW Forever
 

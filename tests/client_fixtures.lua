@@ -175,8 +175,10 @@ function Fixtures.newEnvironment(profile, options)
         inGuild = options.inGuild ~= false,
         messages = {},
         money = options.money or 0,
+        now = 1000,
         playerName = options.playerName or "Jaina",
         playerReady = false,
+        timers = {},
     }
 
     local environment = {
@@ -188,8 +190,16 @@ function Fixtures.newEnvironment(profile, options)
                 table.insert(world.messages, message)
             end,
         },
+        C_Timer = {
+            After = function(seconds, callback)
+                table.insert(world.timers, { at = world.now + seconds, callback = callback })
+            end,
+        },
         GetRealmName = function()
             return "Camelot"
+        end,
+        GetTime = function()
+            return world.now
         end,
         IsLoggedIn = function()
             return false
@@ -255,10 +265,37 @@ function Fixtures.fire(world, eventName, ...)
     end
 end
 
--- Changes carried money and fires the client's money event.
-function Fixtures.setMoney(world, copper)
+-- Moves the fake clock forward and runs any timers that come due, in order.
+function Fixtures.advance(world, seconds)
+    local target = world.now + seconds
+    while true do
+        local nextIndex
+        local index
+        for index = 1, #world.timers do
+            local timer = world.timers[index]
+            if timer.at <= target and (nextIndex == nil or timer.at < world.timers[nextIndex].at) then
+                nextIndex = index
+            end
+        end
+        if nextIndex == nil then
+            break
+        end
+        local timer = table.remove(world.timers, nextIndex)
+        world.now = math.max(world.now, timer.at)
+        timer.callback()
+    end
+    world.now = target
+end
+
+-- Changes carried money and fires the client's money event. By default the
+-- gain is then allowed to finalize; pass settle = false to inspect it while
+-- it is still waiting for context.
+function Fixtures.setMoney(world, copper, settle)
     world.money = copper
     Fixtures.fire(world, "PLAYER_MONEY")
+    if settle ~= false then
+        Fixtures.advance(world, 1)
+    end
 end
 
 -- Loads the add-on and runs the normal load then login sequence.

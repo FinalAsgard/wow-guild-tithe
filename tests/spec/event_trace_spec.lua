@@ -53,11 +53,13 @@ local function registerProfileTests(profile)
     test.test(profile .. " dev trace is off until started and records events with money", function()
         local world = loginDev(profile, { money = 1000 })
 
+        -- Income tracking also listens for money messages; the trace adds its
+        -- own registration only while running.
+        local listeners = registeredFor(world, "CHAT_MSG_MONEY")
         test.assertContains(trace(world, "status"), "is stopped with 0 entries")
-        test.assertEqual(0, registeredFor(world, "CHAT_MSG_MONEY"))
 
         test.assertContains(trace(world, "start"), "trace started.")
-        test.assertEqual(1, registeredFor(world, "CHAT_MSG_MONEY"))
+        test.assertEqual(listeners + 1, registeredFor(world, "CHAT_MSG_MONEY"))
         world.money = 1250
         fixtures.fire(world, "CHAT_MSG_MONEY", "You loot 2 Silver 50 Copper")
 
@@ -75,13 +77,14 @@ local function registerProfileTests(profile)
 
     test.test(profile .. " stopping the dev trace unregisters events and stops recording", function()
         local world = loginDev(profile)
+        local listeners = registeredFor(world, "CHAT_MSG_MONEY")
         trace(world, "start")
 
         test.assertContains(trace(world, "stop"), "stopped")
         local count = #entries(world)
         fixtures.fire(world, "CHAT_MSG_MONEY", "ignored")
 
-        test.assertEqual(0, registeredFor(world, "CHAT_MSG_MONEY"))
+        test.assertEqual(listeners, registeredFor(world, "CHAT_MSG_MONEY"))
         test.assertEqual(count, #entries(world))
         test.assertEqual("trace stopped", entries(world)[count].name)
         test.assertContains(trace(world, "stop"), "was not running")

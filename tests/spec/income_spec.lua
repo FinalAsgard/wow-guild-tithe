@@ -150,12 +150,14 @@ test.test("every positive money change yields one terminal result with a stable 
     local world, addon = newWorld("Forever")
 
     world.money = STARTING_MONEY + 100
-    local first = addon.incomeObserver:OnMoneyChanged()
+    addon.incomeObserver:OnMoneyChanged()
+    local first = addon.incomeObserver:FinalizePending()
     world.money = STARTING_MONEY + 100
     local unchanged = addon.incomeObserver:OnMoneyChanged()
     world.inGuild = false
     world.money = STARTING_MONEY + 300
-    local guildless = addon.incomeObserver:OnMoneyChanged()
+    addon.incomeObserver:OnMoneyChanged()
+    local guildless = addon.incomeObserver:FinalizePending()
 
     test.assertEqual(1, first.id)
     test.assertEqual("accrued", first.status)

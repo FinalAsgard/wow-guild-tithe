@@ -14,6 +14,7 @@ local MANIFEST_FILES = {
     "Core/SettingsController.lua",
     "Core/IncomeFeedback.lua",
     "Core/IncomeCoordinator.lua",
+    "Core/IncomeCorrelator.lua",
     "Core/IncomeObserver.lua",
     "Core/Lifecycle.lua",
     "AsgardsGuildTithe.lua",
@@ -288,8 +289,10 @@ local function registerBootstrapTest(variant)
         test.assertEqual(0, #messages)
         test.assertEqual(variant.client == "Forever" and "forever" or "retail", addon.clientProfile.id)
         test.assertTrue(addon.lifecycle.incomeReady)
-        test.assertEqual(2, #frames)
+        -- Income tracking adds a money frame and a source-context frame.
+        test.assertEqual(3, #frames)
         test.assertTrue(frames[2].registeredEvents.PLAYER_MONEY)
+        test.assertTrue(frames[3].registeredEvents.LOOT_OPENED)
     end)
 end
 
