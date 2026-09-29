@@ -40,3 +40,19 @@ The trace is saved with the development build's SavedVariables:
 - WoW Retail: `World of Warcraft\_retail_\WTF\Account\<ACCOUNT>\SavedVariables\AsgardsGuildTitheDev.lua`
 
 The trace is the `AsgardsGuildTitheDevTraceDB` table in that file. Attach the file to the capture issue, or copy it to `tests/fixtures/traces/<client>/`, and note which activities you performed.
+
+## Replaying traces as tests
+
+`tests/trace_replay.lua` replays a captured trace through the real add-on under the matching client profile. The fake clock follows the captured timestamps, carried money follows each entry, and every captured event is fired with its arguments. `tests/spec/trace_replay_spec.lua` asserts the exact tithe results. Add a new capture by saving only its `AsgardsGuildTitheDevTraceDB` table (with no character data) under `tests/fixtures/traces/<client>/` and adding a replay test.
+
+## Observed timings
+
+These real captures confirm the timing windows in `Core/IncomeCorrelator.lua` and `Core/IncomeObserver.lua`:
+
+| Capture | What happened | Timing |
+| --- | --- | --- |
+| `forever/vendor-sale.lua` (Forever 1.60.1) | `MERCHANT_SHOW`, then the sale's `PLAYER_MONEY`, then `MERCHANT_UPDATE` | Vendor window opened 3.7s before the money; the update arrived 5 ms after it |
+| `retail/quest-turn-ins.lua` (Retail 12.1.0) | `QUEST_TURNED_IN(questID, xp, money)`, then `PLAYER_MONEY` with a delta equal to the money argument | 0.10–0.31s after the turn-in, across 4 turn-ins |
+| `retail/quest-turn-ins.lua` | `GUILDBANK_UPDATE_MONEY` / `GUILDBANK_UPDATE_WITHDRAWMONEY` with the guild bank closed | No change to carried money (the Retail guild perk); never used as context |
+
+The slowest corroborating message (0.31s) fits the 1s note window, and the 0.3s finalize delay covers messages that arrive just after the money. No window needed retuning.
