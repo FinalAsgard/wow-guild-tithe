@@ -222,7 +222,7 @@ function Payment:OnActionBlocked(functionName)
     self.autoDepositBlocked = true
     self:Resolve(pending, "rejected")
     self:Say("the game blocked the automatic deposit, so your tithe balance is unchanged. " ..
-        "Use the Pay Tithe button on the guild bank.")
+        "Use the Give Tithe button on the guild bank.")
     if self.sessionOpen then
         self:ShowProposal()
     end

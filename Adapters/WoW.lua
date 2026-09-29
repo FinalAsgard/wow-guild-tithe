@@ -588,7 +588,7 @@ end
 -- The tithe offer shown with the guild bank. Returns nil when the client
 -- cannot create frames. It exposes Show(lines, onDeposit), Hide(), and
 -- IsShown(). When the guild bank window's Withdraw button can be found, the
--- offer is a "Pay Tithe" button just left of it, with the lines in its
+-- offer is a "Give Tithe" button just left of it, with the lines in its
 -- tooltip; otherwise it is a small panel beside the bank. The pay button
 -- only works when onDeposit is given.
 function Client:CreatePaymentPanel(title)
@@ -720,7 +720,7 @@ function Client:CreatePaymentPanel(title)
         local inline = self:Inline()
         if inline ~= nil then
             self.frame:Hide()
-            inline:SetText(onDeposit ~= nil and "Pay Tithe" or "Depositing...")
+            inline:SetText(onDeposit ~= nil and "Give Tithe" or "Depositing...")
             inline:SetScript("OnClick", onDeposit)
             if onDeposit ~= nil then
                 pcall(inline.Enable, inline)

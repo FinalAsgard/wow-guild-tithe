@@ -49,14 +49,14 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 
 Run these on a guilded character that owes some tithe (earn a little income first), on both clients. If anything looks wrong, run `/agtdev trace start` before opening the guild bank and `/agtdev trace stop` after, then `/reload` and share `AsgardsGuildTitheDevTraceDB`: the trace records every guild-bank deposit or withdrawal call (and whether the add-on made it), blocked-action events, and the add-on's own chat messages.
 
-1. In `/agtdev`, confirm the **Guild Bank** section shows **Deposit tithe automatically** checked. Open the guild bank. Confirm the tithe is deposited without a click: your gold drops by that amount, chat shows `deposited <amount> to <guild>. Still owed: <remainder>.`, and reopening `/agtdev` shows the new balance. If chat says the game blocked the automatic deposit, note it and continue: the **Pay Tithe** button must appear instead and must work.
-2. Uncheck **Deposit tithe automatically**, earn a little income, and open the guild bank. Confirm nothing is deposited on its own and a **Pay Tithe** button appears just left of the bank's **Withdraw** button. Hover it and confirm the tooltip shows your guild, the tithe amount, and what you will still owe. (If instead a small panel appears beside the bank, note it: the add-on could not find the Withdraw button.)
-3. Click **Pay Tithe**. Confirm it reads "Depositing..." until the deposit lands. Confirm the same gold drop and chat message as step 1.
-4. Open the guild bank again with nothing owed. Confirm no **Pay Tithe** button appears and nothing is deposited.
+1. In `/agtdev`, confirm the **Guild Bank** section shows **Deposit tithe automatically** checked. Open the guild bank. Confirm the tithe is deposited without a click: your gold drops by that amount, chat shows `deposited <amount> to <guild>. Still owed: <remainder>.`, and reopening `/agtdev` shows the new balance. If chat says the game blocked the automatic deposit, note it and continue: the **Give Tithe** button must appear instead and must work.
+2. Uncheck **Deposit tithe automatically**, earn a little income, and open the guild bank. Confirm nothing is deposited on its own and a **Give Tithe** button appears just left of the bank's **Withdraw** button. Hover it and confirm the tooltip shows your guild, the tithe amount, and what you will still owe. (If instead a small panel appears beside the bank, note it: the add-on could not find the Withdraw button.)
+3. Click **Give Tithe**. Confirm it reads "Depositing..." until the deposit lands. Confirm the same gold drop and chat message as step 1.
+4. Open the guild bank again with nothing owed. Confirm no **Give Tithe** button appears and nothing is deposited.
 5. With the setting still off and less gold than you owe, open the guild bank. Confirm the tooltip offers all the gold you carry, and after depositing, the remainder is still owed.
 6. Open the guild bank and close it without clicking. Confirm nothing is deposited and the balance is unchanged.
 7. Turn off **Print tithe updates** and pay once. Confirm the payment message still appears.
-8. With some tithe owed, deposit a smaller amount of gold yourself through the guild bank's own **Deposit** money window (not **Pay Tithe**). Confirm chat shows `deposited <amount> to <guild>. Still owed: <remainder>.` and the balance went down by that amount. Then withdraw some gold and confirm the balance does not change.
+8. With some tithe owed, deposit a smaller amount of gold yourself through the guild bank's own **Deposit** money window (not **Give Tithe**). Confirm chat shows `deposited <amount> to <guild>. Still owed: <remainder>.` and the balance went down by that amount. Then withdraw some gold and confirm the balance does not change.
 
 ## WoW Forever
 

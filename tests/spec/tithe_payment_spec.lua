@@ -130,7 +130,7 @@ local function registerProfileTests(profile)
         return withdraw, tooltip
     end
 
-    test.test(profile .. " the Pay Tithe button sits left of the bank's Withdraw button", function()
+    test.test(profile .. " the Give Tithe button sits left of the bank's Withdraw button", function()
         local namings = { "parentKey", "global" }
         local index
         for index = 1, #namings do
@@ -143,7 +143,7 @@ local function registerProfileTests(profile)
             test.assertTrue(inline.shown, namings[index])
             test.assertFalse(panel(addon).frame.shown, namings[index])
             test.assertTrue(panel(addon):IsShown(), namings[index])
-            test.assertEqual("Pay Tithe", inline.text)
+            test.assertEqual("Give Tithe", inline.text)
             test.assertTrue(inline.enabled)
             test.assertEqual("RIGHT", inline.point[1])
             test.assertEqual(withdraw, inline.point[2])
@@ -172,7 +172,7 @@ local function registerProfileTests(profile)
         end
     end)
 
-    test.test(profile .. " the Pay Tithe button hides when the bank closes", function()
+    test.test(profile .. " the Give Tithe button hides when the bank closes", function()
         local world, addon = newWorld(profile, 5000)
         loadBankWindow(world)
         openBank(world)
