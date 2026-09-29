@@ -237,6 +237,25 @@ local CONTEXT_EVENTS = {
     -- QUEST_TURNED_IN(questID, xpReward, moneyReward): the reward is the
     -- exact copper the next money change should add (seen in captured traces).
     QUEST_TURNED_IN = { source = "quests", action = "note", amountArgument = 3 },
+    -- A completed trade adds money around TRADE_CLOSED; a cancelled trade
+    -- adds none, so it never produces a gain to classify.
+    TRADE_CLOSED = { source = "playerTrades", action = "close" },
+    TRADE_SHOW = { source = "playerTrades", action = "open" },
+    -- Money gained while the guild bank is open is a withdrawal (excluded).
+    -- Guild-bank money update events are deliberately not used: they also
+    -- fire for guild funds changes that never touch the player's money.
+    GUILDBANKFRAME_CLOSED = { source = "guildBankWithdrawal", action = "close" },
+    GUILDBANKFRAME_OPENED = { source = "guildBankWithdrawal", action = "open" },
+}
+
+-- Newer clients report interaction windows by Enum.PlayerInteractionType.
+local INTERACTION_TYPES = {
+    [1] = "playerTrades", -- TradePartner
+    [10] = "guildBankWithdrawal", -- GuildBanker
+}
+local INTERACTION_ACTIONS = {
+    PLAYER_INTERACTION_MANAGER_FRAME_HIDE = "close",
+    PLAYER_INTERACTION_MANAGER_FRAME_SHOW = "open",
 }
 
 local function copperAmount(value)
@@ -264,6 +283,13 @@ function Client:ObserveIncomeContext(onContext)
                     amount = copperAmount((select(context.amountArgument, ...)))
                 end
                 onContext(context.source, context.action, amount)
+                return
+            end
+
+            local action = INTERACTION_ACTIONS[eventName]
+            local source = action and INTERACTION_TYPES[(...)]
+            if source ~= nil then
+                onContext(source, action)
             end
         end)
     then
@@ -276,10 +302,64 @@ function Client:ObserveIncomeContext(onContext)
         -- An event this client lacks is skipped; the others still work.
         registered = self:RegisterEvent(frame, eventName) or registered
     end
+    for eventName in pairs(INTERACTION_ACTIONS) do
+        registered = self:RegisterEvent(frame, eventName) or registered
+    end
 
     self.contextFrame = frame
     self:ObserveMailCollection(onContext)
+    self:ObserveTransferCalls(onContext)
     return registered
+end
+
+-- Copper the character paid for the refundable item in `bag`/`slot`, or nil.
+function Client:ReadPurchasePrice(bag, slot, isEquipped)
+    local containers = self.environment.C_Container
+    if type(containers) == "table" then
+        local ok, info = callFunction(containers.GetContainerItemPurchaseInfo, bag, slot, isEquipped)
+        if ok and type(info) == "table" then
+            return copperAmount(info.money)
+        end
+    end
+
+    local ok, money = callFunction(self.environment.GetContainerItemPurchaseInfo, bag, slot, isEquipped)
+    return ok and copperAmount(money) or nil
+end
+
+-- Hooks the calls that return money the player already had: withdrawing
+-- from the guild bank and refunding a purchased item. Each becomes an
+-- exclusion note carrying the exact amount when the client reports it.
+function Client:ObserveTransferCalls(onContext)
+    local hook = self.environment.hooksecurefunc
+    if type(hook) ~= "function" or self.transfersHooked then
+        return false
+    end
+
+    local hooked = false
+    local function hookCall(owner, callName, handler)
+        if type(owner) == "table" and type(owner[callName]) == "function" then
+            local ok
+            if owner == self.environment then
+                ok = pcall(hook, callName, handler)
+            else
+                ok = pcall(hook, owner, callName, handler)
+            end
+            hooked = ok or hooked
+        end
+    end
+
+    hookCall(self.environment, "WithdrawGuildBankMoney", function(copper)
+        onContext("guildBankWithdrawal", "note", copperAmount(copper))
+    end)
+
+    local function onRefund(bag, slot, isEquipped)
+        onContext("refund", "note", self:ReadPurchasePrice(bag, slot, isEquipped))
+    end
+    hookCall(self.environment.C_Container, "ContainerRefundItemPurchase", onRefund)
+    hookCall(self.environment, "ContainerRefundItemPurchase", onRefund)
+
+    self.transfersHooked = hooked
+    return hooked
 end
 
 -- Reads what the client says about inbox mail `index`: its attached money,

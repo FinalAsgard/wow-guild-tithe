@@ -17,9 +17,21 @@ local IncomeCorrelator = {
     -- note names one gain while an interaction (e.g. an open vendor) is broad.
     -- Exclusions (known non-income, such as money returned to the sender)
     -- sit above the sources they could be confused with.
-    PRECEDENCE = { "quests", "returnedMail", "auctions", "mailbox", "loot", "vendorSales" },
+    PRECEDENCE = {
+        "quests",
+        "returnedMail",
+        "refund",
+        "guildBankWithdrawal",
+        "auctions",
+        "mailbox",
+        "loot",
+        "playerTrades",
+        "vendorSales",
+    },
     -- Context that identifies a known non-income transfer, with its reason.
     EXCLUSIONS = {
+        guildBankWithdrawal = "money withdrawn from the guild bank is not income",
+        refund = "an item refund returns money you already spent",
         returnedMail = "mail returned to sender is your own money coming back",
     },
 }

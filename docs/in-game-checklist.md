@@ -23,7 +23,7 @@ Both checklists run these steps after installing. Replace `<AddOns>` with the cl
 
 ## Income tracking steps
 
-Run these on a guilded character after the shared steps, on both clients. Loot, quest rewards, vendor sales, auction proceeds, and mail are classified by source; other gains are reported as miscellaneous/system income until their sources are added.
+Run these on a guilded character after the shared steps, on both clients. Every supported source is classified: loot, quest rewards, vendor sales, auction proceeds, mail, and player trades. Refunds, returned mail, and guild-bank withdrawals are never tithed. Anything else is miscellaneous/system income.
 
 1. Note your carried gold, run `/reload`, and confirm no income message appears and the balance does not change: money you already carry never counts.
 2. Sell an item to a vendor. Confirm chat shows `reserved <amount> from vendor sale income. Total owed: <total>.`, where the amount is your tithe percentage of the sale, and that reopening `/agtdev` shows the new total.
@@ -41,6 +41,9 @@ Run these on a guilded character after the shared steps, on both clients. Loot, 
 14. Turn off **Quest income** and **Vendor sales** one at a time, and confirm each stops only its own source. Turn them back on.
 15. Turn on **Mailbox income**, mail gold from one of your characters to another, collect it, and confirm it is reported `from mailbox income`. Turn **Mailbox income** off again and confirm the next mailed gold changes nothing.
 16. When convenient: collect auction-sale money with **Auction income** on and **Mailbox income** off, and confirm it is reported `from auction income`. Then try the reverse and confirm the auction money is ignored.
+17. When convenient: receive gold in a completed trade and confirm it is reported `from player trade income`. Cancel a trade that offered gold and confirm nothing happens.
+18. When convenient: withdraw gold from the guild bank and confirm the balance does not change and no message appears.
+19. When convenient: buy an item from a vendor and sell it back for a refund. Confirm the refund is not tithed.
 
 ## WoW Forever
 

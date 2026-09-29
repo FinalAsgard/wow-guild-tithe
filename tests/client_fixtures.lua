@@ -328,13 +328,43 @@ function Fixtures.installMailbox(world, mails)
     end
     environment.TakeInboxMoney = collect
     environment.AutoLootMailItem = collect
-    environment.hooksecurefunc = function(name, hook)
-        local original = environment[name]
-        environment[name] = function(...)
+    Fixtures.installHooks(world)
+end
+
+-- Installs a hooksecurefunc that runs the hook after the original call, for
+-- both global functions (name, hook) and table methods (table, name, hook).
+function Fixtures.installHooks(world)
+    local environment = world.environment
+    environment.hooksecurefunc = function(first, second, third)
+        local owner, name, hook = environment, first, second
+        if type(first) == "table" then
+            owner, name, hook = first, second, third
+        end
+        local original = owner[name]
+        owner[name] = function(...)
             original(...)
             hook(...)
         end
     end
+end
+
+-- Installs the guild-bank withdrawal and item-refund calls. `purchases` maps
+-- "bag:slot" to the copper paid for a refundable item. Must be called before
+-- the add-on loads.
+function Fixtures.installTransferCalls(world, purchases)
+    local environment = world.environment
+    environment.WithdrawGuildBankMoney = function() end
+    environment.C_Container = {
+        ContainerRefundItemPurchase = function() end,
+        GetContainerItemPurchaseInfo = function(bag, slot)
+            local money = purchases[bag .. ":" .. slot]
+            if money == nil then
+                return nil
+            end
+            return { currencyCount = 0, hasEnchants = false, itemCount = 1, money = money, refundSeconds = 3600 }
+        end,
+    }
+    Fixtures.installHooks(world)
 end
 
 -- Opens the mailbox, collects mail `index` through `callName`, and credits
