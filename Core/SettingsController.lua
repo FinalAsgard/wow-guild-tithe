@@ -234,18 +234,31 @@ function Controller:Register()
     end
 
     self.category = category
+    -- Keeps the balance current while the settings page is open, whether it
+    -- changed through income, a guild-bank deposit, or /agt clear.
+    if type(self.state.OnFinancialChange) == "function" then
+        self.state:OnFinancialChange(function()
+            self:RefreshBalance()
+        end)
+    end
     return true
 end
 
-function Controller:Open()
-    if self.category ~= nil then
-        local balanceText = currentBalance(self.state, self.formatter)
-        if balanceText ~= nil
-            and type(self.client.RefreshSettingsBalance) == "function"
-        then
-            self.client:RefreshSettingsBalance(self.category, balanceText)
-        end
+function Controller:RefreshBalance()
+    if self.category == nil then
+        return false
     end
+    local balanceText = currentBalance(self.state, self.formatter)
+    if balanceText == nil
+        or type(self.client.RefreshSettingsBalance) ~= "function"
+    then
+        return false
+    end
+    return self.client:RefreshSettingsBalance(self.category, balanceText)
+end
+
+function Controller:Open()
+    self:RefreshBalance()
 
     if self.category ~= nil and self.client:OpenSettingsCategory(self.category) then
         return true

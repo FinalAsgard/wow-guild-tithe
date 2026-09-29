@@ -189,6 +189,52 @@ test.test("Forever registers slash through the native API and Retail through Sla
 end)
 
 local function registerClearTests(profile)
+    test.test(profile .. " balance changes repaint an open settings page", function()
+        local world = fixtures.newEnvironment(profile, { money = 1000 })
+        fixtures.login(world)
+        local header = { Title = {} }
+        function header.Title:SetText(text)
+            self.text = text
+        end
+        function header:GetElementData()
+            return world.settings.layout.initializers[1]
+        end
+        local other = { Title = {} }
+        function other.Title:SetText(text)
+            self.text = text
+        end
+        function other:GetElementData()
+            return world.settings.layout.initializers[2]
+        end
+        world.environment.SettingsPanel = {
+            GetSettingsList = function()
+                return {
+                    ScrollBox = {
+                        ForEachFrame = function(_, callback)
+                            callback(other)
+                            callback(header)
+                        end,
+                    },
+                }
+            end,
+        }
+        world.environment.SlashCmdList.AGT("")
+        local character = world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]
+
+        world.money = 13345
+        fixtures.fire(world, "LOOT_OPENED")
+        fixtures.fire(world, "PLAYER_MONEY")
+        fixtures.settle(world)
+        test.assertEqual(1234, character.outstandingCopper)
+        test.assertContains(fixtures.balanceText(world), "0g 12s 34c")
+        test.assertEqual(fixtures.balanceText(world), header.Title.text)
+
+        world.environment.SlashCmdList.AGT("clear")
+        test.assertContains(fixtures.balanceText(world), "Current balance: 0g 00s 00c")
+        test.assertEqual("Tithe - Current balance: 0g 00s 00c", header.Title.text)
+        test.assertEqual(nil, other.Title.text)
+    end)
+
     test.test(profile .. " /agt clear resets the balance and reports what was cleared", function()
         local world = fixtures.newEnvironment(profile, { money = 100000 })
         fixtures.login(world)

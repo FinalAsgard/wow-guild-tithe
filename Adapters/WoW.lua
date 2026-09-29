@@ -950,6 +950,18 @@ function Client:RefreshSettingsBalance(category, balanceText)
     end
 
     data.name = "Tithe - Current balance: " .. balanceText
+    -- The header only reads its text when drawn, so repaint it if the
+    -- settings page is showing it right now.
+    local settingsPanel = self.environment.SettingsPanel
+    if type(settingsPanel) == "table" then
+        pcall(function()
+            settingsPanel:GetSettingsList().ScrollBox:ForEachFrame(function(frame)
+                if frame:GetElementData() == initializer and frame.Title ~= nil then
+                    frame.Title:SetText(data.name)
+                end
+            end)
+        end)
+    end
     return true
 end
 

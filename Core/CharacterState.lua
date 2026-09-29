@@ -72,6 +72,7 @@ end
 function CharacterState.Create(client, persistence)
     return setmetatable({
         client = client,
+        financialListeners = {},
         initialized = false,
         persistence = persistence or addon.Persistence.Create(client),
     }, State)
@@ -182,7 +183,19 @@ function State:SetFinancialState(outstandingCopper, fractionalRemainder)
 
     self.character.outstandingCopper = outstandingCopper
     self.character.fractionalRemainder = fractionalRemainder
+    local index
+    for index = 1, #self.financialListeners do
+        -- A failing listener must not undo or block a saved balance.
+        pcall(self.financialListeners[index])
+    end
     return true
+end
+
+-- Calls listener() after every saved change to the balance, whatever its cause.
+function State:OnFinancialChange(listener)
+    if type(listener) == "function" then
+        table.insert(self.financialListeners, listener)
+    end
 end
 
 local function isResolved(character, operationId)
