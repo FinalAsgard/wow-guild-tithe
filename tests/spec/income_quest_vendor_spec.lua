@@ -139,7 +139,7 @@ end
 
 local function newCorrelator()
     local addon = test.newAddon("Core/IncomeCorrelator.lua")
-    return addon.IncomeCorrelator.Create()
+    return addon.IncomeCorrelator.Create(), addon.IncomeCorrelator
 end
 
 test.test("correlator: an amount note only explains a gain of that exact size", function()
@@ -177,4 +177,19 @@ test.test("correlator: exact-amount notes wait longer than timing-only notes", f
 
     correlator:Record("mailbox", "note", 20, 700)
     test.assertEqual("miscellaneous", (correlator:Classify(35, 35.3, 700)))
+end)
+
+test.test("correlator: a guild-bank session outlasts the vendor and trade limit", function()
+    local correlator, module = newCorrelator()
+    correlator:Record("guildBankWithdrawal", "open", 0)
+    correlator:Record("vendorSales", "open", 0)
+
+    local later = module.MAX_OPEN + 600
+    local source, _, excluded = correlator:Classify(later, later + 0.3, 1000)
+    test.assertEqual("guildBankWithdrawal", source)
+    test.assertTrue(excluded)
+
+    correlator:Reset()
+    correlator:Record("vendorSales", "open", 0)
+    test.assertEqual("miscellaneous", (correlator:Classify(later, later + 0.3, 1000)))
 end)

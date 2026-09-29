@@ -18,6 +18,12 @@ local IncomeCorrelator = {
     -- sit at the guild bank for many minutes, and a guild-bank withdrawal
     -- must never fall through to miscellaneous and be tithed.
     MAX_OPEN = 1800,
+    -- Per-source overrides of MAX_OPEN. An exclusion session erring long
+    -- only under-tithes, while expiring early would tithe guild money back
+    -- to the guild, so the guild bank counts for much longer.
+    SOURCE_MAX_OPEN = {
+        guildBankWithdrawal = 14400,
+    },
     -- Upper bound on remembered notes, oldest dropped first.
     MAX_NOTES = 32,
     -- Most specific source first. Sources not listed never classify.
@@ -53,6 +59,10 @@ function IncomeCorrelator.Create()
         notes = {},
         sessions = {},
     }, Correlator)
+end
+
+local function maxOpen(source)
+    return IncomeCorrelator.SOURCE_MAX_OPEN[source] or IncomeCorrelator.MAX_OPEN
 end
 
 local function noteWindow(note)
@@ -121,19 +131,19 @@ function Correlator:Prune(now)
     for source, session in pairs(self.sessions) do
         local expiresAt = session.closedAt ~= nil
             and session.closedAt + IncomeCorrelator.CLOSE_GRACE
-            or session.openedAt + IncomeCorrelator.MAX_OPEN
+            or session.openedAt + maxOpen(source)
         if expiresAt < now then
             self.sessions[source] = nil
         end
     end
 end
 
-local function sessionExplains(session, observedAt)
+local function sessionExplains(source, session, observedAt)
     if session == nil or session.openedAt > observedAt then
         return false
     end
     if session.closedAt == nil then
-        return observedAt <= session.openedAt + IncomeCorrelator.MAX_OPEN
+        return observedAt <= session.openedAt + maxOpen(source)
     end
     return observedAt <= session.closedAt + IncomeCorrelator.CLOSE_GRACE
 end
@@ -185,7 +195,7 @@ function Correlator:Classify(observedAt, finalizedAt, copper)
     end
     for index = 1, #IncomeCorrelator.PRECEDENCE do
         local source = IncomeCorrelator.PRECEDENCE[index]
-        if sessionExplains(self.sessions[source], observedAt) then
+        if sessionExplains(source, self.sessions[source], observedAt) then
             return result(source, source .. " interaction was open")
         end
     end
