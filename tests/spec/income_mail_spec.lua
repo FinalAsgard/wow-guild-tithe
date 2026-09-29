@@ -116,10 +116,10 @@ local function registerProfileTests(profile)
         fixtures.setMoney(world, STARTING_MONEY + 20000, false)
         fixtures.setMoney(world, STARTING_MONEY + 23000)
 
-        test.assertEqual(3, #world.messages)
-        test.assertContains(world.messages[1], "from auction income")
-        test.assertContains(world.messages[2], "from mailbox income")
-        test.assertContains(world.messages[3], "from mailbox income")
+        -- Three results; the two ordinary mails share one grouped message.
+        test.assertEqual(2, #world.messages)
+        test.assertContains(world.messages[1], "reserved 0g 10s 00c from auction income")
+        test.assertContains(world.messages[2], "reserved 0g 13s 00c from mailbox income")
         test.assertEqual(2300, character(world).outstandingCopper)
     end)
 

@@ -172,7 +172,7 @@ local function registerProfileTests(profile)
         fixtures.advance(world, 5)
         fixtures.setMoney(world, STARTING_MONEY + 2000, false)
         fixtures.fire(world, "CHAT_MSG_MONEY", "Your share of the loot is 10 Silver.")
-        fixtures.advance(world, 1)
+        fixtures.settle(world)
 
         test.assertEqual(2, #world.messages)
         test.assertContains(lastMessage(world), "from loot income")

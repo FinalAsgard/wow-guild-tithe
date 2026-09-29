@@ -28,7 +28,7 @@ local function registerProfileTests(profile)
         fixtures.setMoney(world, STARTING_MONEY + 50000, false)
         fixtures.fire(world, "TRADE_CLOSED")
         fixtures.fire(world, "TRADE_CLOSED")
-        fixtures.advance(world, 1)
+        fixtures.settle(world)
 
         test.assertEqual(1, #world.messages)
         test.assertContains(lastMessage(world), "from player trade income")

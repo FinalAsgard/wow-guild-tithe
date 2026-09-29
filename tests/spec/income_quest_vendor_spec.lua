@@ -64,26 +64,31 @@ local function registerProfileTests(profile)
         test.assertEqual(0, #world.messages)
     end)
 
-    test.test(profile .. " rapid vendor sales each count once as vendor sales", function()
+    test.test(profile .. " rapid vendor sales each count once and share one message", function()
         local world = newWorld(profile)
 
         fixtures.fire(world, "MERCHANT_SHOW")
         fixtures.setMoney(world, STARTING_MONEY + 1000, false)
-        fixtures.advance(world, 0.1)
+        fixtures.advance(world, 0.4)
+        -- Each sale is saved as soon as it finalizes, before any message.
+        test.assertEqual(100, character(world).outstandingCopper)
         fixtures.setMoney(world, STARTING_MONEY + 3000, false)
-        fixtures.advance(world, 0.1)
+        fixtures.advance(world, 0.4)
+        test.assertEqual(300, character(world).outstandingCopper)
         fixtures.setMoney(world, STARTING_MONEY + 6000, false)
         fixtures.fire(world, "MERCHANT_UPDATE")
-        fixtures.advance(world, 1)
+        fixtures.advance(world, 0.4)
+        test.assertEqual(600, character(world).outstandingCopper)
+        test.assertEqual(0, #world.messages)
+
         fixtures.fire(world, "MERCHANT_CLOSED")
         fixtures.advance(world, 5)
 
-        test.assertEqual(3, #world.messages)
-        local index
-        for index = 1, 3 do
-            test.assertContains(world.messages[index], "from vendor sale income")
-        end
-        test.assertEqual(600, character(world).outstandingCopper)
+        test.assertEqual(1, #world.messages)
+        test.assertEqual(
+            "Asgard's Guild Tithe: reserved 0g 06s 00c from vendor sale income. Total owed: 0g 06s 00c.",
+            world.messages[1]
+        )
     end)
 
     test.test(profile .. " gold looted after closing a vendor is loot, not a vendor sale", function()

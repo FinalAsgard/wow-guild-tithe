@@ -287,14 +287,22 @@ function Fixtures.advance(world, seconds)
     world.now = target
 end
 
+-- Seconds that let a pending gain finalize and its grouped chat message print.
+Fixtures.SETTLE_SECONDS = 2
+
+-- Lets pending gains finalize and grouped chat messages print.
+function Fixtures.settle(world)
+    Fixtures.advance(world, Fixtures.SETTLE_SECONDS)
+end
+
 -- Changes carried money and fires the client's money event. By default the
--- gain is then allowed to finalize; pass settle = false to inspect it while
--- it is still waiting for context.
+-- gain is then allowed to finalize and report; pass settle = false to
+-- inspect it while it is still waiting for context.
 function Fixtures.setMoney(world, copper, settle)
     world.money = copper
     Fixtures.fire(world, "PLAYER_MONEY")
     if settle ~= false then
-        Fixtures.advance(world, 1)
+        Fixtures.settle(world)
     end
 end
 

@@ -36,7 +36,7 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 9. In a group, loot coin that is shared with the party. Confirm your share is reported `from loot income`.
 10. Loot coin, wait a few seconds, then sell an item. Confirm the sale is reported as a vendor sale, not loot.
 11. Turn off **Loot income**, loot coin, and confirm the balance does not change and no message appears. Turn it back on.
-12. Sell several items to a vendor quickly, one after another. Confirm each sale is reported once as a vendor sale and the total owed matches.
+12. Sell several items to a vendor quickly, one after another. Confirm one grouped message appears about a second after the last sale, with the combined amount reserved from vendor sale income and the correct total owed. Gains from a different source always get their own message.
 13. Turn in a quest that rewards money. Confirm it is reported `from quest income`. A quest that rewards only items adds nothing.
 14. Turn off **Quest income** and **Vendor sales** one at a time, and confirm each stops only its own source. Turn them back on.
 15. Turn on **Mailbox income**, mail gold from one of your characters to another, collect it, and confirm it is reported `from mailbox income`. Turn **Mailbox income** off again and confirm the next mailed gold changes nothing.

@@ -19,7 +19,9 @@ if clientProfile.supported then
     settingsController:RegisterCommands(router)
     local incomeFeedback = addon.IncomeFeedback.Create(function(message)
         client:Print(message)
-    end, addon.MoneyFormatter)
+    end, addon.MoneyFormatter, function(seconds, callback)
+        return client:After(seconds, callback)
+    end)
     local incomeCoordinator = addon.IncomeCoordinator.Create(
         client,
         state,
