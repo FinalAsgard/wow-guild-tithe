@@ -16,10 +16,22 @@ normalize() {
         echo "The $name repository variable is not set (see docs/packaging.md)." >&2
         return 1
     fi
+    # read drops a trailing empty entry, so catch a trailing comma here.
+    case "$(printf '%s' "$value" | tr -d '[:space:]')" in
+        *,)
+            echo "$name has an empty entry in '$value'; list versions like 120100, 120200." >&2
+            return 1
+            ;;
+    esac
     IFS=',' read -r -a items <<< "$value"
     for item in "${items[@]}"; do
         item="$(printf '%s' "$item" | tr -d '[:space:]')"
-        [ -z "$item" ] && continue
+        # An empty entry (",," or a trailing comma) is rejected rather than
+        # dropped, so the package check compares against the same list.
+        if [ -z "$item" ]; then
+            echo "$name has an empty entry in '$value'; list versions like 120100, 120200." >&2
+            return 1
+        fi
         if [[ ! "$item" =~ ^[1-9][0-9]{4,5}$ ]]; then
             echo "$name has '$item'; interface versions are 5 or 6 digit numbers such as 16001 or 120100." >&2
             return 1
