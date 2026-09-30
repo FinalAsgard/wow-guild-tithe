@@ -40,6 +40,18 @@ jobs:
       - name: Build and validate the multi-client package without uploading
         run: tools/build-package.sh
 
+      # Keep the validated zip so a build can be downloaded, for example for a
+      # manual CurseForge upload.
+      - name: Keep the package as a download
+        uses: actions/upload-artifact@v4
+        with:
+          name: AsgardsGuildTithe-package
+          path: .release/AsgardsGuildTithe-*.zip
+          if-no-files-found: error
+          # The package is written to .release/, a hidden directory.
+          include-hidden-files: true
+          retention-days: 30
+
   windows-installer:
     name: Windows development installer
     runs-on: windows-latest

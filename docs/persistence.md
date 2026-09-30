@@ -162,3 +162,63 @@ Totals are always derived from the entries: an overall total and one total per
 guild. Guilds are grouped by stable id when present, otherwise by
 realm-qualified name (case and spacing ignored), so a rename under the same id
 stays one guild and shows its newest name.
+
+## Reading donation data from other add-ons
+
+Companion add-ons, such as the planned **Guild Fellowship** leaderboard, may
+read the donation ledger directly. It is the only saved data offered for
+outside reading, and it is **read-only**: another add-on must never write to
+the Guild Tithe database. Guild Tithe exposes no API or callbacks for this;
+this section is the contract.
+
+**Where.** The production add-on keeps its account-wide data in the global
+`AsgardsGuildTitheDB`. The ledger is `AsgardsGuildTitheDB.donations`, a list
+of entries in the order they were recorded. The development build uses
+`AsgardsGuildTitheDevDB` instead; companion add-ons should read only the
+production table.
+
+**When.** Guild Tithe validates and upgrades its saved data when the player
+logs in, and retries when the player enters the world if login was too
+early. Before that, the table may still use an older schema or hold entries
+that validation would move to `quarantinedDonations`. Read on demand, for
+example when the leaderboard opens or on a timer, at any point after
+`PLAYER_ENTERING_WORLD`. List `AsgardsGuildTithe` under `## OptionalDeps` so
+it loads first. There is no change notification, so re-read to pick up new
+donations.
+
+**Which version.** Guild Tithe is optional, so it may not be installed and
+`AsgardsGuildTitheDB` may not exist. First check that it is a table, then that
+its `schemaVersion` is 4 and its `donations` is a table. Treat anything else as
+unavailable rather than guessing:
+
+```lua
+local db = AsgardsGuildTitheDB
+if type(db) ~= "table" or db.schemaVersion ~= 4 or type(db.donations) ~= "table" then
+    return nil -- Guild Tithe data is unavailable
+end
+```
+
+Guild Tithe raises `schemaVersion` whenever the donation format changes, and
+this section documents the current one.
+
+**What each entry means.** Each entry in `donations` has these fields (see
+"Current schema" above):
+
+| Field | Meaning |
+| --- | --- |
+| `operationId` | Unique id of the donation; use it to avoid counting one twice |
+| `timestamp` | Server time (seconds) when the donation was confirmed |
+| `amount` | Exact copper given, always a positive integer |
+| `method` | `automatic` (deposited when the bank opened), `button` (**Give Tithe**), or `manual` (the player's own deposit through the guild bank window) |
+| `character` | The donor: `key` (normalized `name-realm`), `name`, `realm`, and optional `stableId` |
+| `guild` | The recipient: `name`, `realm`, and an optional stable `id` |
+
+Only `automatic` and `button` entries are tithes paid through Guild Tithe.
+A leaderboard of tithes should count those two methods and leave out
+`manual`. To total one guild, match entries by `guild.id` when present, and
+otherwise by `guild.name` plus `guild.realm`, ignoring case and spaces in the
+realm. A player may have donated to other guilds before joining the current
+one. Every character on the same WoW account shares this one ledger, so all
+entries belong to one player, grouped per character by `character.key`.
+Ignore `quarantinedDonations`: those entries could not be read and never
+count toward totals.

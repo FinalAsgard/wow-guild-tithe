@@ -13,7 +13,12 @@ A World of Warcraft add-on for configuring and accounting for a guild tithe. It 
 
 Both supported clients get the same add-on name, commands, settings, and saved-data format from one source tree and one version. Each game installation keeps its own SavedVariables, and nothing is synchronized between Forever and Retail. Each client loads only its own manifest. Retail uses `_Mainline`, the suffix the WoW packager and CurseForge tag as Retail. Forever also accepts `_Mainline`, but it always prefers its own `_Camelot` manifest, so the two manifests must always ship together. On an unsupported client the add-on reports that once and leaves saved data untouched.
 
-Interface numbers are release metadata, not permanent constants. Confirm them from each running client with `/dump (select(4, GetBuildInfo()))` after every game patch and before each release, and update both manifests for that client together.
+Interface numbers are release metadata, not permanent constants. Confirm them from each running client with `/dump (select(4, GetBuildInfo()))` after every game patch and before each release, and update that client's manifests with one command, which also updates the tests and the table above:
+
+```sh
+tools/set-interface.sh retail 120200          # one interface
+tools/set-interface.sh forever 16001 16002    # several, when a client accepts more than one
+```
 
 ## Current foundation
 
