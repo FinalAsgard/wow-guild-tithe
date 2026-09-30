@@ -53,8 +53,10 @@ CI runs the same script on every pull request in the **Release package** job.
 
 ## Before a release
 
-1. Confirm each client's interface number from the running client and update
-   both of that client's manifests (see the README).
+1. Confirm each client's interface number from the running client
+   (`/dump (select(4, GetBuildInfo()))`) and, if it changed, run
+   `tools/set-interface.sh <forever|retail> <interface>`. It updates both of
+   that client's manifests, the test expectation, and the README table.
 2. Run both in-game checklists in [in-game-checklist.md](in-game-checklist.md).
    A release claims compatibility with a client only after that client's
    checklist passes on the current live build. A pass on one client never
