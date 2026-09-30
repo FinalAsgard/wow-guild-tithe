@@ -481,6 +481,48 @@ local function registerProfileTests(profile)
         test.assertEqual(0, #againDonations)
     end)
 
+    test.test(profile .. " a reloaded payment waits for the guild to load before crediting it", function()
+        local world, addon = newWorld(profile, 5000)
+        openBank(world)
+        fixtures.click(panel(addon).button)
+
+        local reloaded, _, donations = loginWithDonations(profile, {
+            database = fixtures.snapshot(database(world)),
+            inGuild = false,
+            money = CARRIED - 5000,
+        })
+        test.assertEqual(5000, character(reloaded).outstandingCopper)
+        test.assertTrue(character(reloaded).pendingPayment ~= nil)
+
+        fixtures.advance(reloaded, 12)
+        test.assertTrue(character(reloaded).pendingPayment ~= nil)
+        reloaded.inGuild = true
+        fixtures.advance(reloaded, 2)
+
+        test.assertEqual(0, character(reloaded).outstandingCopper)
+        test.assertEqual(1, #donations)
+    end)
+
+    test.test(profile .. " a reloaded payment is left unresolved if the guild never loads", function()
+        local world, addon = newWorld(profile, 5000)
+        openBank(world)
+        fixtures.click(panel(addon).button)
+
+        local reloaded, _, donations = loginWithDonations(profile, {
+            database = fixtures.snapshot(database(world)),
+            inGuild = false,
+            money = CARRIED - 5000,
+        })
+        fixtures.advance(reloaded, 29)
+        test.assertTrue(character(reloaded).pendingPayment ~= nil)
+        fixtures.advance(reloaded, 2)
+
+        test.assertEqual(nil, character(reloaded).pendingPayment)
+        test.assertEqual(5000, character(reloaded).outstandingCopper)
+        test.assertEqual(0, #donations)
+        test.assertContains(reloaded.messages[#reloaded.messages], "guild changed")
+    end)
+
     test.test(profile .. " a payment still in flight at a reload waits for its deposit", function()
         local world, addon, donations = reloadDuringPayment(profile, 5000, CARRIED)
 
@@ -544,6 +586,8 @@ local function registerProfileTests(profile)
 
             changes[index](world)
             fixtures.setMoney(world, CARRIED - 5000)
+            -- A missing guild is waited on before the payment is given up.
+            fixtures.advance(world, 31)
 
             test.assertEqual(5000, character(world).outstandingCopper, "change " .. index)
             test.assertEqual(0, #donations, "change " .. index)

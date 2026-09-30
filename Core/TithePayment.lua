@@ -14,6 +14,11 @@ local TithePayment = {
     -- loads its guild bank window on the first visit, possibly after this
     -- add-on hears the bank open, so the first drawing may not find it.
     OFFER_REFRESH_DELAY = 0.2,
+    -- When the deposit shows up but the game has not reported the guild yet
+    -- (common right after login), the guild is checked again this often, for
+    -- this many tries, before the payment is left unresolved.
+    GUILD_RETRY_DELAY = 2,
+    GUILD_RETRY_LIMIT = 15,
 }
 addon.TithePayment = TithePayment
 
@@ -167,7 +172,8 @@ end
 
 function Payment:StartTimeout(pending)
     if not self.client:After(TithePayment.CONFIRM_TIMEOUT, function()
-        if self.pending == pending then
+        -- A deposit already seen and waiting only on the guild is not expired.
+        if self.pending == pending and not pending.awaitingGuild then
             self:Expire()
         end
     end) then
@@ -188,7 +194,7 @@ function Payment:OnGuildBankOpened()
     self.sessionOpen = true
     -- Without a client timer, an unconfirmed payment from an earlier visit
     -- expires here so it can never block payments for good.
-    if self.pending ~= nil and self.pending.untimed then
+    if self.pending ~= nil and self.pending.untimed and not self.pending.awaitingGuild then
         self:Expire()
         return
     end
@@ -377,7 +383,7 @@ end
 function Payment:OnMoneyChanged()
     local pending = self.pending
     local current = self.client:GetCarriedMoney()
-    if pending == nil or current == nil then
+    if pending == nil or current == nil or pending.awaitingGuild then
         return
     end
     local previous = pending.lastMoney
@@ -393,7 +399,21 @@ end
 -- balance is untouched rather than credited to the wrong guild.
 function Payment:Reconcile(pending)
     local intent = pending.intent
-    if not TithePayment.SameGuild(intent.guild, self.client:GetGuildIdentity()) then
+    local guild = self.client:GetGuildIdentity()
+    -- No guild reported yet may only mean the game has not loaded it, so
+    -- wait for it rather than give up on a deposit that really happened.
+    if guild == nil and (pending.guildChecks or 0) < TithePayment.GUILD_RETRY_LIMIT
+        and self.client:After(TithePayment.GUILD_RETRY_DELAY, function()
+            if self.pending == pending then
+                self:Reconcile(pending)
+            end
+        end)
+    then
+        pending.guildChecks = (pending.guildChecks or 0) + 1
+        pending.awaitingGuild = true
+        return
+    end
+    if not TithePayment.SameGuild(intent.guild, guild) then
         self:Resolve(pending, "unresolved")
         self:Say("your guild changed before the deposit to " .. intent.guild.name ..
             " was confirmed, so your tithe balance is unchanged.")
