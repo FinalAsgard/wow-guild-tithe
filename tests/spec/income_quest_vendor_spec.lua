@@ -31,7 +31,7 @@ local function registerProfileTests(profile)
         fixtures.advance(world, 0.2)
         fixtures.setMoney(world, STARTING_MONEY + 25505)
 
-        test.assertContains(lastMessage(world), "from quest income")
+        test.assertContains(lastMessage(world), "from quests")
         test.assertEqual(2550, character(world).outstandingCopper)
     end)
 
@@ -41,7 +41,7 @@ local function registerProfileTests(profile)
         turnInQuest(world, 25505)
         fixtures.setMoney(world, STARTING_MONEY + 1000)
 
-        test.assertContains(lastMessage(world), "from miscellaneous/system income")
+        test.assertContains(lastMessage(world), "from other income")
     end)
 
     test.test(profile .. " a malformed quest reward still counts by timing", function()
@@ -50,7 +50,7 @@ local function registerProfileTests(profile)
         fixtures.fire(world, "QUEST_TURNED_IN", 66115, 10465, "lots")
         fixtures.setMoney(world, STARTING_MONEY + 1000)
 
-        test.assertContains(lastMessage(world), "from quest income")
+        test.assertContains(lastMessage(world), "from quests")
     end)
 
     test.test(profile .. " an item-only quest accrues nothing", function()
@@ -86,7 +86,7 @@ local function registerProfileTests(profile)
 
         test.assertEqual(1, #world.messages)
         test.assertEqual(
-            "Asgard's Guild Tithe: reserved 0g 06s 00c from vendor sale income. Total owed: 0g 06s 00c.",
+            "|cffd4af37[Guild Tithe]|r +6|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from vendor sales · owed 6|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t",
             world.messages[1]
         )
     end)
@@ -98,11 +98,11 @@ local function registerProfileTests(profile)
         fixtures.fire(world, "MERCHANT_CLOSED")
         fixtures.fire(world, "CHAT_MSG_MONEY", "You loot 10 Silver")
         fixtures.setMoney(world, STARTING_MONEY + 1000)
-        test.assertContains(lastMessage(world), "from loot income")
+        test.assertContains(lastMessage(world), "from loot")
 
         fixtures.advance(world, 5)
         fixtures.setMoney(world, STARTING_MONEY + 2000)
-        test.assertContains(lastMessage(world), "from miscellaneous/system income")
+        test.assertContains(lastMessage(world), "from other income")
     end)
 
     test.test(profile .. " a quest turned in at a vendor is quest income", function()
@@ -112,7 +112,7 @@ local function registerProfileTests(profile)
         turnInQuest(world, 5000)
         fixtures.setMoney(world, STARTING_MONEY + 5000)
 
-        test.assertContains(lastMessage(world), "from quest income")
+        test.assertContains(lastMessage(world), "from quests")
     end)
 
     test.test(profile .. " disabled quest and vendor sources leave the tithe unchanged", function()

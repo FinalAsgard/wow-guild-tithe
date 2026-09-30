@@ -159,7 +159,7 @@ local function registerProfileTests(profile)
         fixtures.fire(world, "LOOT_CLOSED")
 
         test.assertEqual(100, character(world).outstandingCopper)
-        test.assertContains(lastMessage(world), "from loot income")
+        test.assertContains(lastMessage(world), "from loot")
     end)
 
     test.test(profile .. " a shared party coin message classifies as loot in either order", function()
@@ -167,7 +167,7 @@ local function registerProfileTests(profile)
 
         fixtures.fire(world, "CHAT_MSG_MONEY", "Your share of the loot is 10 Silver.")
         fixtures.setMoney(world, STARTING_MONEY + 1000)
-        test.assertContains(lastMessage(world), "from loot income")
+        test.assertContains(lastMessage(world), "from loot")
 
         fixtures.advance(world, 5)
         fixtures.setMoney(world, STARTING_MONEY + 2000, false)
@@ -175,7 +175,7 @@ local function registerProfileTests(profile)
         fixtures.settle(world)
 
         test.assertEqual(2, #world.messages)
-        test.assertContains(lastMessage(world), "from loot income")
+        test.assertContains(lastMessage(world), "from loot")
         test.assertEqual(200, character(world).outstandingCopper)
     end)
 
@@ -206,7 +206,7 @@ local function registerProfileTests(profile)
         fixtures.advance(world, 10)
         fixtures.setMoney(world, STARTING_MONEY + 1000)
 
-        test.assertContains(lastMessage(world), "from miscellaneous/system income")
+        test.assertContains(lastMessage(world), "from other income")
     end)
 
     test.test(profile .. " loot disabled ignores loot gains without touching the tithe", function()
@@ -243,7 +243,7 @@ local function registerProfileTests(profile)
 
         fixtures.setMoney(world, STARTING_MONEY + 1000)
 
-        test.assertContains(lastMessage(world), "from miscellaneous/system income")
+        test.assertContains(lastMessage(world), "from other income")
     end)
 
     test.test(profile .. " malformed context payloads are ignored safely", function()
@@ -253,7 +253,7 @@ local function registerProfileTests(profile)
         fixtures.fire(world, "LOOT_OPENED", "not a number")
         fixtures.setMoney(world, STARTING_MONEY + 1000)
 
-        test.assertContains(lastMessage(world), "from loot income")
+        test.assertContains(lastMessage(world), "from loot")
         test.assertEqual(100, character(world).outstandingCopper)
     end)
 
@@ -269,8 +269,8 @@ local function registerProfileTests(profile)
         fixtures.setMoney(world, STARTING_MONEY + 3000)
 
         test.assertEqual(2, #world.messages)
-        test.assertContains(world.messages[1], "from loot income")
-        test.assertContains(world.messages[2], "from miscellaneous/system income")
+        test.assertContains(world.messages[1], "from loot")
+        test.assertContains(world.messages[2], "from other income")
         test.assertEqual(300, character(world).outstandingCopper)
     end)
 end

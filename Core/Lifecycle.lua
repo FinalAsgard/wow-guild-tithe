@@ -42,7 +42,7 @@ function Controller:RegisterSlash()
     )
 
     if not self.slashRegistered then
-        self.client:Print(addon.Identity.displayName .. ": " ..
+        self.client:Print(addon.Identity.chatPrefix .. " " ..
             addon.Identity.slashCommand .. " is unavailable on this client.")
     end
 
@@ -61,8 +61,8 @@ function Controller:InitializeState()
             -- Report once; later login events retry quietly.
             self.stateFailureReported = true
             local failure = ok and stateError or initialized
-            self.client:Print(addon.Identity.displayName ..
-                ": saved character state is unavailable" ..
+            self.client:Print(addon.Identity.chatPrefix ..
+                " Saved character state is unavailable" ..
                 (type(failure) == "string" and " (" .. failure .. ")." or "."))
         end
     end
@@ -82,8 +82,8 @@ function Controller:InitializeState()
         self.incomeReady = ok and started == true
         if not self.incomeReady then
             local failure = ok and startError or started
-            self.client:Print(addon.Identity.displayName ..
-                ": income tracking is unavailable on this client" ..
+            self.client:Print(addon.Identity.chatPrefix ..
+                " Income tracking is unavailable on this client" ..
                 (type(failure) == "string" and " (" .. failure .. ")" or "") ..
                 ". Your saved balance is unchanged.")
         end

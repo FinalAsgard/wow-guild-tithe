@@ -35,7 +35,7 @@ local function registerProfileTests(profile)
         test.assertEqual(40, character(world).fractionalRemainder)
         test.assertEqual(1, #world.messages)
         test.assertEqual(
-            "Asgard's Guild Tithe: reserved 0g 01s 23c from miscellaneous/system income. Total owed: 0g 01s 23c.",
+            "|cffd4af37[Guild Tithe]|r +1|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 23|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t tithe from other income · owed 1|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 23|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
             world.messages[1]
         )
     end)
@@ -126,7 +126,7 @@ local function registerProfileTests(profile)
         test.assertFalse(addon.lifecycle.incomeReady)
         test.assertTrue(addon.lifecycle.stateReady)
         test.assertEqual(1, #world.messages)
-        test.assertContains(world.messages[1], "income tracking is unavailable")
+        test.assertContains(world.messages[1], "Income tracking is unavailable")
         test.assertContains(world.messages[1], "balance is unchanged")
         test.assertEqual(0, character(world).outstandingCopper)
     end)
@@ -139,7 +139,7 @@ local function registerProfileTests(profile)
 
         test.assertFalse(addon.lifecycle.incomeReady)
         test.assertEqual(1, #world.messages)
-        test.assertContains(world.messages[1], "income tracking is unavailable")
+        test.assertContains(world.messages[1], "Income tracking is unavailable")
         test.assertContains(world.messages[1], "guild membership is unavailable")
         test.assertEqual(0, character(world).outstandingCopper)
     end)
@@ -150,7 +150,7 @@ local function registerProfileTests(profile)
 
         world.environment.SlashCmdList.AGT("")
 
-        test.assertEqual("Tithe - Current balance: 0g 01s 23c", fixtures.balanceText(world))
+        test.assertEqual("Tithe - Current balance: 1|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 23|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t", fixtures.balanceText(world))
     end)
 end
 

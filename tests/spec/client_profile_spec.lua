@@ -183,7 +183,7 @@ local function registerProfileTests(profile)
         fixtures.fire(world, "PLAYER_ENTERING_WORLD")
 
         test.assertEqual(1, #world.messages)
-        test.assertContains(world.messages[1], "saved character state is unavailable")
+        test.assertContains(world.messages[1], "Saved character state is unavailable")
         fixtures.assertSameData(before, world.environment.AsgardsGuildTitheDB)
     end)
 
@@ -195,7 +195,7 @@ local function registerProfileTests(profile)
         world.environment.SlashCmdList.AGT("help")
 
         test.assertEqual(
-            "Asgard's Guild Tithe: client - " .. label .. ".",
+            "|cffd4af37[Guild Tithe]|r Client: " .. label .. ".",
             world.messages[#world.messages]
         )
     end)
@@ -225,14 +225,14 @@ test.test("unsupported client reports once and leaves saved data untouched", fun
 
     test.assertFalse(addon.clientProfile.supported)
     test.assertEqual(1, #world.messages)
-    test.assertContains(world.messages[1], "this game client is not supported")
+    test.assertContains(world.messages[1], "This game client is not supported")
     test.assertContains(world.messages[1], "WoW Forever and WoW Retail")
     test.assertEqual(existing, world.environment.AsgardsGuildTitheDB)
     fixtures.assertSameData(before, existing)
 
     world.environment.SlashCmdList.AGT("")
     test.assertEqual(
-        "Asgard's Guild Tithe: client - Unsupported client.",
+        "|cffd4af37[Guild Tithe]|r Client: Unsupported client.",
         world.messages[#world.messages]
     )
     test.assertEqual(nil, string.find(world.messages[2], "settings", 1, true))

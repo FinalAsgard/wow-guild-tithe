@@ -26,9 +26,9 @@ Both checklists run these steps after installing. Replace `<AddOns>` with the cl
 Run these on a guilded character after the shared steps, on both clients. Every supported source is classified: loot, quest rewards, vendor sales, auction proceeds, mail, and player trades. Refunds, returned mail, and guild-bank withdrawals are never tithed. Anything else is miscellaneous/system income.
 
 1. Note your carried gold, run `/reload`, and confirm no income message appears and the balance does not change: money you already carry never counts.
-2. Sell an item to a vendor. Confirm chat shows `reserved <amount> from vendor sale income. Total owed: <total>.`, where the amount is your tithe percentage of the sale, and that reopening `/agtdev` shows the new total.
+2. Sell an item to a vendor. Confirm chat shows `[Guild Tithe] +<amount> tithe from vendor sales · owed <total>`, where the amount is your tithe percentage of the sale, and that reopening `/agtdev` shows the new total.
 3. Spend money (for example, buy an item) and confirm no message appears and the balance is unchanged.
-4. Earn a very small amount (a few copper at 10%) and confirm no "0 copper reserved" message appears.
+4. Earn a very small amount (a few copper at 10%) and confirm no "+0" tithe message appears.
 5. Turn off **Miscellaneous/system income**, earn money, and confirm the balance does not change. Turn it back on.
 6. Turn off **Print tithe updates**, earn money, and confirm the balance still increases with no chat message. Turn it back on.
 7. On a guildless character, earn money and confirm the balance does not change. After joining a guild, confirm new gains are tracked again.
@@ -49,14 +49,29 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 
 Run these on a guilded character that owes some tithe (earn a little income first), on both clients. If anything looks wrong, run `/agtdev trace start` before opening the guild bank and `/agtdev trace stop` after, then `/reload` and share `AsgardsGuildTitheDevTraceDB`: the trace records every guild-bank deposit or withdrawal call (and whether the add-on made it), blocked-action events, and the add-on's own chat messages.
 
-1. In `/agtdev`, confirm the **Guild Bank** section shows **Deposit tithe automatically** checked. Open the guild bank. Confirm the tithe is deposited without a click: your gold drops by that amount, chat shows `deposited <amount> to <guild>. Still owed: <remainder>.`, and reopening `/agtdev` shows the new balance. If chat says the game blocked the automatic deposit, note it and continue: the **Give Tithe** button must appear instead and must work.
+1. In `/agtdev`, confirm the **Guild Bank** section shows **Deposit tithe automatically** checked. Open the guild bank. Confirm the tithe is deposited without a click: your gold drops by that amount, chat shows `[Guild Tithe] Gave <amount> to <guild>.` followed by `Your tithe is paid in full!` or `Still owed: <remainder>`, and reopening `/agtdev` shows the new balance. If chat says the game blocked the automatic deposit, note it and continue: the **Give Tithe** button must appear instead and must work.
 2. Uncheck **Deposit tithe automatically**, earn a little income, and open the guild bank. Confirm nothing is deposited on its own and a **Give Tithe** button appears just left of the bank's **Withdraw** button. Hover it and confirm the tooltip shows your guild, the tithe amount, and what you will still owe. (If instead a small panel appears beside the bank, note it: the add-on could not find the Withdraw button.)
 3. Click **Give Tithe**. Confirm it reads "Depositing..." until the deposit lands. Confirm the same gold drop and chat message as step 1.
 4. Open the guild bank again with nothing owed. Confirm **Give Tithe** is still there but greyed out, its tooltip says nothing is owed, and nothing is deposited.
 5. With the setting still off and less gold than you owe, open the guild bank. Confirm the tooltip offers all the gold you carry, and after depositing, the remainder is still owed.
 6. Open the guild bank and close it without clicking. Confirm nothing is deposited and the balance is unchanged.
 7. Turn off **Print tithe updates** and pay once. Confirm the payment message still appears.
-8. With some tithe owed, deposit a smaller amount of gold yourself through the guild bank's own **Deposit** money window (not **Give Tithe**). Confirm chat shows `deposited <amount> to <guild>. Still owed: <remainder>.` and the balance went down by that amount. Then withdraw some gold and confirm the balance does not change.
+8. With some tithe owed, deposit a smaller amount of gold yourself through the guild bank's own **Deposit** money window (not **Give Tithe**). Confirm chat shows `[Guild Tithe] Gave <amount> to <guild>.` followed by `Your tithe is paid in full!` or `Still owed: <remainder>` and the balance went down by that amount. Then withdraw some gold and confirm the balance does not change.
+
+## Donation history steps
+
+Run these on a guilded character, on both clients. **Required** steps can be done by any character; **When convenient** steps never block sign-off.
+
+**Required**
+1. Before any donation, run `/agt history`. Confirm the settings panel opens on **Donation History** (under the add-on's entry), it says there are no donations yet, and **Lifetime given** reads 0. If the panel opens but not on that tab, or a separate window opens instead, note which.
+2. Give a tithe at the guild bank. With the tab open, confirm the new row appears right away with today's date, your guild, your character, the amount, and **Guild Tithe**, and that the totals update.
+3. `/reload`, then reopen the tab. Confirm the same row and totals, with nothing duplicated.
+
+**When convenient**
+4. Deposit gold yourself through the guild bank's own window. Confirm a **Manual** row.
+5. Give from a second character. Confirm both characters' donations appear in the same history.
+6. Give to a second guild. Confirm separate guild totals.
+7. With more than 12 donations, scroll with the mouse wheel and the **Newer**/**Older** buttons.
 
 ## WoW Forever
 
@@ -123,4 +138,12 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 - **Result:** Signed off by Jon Zenor on both clients: "All testing checks out in retail and Forever." Automatic deposit works and resets the balance to zero, the **Give Tithe** button appears in the guild bank window and works, and `/agt clear` updates the open settings page live. Found during testing and fixed: the offer was hidden under the bank window, the button was missing on the first bank visit after login, and the button now stays disabled instead of disappearing when nothing is owed.
 - **Forever:** interface `16001`, build 1.60.1 (70058), from the in-game trace header captured during this test.
 - **Retail:** interface `120100`, build 12.1.0 (69933). Jon confirmed the build is unchanged since the PRD #2 sign-off.
+- **Signed off by:** Jon Zenor
+
+## Donation history sign-off (PRD #5)
+
+- **Date:** 2026-09-30
+- **Result:** Signed off by Jon Zenor on both clients. On Forever: "Everything checks out in Forever!" On Retail: "Testing in retail passed. The new text changes are awesome!" This covers the Donation History tab (the empty state, a live new row, and the reload check) and the reworded chat messages with coin icons. Feedback from the Forever test (shorter chat tag, friendlier wording, coin icons, Lifetime given removed from settings) was fixed in #43 before the Retail test.
+- **Forever:** interface `16001`, build 1.60.1 (70058). The build was not re-reported and is assumed unchanged from the PRD #4 sign-off.
+- **Retail:** interface `120100`, build 12.1.0 (69933). The build was not re-reported and is assumed unchanged from the PRD #4 sign-off.
 - **Signed off by:** Jon Zenor

@@ -951,14 +951,13 @@ function Client:RegisterSettingsCategory(options)
     return category
 end
 
-function Client:RefreshSettingsBalance(category, balanceText)
-    if type(balanceText) ~= "string"
-        or type(self.balanceInitializers) ~= "table"
-    then
+-- Updates a settings header's text and repaints it if it is on screen.
+function Client:RefreshSettingsHeader(initializers, category, text)
+    if type(text) ~= "string" or type(initializers) ~= "table" then
         return false
     end
 
-    local initializer = self.balanceInitializers[category]
+    local initializer = initializers[category]
     if type(initializer) ~= "table"
         or type(initializer.GetData) ~= "function"
     then
@@ -970,7 +969,7 @@ function Client:RefreshSettingsBalance(category, balanceText)
         return false
     end
 
-    data.name = "Tithe - Current balance: " .. balanceText
+    data.name = text
     -- The header only reads its text when drawn, so repaint it if the
     -- settings page is showing it right now.
     local settingsPanel = self.environment.SettingsPanel
@@ -984,6 +983,14 @@ function Client:RefreshSettingsBalance(category, balanceText)
         end)
     end
     return true
+end
+
+function Client:RefreshSettingsBalance(category, balanceText)
+    if type(balanceText) ~= "string" then
+        return false
+    end
+    return self:RefreshSettingsHeader(self.balanceInitializers, category,
+        "Tithe - Current balance: " .. balanceText)
 end
 
 function Client:OpenSettingsCategory(category)
@@ -1003,4 +1010,235 @@ function Client:OpenSettingsCategory(category)
 
     local openOk = pcall(settings.OpenToCategory, categoryID)
     return openOk
+end
+
+-- A donation's date for display, in the player's local time.
+function Client:FormatDate(timestamp)
+    local ok, text = callFunction(self.environment.date, "%Y-%m-%d", timestamp)
+    if not ok or type(text) ~= "string" then
+        return nil
+    end
+    return text
+end
+
+local HISTORY_COLUMNS = {
+    { key = "date", title = "Date", width = 90 },
+    { key = "guild", title = "Guild", width = 170 },
+    { key = "character", title = "Character", width = 150 },
+    { key = "amount", title = "Amount", width = 100 },
+    { key = "method", title = "Method", width = 90 },
+}
+
+-- Builds the donation history layout inside `frame`: title, lifetime and
+-- guild totals, column headers, `layout.rows` list rows, and paging. The
+-- page exposes Render(view) and SetScrollHandler(handler), where the handler
+-- receives how many rows to move (positive is older).
+function Client:CreateHistoryView(frame, layout)
+    local createFrame = self.environment.CreateFrame
+    local page = { frame = frame, guildLines = {}, headers = {}, rows = {} }
+
+    local function text(font, x, y, width)
+        local line = frame:CreateFontString(nil, "OVERLAY", font)
+        line:SetPoint("TOPLEFT", frame, "TOPLEFT", x, y)
+        line:SetJustifyH("LEFT")
+        if width ~= nil then
+            pcall(line.SetWidth, line, width)
+        end
+        return line
+    end
+
+    local y = -16
+    page.title = text("GameFontNormalLarge", 16, y)
+    y = y - 28
+    page.overall = text("GameFontHighlight", 16, y)
+    y = y - 22
+    local index
+    for index = 1, layout.guildLines do
+        page.guildLines[index] = text("GameFontHighlightSmall", 24, y)
+        y = y - 16
+    end
+    y = y - 10
+
+    local x = 16
+    for index = 1, #HISTORY_COLUMNS do
+        page.headers[index] = text("GameFontNormal", x, y, HISTORY_COLUMNS[index].width)
+        page.headers[index]:SetText(HISTORY_COLUMNS[index].title)
+        x = x + HISTORY_COLUMNS[index].width
+    end
+    y = y - 20
+    page.message = text("GameFontHighlight", 16, y, 560)
+
+    local row
+    for row = 1, layout.rows do
+        local cells = {}
+        x = 16
+        for index = 1, #HISTORY_COLUMNS do
+            cells[HISTORY_COLUMNS[index].key] = text("GameFontHighlightSmall", x, y,
+                HISTORY_COLUMNS[index].width)
+            x = x + HISTORY_COLUMNS[index].width
+        end
+        page.rows[row] = cells
+        y = y - 18
+    end
+    y = y - 8
+
+    page.range = text("GameFontHighlightSmall", 16, y - 4)
+    local function pager(label, xOffset, rows)
+        local button = createFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        button:SetSize(80, 22)
+        button:SetPoint("TOPLEFT", frame, "TOPLEFT", xOffset, y)
+        button:SetText(label)
+        button:SetScript("OnClick", function()
+            if page.onScroll ~= nil then
+                page.onScroll(rows)
+            end
+        end)
+        return button
+    end
+    page.newer = pager("Newer", 400, -layout.rows)
+    page.older = pager("Older", 486, layout.rows)
+
+    -- Mouse wheel over the page scrolls the list a few rows at a time.
+    pcall(frame.EnableMouseWheel, frame, true)
+    frame:SetScript("OnMouseWheel", function(_, delta)
+        if page.onScroll ~= nil and type(delta) == "number" then
+            page.onScroll(-delta * layout.wheelStep)
+        end
+    end)
+
+    function page:SetScrollHandler(handler)
+        self.onScroll = handler
+    end
+
+    local function setEnabled(button, enabled)
+        if enabled then
+            pcall(button.Enable, button)
+        else
+            pcall(button.Disable, button)
+        end
+    end
+
+    function page:Render(view)
+        self.title:SetText(view.title)
+        self.overall:SetText(view.overall)
+        local line
+        for line = 1, #self.guildLines do
+            self.guildLines[line]:SetText(view.guilds[line] or "")
+        end
+
+        local listed = view.message == nil
+        local header
+        for header = 1, #self.headers do
+            if listed then
+                self.headers[header]:Show()
+            else
+                self.headers[header]:Hide()
+            end
+        end
+        self.message:SetText(view.message or "")
+        local rowIndex, column
+        for rowIndex = 1, #self.rows do
+            local values = view.rows[rowIndex]
+            for column = 1, #HISTORY_COLUMNS do
+                local key = HISTORY_COLUMNS[column].key
+                self.rows[rowIndex][key]:SetText(values ~= nil and values[key] or "")
+            end
+        end
+        self.range:SetText(view.range or "")
+        setEnabled(self.newer, view.canNewer == true)
+        setEnabled(self.older, view.canOlder == true)
+        if listed then
+            self.newer:Show()
+            self.older:Show()
+        else
+            self.newer:Hide()
+            self.older:Hide()
+        end
+    end
+
+    return page
+end
+
+-- Adds the history page as a tab under the add-on's settings entry.
+-- Returns the page, or nil when this client's settings cannot host it.
+function Client:RegisterHistorySettingsPage(parentCategory, title, layout)
+    local settings = self.environment.Settings
+    local createFrame = self.environment.CreateFrame
+    if type(settings) ~= "table"
+        or type(settings.RegisterCanvasLayoutSubcategory) ~= "function"
+        or type(createFrame) ~= "function"
+        or parentCategory == nil
+    then
+        return nil
+    end
+
+    local ok, page = pcall(function()
+        local frame = createFrame("Frame")
+        local view = self:CreateHistoryView(frame, layout)
+        local subcategory = settings.RegisterCanvasLayoutSubcategory(parentCategory, frame, title)
+        if subcategory == nil then
+            error("history settings page was not created")
+        end
+        view.category = subcategory
+        return view
+    end)
+    if not ok then
+        return nil
+    end
+    return page
+end
+
+-- A standalone history window, for clients whose settings cannot host the
+-- history tab. Returns nil when frames cannot be created.
+function Client:CreateHistoryWindow(title, layout)
+    local environment = self.environment
+    local createFrame = environment.CreateFrame
+    if type(createFrame) ~= "function" then
+        return nil
+    end
+
+    local ok, page = pcall(function()
+        local template = environment.BackdropTemplateMixin ~= nil and "BackdropTemplate" or nil
+        local frame = createFrame("Frame", nil, environment.UIParent, template)
+        frame:SetSize(640, 480)
+        frame:SetPoint("CENTER")
+        pcall(frame.SetFrameStrata, frame, "DIALOG")
+        pcall(frame.SetBackdrop, frame, {
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 8, right = 8, top = 8, bottom = 8 },
+        })
+        pcall(function()
+            frame:SetMovable(true)
+            frame:EnableMouse(true)
+            frame:RegisterForDrag("LeftButton")
+            frame:SetScript("OnDragStart", frame.StartMoving)
+            frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+        end)
+        local close = createFrame("Button", nil, frame, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -4, -4)
+        frame:Hide()
+        local view = self:CreateHistoryView(frame, layout)
+        view.window = frame
+        return view
+    end)
+    if not ok then
+        return nil
+    end
+    return page
+end
+
+-- Shows a history page: its settings tab, or its standalone window.
+function Client:OpenHistoryPage(page)
+    if type(page) ~= "table" then
+        return false
+    end
+    if page.window ~= nil then
+        page.window:Show()
+        return true
+    end
+    return self:OpenSettingsCategory(page.category)
 end

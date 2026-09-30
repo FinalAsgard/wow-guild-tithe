@@ -54,7 +54,7 @@ local function registerProfileTests(profile)
         for index = 1, #settings.layout.initializers do
             table.insert(headings, settings.layout.initializers[index]:GetData().name)
         end
-        test.assertContains(headings[1], "Current balance: 0g 00s 00c")
+        test.assertContains(headings[1], "Current balance: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
         test.assertEqual("Income Sources", headings[2])
         test.assertEqual("Feedback", headings[3])
         test.assertEqual("Guild Bank", headings[4])
@@ -92,7 +92,7 @@ local function registerProfileTests(profile)
 
         world.environment.SlashCmdList.AGT("")
 
-        test.assertContains(fixtures.balanceText(world), "Current balance: 1g 23s 45c")
+        test.assertContains(fixtures.balanceText(world), "Current balance: 1|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 23|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 45|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
     end)
 
     test.test(profile .. " profile explains a settings window that fails to open", function()
@@ -105,7 +105,7 @@ local function registerProfileTests(profile)
         world.environment.SlashCmdList.AGT("")
 
         test.assertEqual(1, #world.messages)
-        test.assertContains(world.messages[1], "settings are unavailable")
+        test.assertContains(world.messages[1], "Settings are unavailable")
         test.assertContains(world.messages[1], "/agt help")
     end)
 
@@ -118,7 +118,7 @@ local function registerProfileTests(profile)
         test.assertEqual("table", type(world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]))
 
         world.environment.SlashCmdList.AGT("")
-        test.assertContains(world.messages[1], "settings are unavailable")
+        test.assertContains(world.messages[1], "Settings are unavailable")
     end)
 
     test.test(profile .. " profile keeps settings across reload and isolates characters", function()
@@ -159,7 +159,7 @@ local function registerProfileTests(profile)
 
         test.assertTrue(addon.lifecycle.stateReady)
         test.assertEqual(15, world.settings.bindings.AsgardsGuildTithe_Percentage.getValue())
-        test.assertContains(fixtures.balanceText(world), "9g 87s 65c")
+        test.assertContains(fixtures.balanceText(world), "9|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 87|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 65|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
         fixtures.assertSameData(before, world.environment.AsgardsGuildTitheDB)
     end)
 end
@@ -226,12 +226,12 @@ local function registerClearTests(profile)
         fixtures.fire(world, "PLAYER_MONEY")
         fixtures.settle(world)
         test.assertEqual(1234, character.outstandingCopper)
-        test.assertContains(fixtures.balanceText(world), "0g 12s 34c")
+        test.assertContains(fixtures.balanceText(world), "12|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 34|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
         test.assertEqual(fixtures.balanceText(world), header.Title.text)
 
         world.environment.SlashCmdList.AGT("clear")
-        test.assertContains(fixtures.balanceText(world), "Current balance: 0g 00s 00c")
-        test.assertEqual("Tithe - Current balance: 0g 00s 00c", header.Title.text)
+        test.assertContains(fixtures.balanceText(world), "Current balance: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
+        test.assertEqual("Tithe - Current balance: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t", header.Title.text)
         test.assertEqual(nil, other.Title.text)
     end)
 
@@ -249,7 +249,7 @@ local function registerClearTests(profile)
         test.assertEqual(0, character.fractionalRemainder)
         test.assertEqual(25, character.percentage)
         test.assertEqual(
-            "Asgard's Guild Tithe: cleared your tithe balance (was 1g 23s 45c).",
+            "|cffd4af37[Guild Tithe]|r Tithe balance cleared (was 1|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 23|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 45|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t).",
             world.messages[#world.messages]
         )
     end)

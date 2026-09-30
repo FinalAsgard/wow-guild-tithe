@@ -72,6 +72,9 @@ local function newFrame(world)
     function frame:SetFrameStrata(strata)
         self.strata = strata
     end
+    function frame:EnableMouseWheel(enabled)
+        self.mouseWheel = enabled
+    end
     function frame:SetMotionScriptsWhileDisabled(enabled)
         self.motionWhileDisabled = enabled
     end
@@ -162,6 +165,16 @@ local function newSettingsAPI()
 
     function api.OpenToCategory(categoryID)
         api.openedCategoryID = categoryID
+    end
+
+    -- Tabs beneath the add-on's category, such as donation history.
+    function api.RegisterCanvasLayoutSubcategory(parent, frame, name)
+        local subcategory = { frame = frame, name = name, parent = parent }
+        function subcategory:GetID()
+            return 74
+        end
+        api.subcategory = subcategory
+        return subcategory
     end
 
     return api
@@ -258,6 +271,10 @@ function Fixtures.newEnvironment(profile, options)
         end,
         GetServerTime = function()
             return 1790000000 + world.now
+        end,
+        -- WoW's date(); UTC here so test dates never depend on the machine.
+        date = function(format, time)
+            return os.date("!" .. format, time)
         end,
         IsLoggedIn = function()
             return false

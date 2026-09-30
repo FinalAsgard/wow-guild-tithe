@@ -38,7 +38,7 @@ test.test("fresh characters receive the complete default tithe state", function(
     test.assertTrue(state:Initialize())
     local character = state:GetCurrentCharacter()
 
-    test.assertEqual(3, environment.AsgardsGuildTitheDB.schemaVersion)
+    test.assertEqual(4, environment.AsgardsGuildTitheDB.schemaVersion)
     test.assertEqual("arthas-camelot", state:GetCharacterKey())
     test.assertEqual("Arthas", character.identity.displayName)
     test.assertEqual("Camelot", character.identity.displayRealm)

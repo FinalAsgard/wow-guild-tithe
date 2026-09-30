@@ -184,7 +184,7 @@ function Trace:HookMailCalls()
     if type(chat) == "table" and type(chat.AddMessage) == "function" then
         pcall(hook, chat, "AddMessage", function(_, message)
             if self.active and type(message) == "string"
-                and string.find(message, addon.Identity.displayName, 1, true) == 1
+                and string.find(message, addon.Identity.chatPrefix, 1, true) == 1
             then
                 self:Record("chat", "message", pack(message))
             end

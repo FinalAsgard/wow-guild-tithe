@@ -68,7 +68,7 @@ local function registerProfileTests(profile)
         test.assertEqual(5000, found["call:DepositGuildBankMoney"].args[1])
         test.assertEqual(700, found["call:WithdrawGuildBankMoney"].args[1])
         test.assertEqual("SomeCall()", found["event:ADDON_ACTION_BLOCKED"].args[2])
-        test.assertContains(found["chat:message"].args[1], "deposited 0g 50s 00c")
+        test.assertContains(found["chat:message"].args[1], "Gave 50|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
         test.assertEqual(0, character.outstandingCopper)
     end)
 
@@ -91,7 +91,7 @@ local function registerProfileTests(profile)
         local listeners = registeredFor(world, "CHAT_MSG_MONEY")
         test.assertContains(trace(world, "status"), "is stopped with 0 entries")
 
-        test.assertContains(trace(world, "start"), "trace started.")
+        test.assertContains(trace(world, "start"), "Trace started.")
         test.assertEqual(listeners + 1, registeredFor(world, "CHAT_MSG_MONEY"))
         world.money = 1250
         fixtures.fire(world, "CHAT_MSG_MONEY", "You loot 2 Silver 50 Copper")
@@ -133,7 +133,7 @@ test.test("dev trace skips events the client does not know", function()
     local world = loginDev("Forever")
     world.unknownEvents = { PLAYER_INTERACTION_MANAGER_FRAME_SHOW = true }
 
-    test.assertContains(trace(world, "start"), "trace started.")
+    test.assertContains(trace(world, "start"), "Trace started.")
 
     local header = world.environment.AsgardsGuildTitheDevTraceDB.header
     test.assertEqual("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", header.skipped[1])
