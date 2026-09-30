@@ -14,6 +14,12 @@ if [ -z "${CF_API_KEY:-}" ] || [ -z "${CURSEFORGE_PROJECT_ID:-}" ]; then
     echo "Publishing needs the CF_API_KEY secret and the CURSEFORGE_PROJECT_ID variable (see docs/packaging.md)." >&2
     exit 1
 fi
+# The packager silently skips CurseForge for a non-numeric ID and treats 0 as
+# "no project", which would publish only the GitHub release.
+if [[ ! "$CURSEFORGE_PROJECT_ID" =~ ^[1-9][0-9]*$ ]]; then
+    echo "CURSEFORGE_PROJECT_ID must be the numeric CurseForge project ID; got '$CURSEFORGE_PROJECT_ID'." >&2
+    exit 1
+fi
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT

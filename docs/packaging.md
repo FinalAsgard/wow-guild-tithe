@@ -92,9 +92,11 @@ Without both, the upload step fails with a message naming what is missing.
 ### Cutting a release
 
 1. Do the checks in **Before a release** above.
-2. Set the new version in all four manifests. The production manifests use
-   `X.Y.Z` and the development manifests `X.Y.Z-dev`; the tests enforce this.
-   Merge that change to `main`.
+2. Set the new version in all four manifests, and the matching expected
+   `version` values in `tests/spec/bootstrap_spec.lua` (`PRODUCTS`). Each
+   development manifest declares its production version plus `-dev`, including
+   any prerelease suffix (for example `0.2.0-beta1` and `0.2.0-beta1-dev`); the
+   tests enforce this. Merge that change to `main`.
 3. Tag the merge commit and push the tag:
 
    ```sh
@@ -103,7 +105,6 @@ Without both, the upload step fails with a message naming what is missing.
    ```
 
    A tag containing `alpha` or `beta` (for example `v0.2.0-beta1`) is published
-   as an alpha or beta file. Any other tag is a release file. For a beta tag,
-   the production manifests declare the full `0.2.0-beta1` version.
+   as an alpha or beta file. Any other tag is a release file.
 4. Watch the **Release** run in the repository's **Actions** tab. CurseForge
    may take a few minutes to review and list a new file.
