@@ -3,11 +3,13 @@ local addonName, addon = ...
 local VARIANTS = {
     AsgardsGuildTithe = {
         displayName = "Asgard's Guild Tithe",
+        shortName = "Guild Tithe",
         slashAlias = "/asgardstithe",
         slashCommand = "/agt",
     },
     AsgardsGuildTitheDev = {
         displayName = "Asgard's Guild Tithe (Dev)",
+        shortName = "Guild Tithe (Dev)",
         isDevelopment = true,
         slashAlias = "/asgardstithedev",
         slashCommand = "/agtdev",
@@ -24,6 +26,9 @@ addon.Identity = {
     addonName = addonName,
     databaseName = addonName .. "DB",
     displayName = variant.displayName,
+    shortName = variant.shortName,
+    -- Starts every chat message: the short name in the add-on's gold.
+    chatPrefix = "|cffd4af37[" .. variant.shortName .. "]|r",
     isDevelopment = variant.isDevelopment == true,
     settingsPrefix = addonName,
     slashAlias = variant.slashAlias,

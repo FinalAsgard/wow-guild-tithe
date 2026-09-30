@@ -8,7 +8,7 @@ end)
 
 router:Register("help", "show available commands", function()
     router:PrintHelp()
-    client:Print(addon.Identity.displayName .. ": client - " .. clientProfile.label .. ".")
+    client:Print(addon.Identity.chatPrefix .. " Client: " .. clientProfile.label .. ".")
 end)
 
 local state, titheService, settingsController, incomeObserver, tithePayment, donationLedger
@@ -19,8 +19,7 @@ if clientProfile.supported then
         return state:GetDonationRecords()
     end)
     titheService = addon.TitheService.Create(state, addon.Accounting)
-    settingsController = addon.SettingsController.Create(client, state, addon.MoneyFormatter,
-        donationLedger)
+    settingsController = addon.SettingsController.Create(client, state, addon.MoneyFormatter)
     settingsController:RegisterCommands(router)
     historyController = addon.HistoryController.Create(client, donationLedger, addon.MoneyFormatter)
     historyController:RegisterCommands(router)
@@ -47,17 +46,17 @@ if clientProfile.supported then
     router:Register("clear", "clear the current tithe balance", function()
         local character = state:GetCurrentCharacter()
         if character == nil or not state:SetFinancialState(0, 0) then
-            client:Print(addon.Identity.displayName ..
-                ": your tithe balance is unavailable, so nothing was cleared.")
+            client:Print(addon.Identity.chatPrefix ..
+                " Your tithe balance is unavailable, so nothing was cleared.")
             return
         end
-        client:Print(addon.Identity.displayName .. ": cleared your tithe balance (was " ..
+        client:Print(addon.Identity.chatPrefix .. " Tithe balance cleared (was " ..
             addon.MoneyFormatter.Format(character.outstandingCopper) .. ").")
         tithePayment:RefreshOffer()
     end)
 else
     -- Never touch saved character data on a client we cannot identify.
-    client:Print(addon.Identity.displayName .. ": this game client is not supported (" ..
+    client:Print(addon.Identity.chatPrefix .. " This game client is not supported (" ..
         clientProfile.reason .. "). Supported clients are WoW Forever and WoW Retail. " ..
         "Saved data was left unchanged.")
 end
@@ -68,7 +67,7 @@ local eventTrace
 if addon.Identity.isDevelopment then
     eventTrace = addon.EventTrace.Create(client)
     local function report(message)
-        client:Print(addon.Identity.displayName .. ": trace " .. message)
+        client:Print(addon.Identity.chatPrefix .. " Trace " .. message)
     end
     router:Register("trace", "capture events: start, stop, status, clear", function(arguments)
         local action = string.lower(arguments or "")

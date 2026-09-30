@@ -351,10 +351,6 @@ local function giveByButton(world, addon)
     fixtures.setMoney(world, world.money - world.deposits[#world.deposits])
 end
 
-local function lifetimeText(world)
-    return world.settings.layout.initializers[2]:GetData().name
-end
-
 local function registerProfileTests(profile)
     test.test(profile .. " confirmed payments of every kind land in the ledger once", function()
         local world, addon = newWorld(profile, 5000)
@@ -419,16 +415,6 @@ local function registerProfileTests(profile)
         test.assertEqual(0, character(thrall).outstandingCopper)
         test.assertEqual(0,
             thrall.environment.AsgardsGuildTitheDB.characters["jaina-camelot"].outstandingCopper)
-    end)
-
-    test.test(profile .. " settings show the lifetime total and update it live", function()
-        local world, addon = newWorld(profile, 5000)
-        world.environment.SlashCmdList.AGT("")
-        test.assertEqual("Tithe - Lifetime given: 0g 00s 00c", lifetimeText(world))
-
-        giveByButton(world, addon)
-
-        test.assertEqual("Tithe - Lifetime given: 0g 50s 00c", lifetimeText(world))
     end)
 end
 

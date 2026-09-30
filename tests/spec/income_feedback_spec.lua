@@ -38,7 +38,7 @@ test.test("feedback groups same-source accruals into one message with the latest
 
     test.assertEqual(1, #messages)
     test.assertEqual(
-        "Asgard's Guild Tithe: reserved 0g 04s 00c from loot income. Total owed: 0g 04s 00c.",
+        "|cffd4af37[Guild Tithe]|r +4|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from loot · owed 4|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t",
         messages[1]
     )
 end)
@@ -52,9 +52,9 @@ test.test("feedback never merges different sources under one label", function()
     runTimers()
 
     test.assertEqual(3, #messages)
-    test.assertContains(messages[1], "reserved 0g 01s 00c from loot income. Total owed: 0g 01s 00c.")
-    test.assertContains(messages[2], "reserved 0g 02s 00c from vendor sale income. Total owed: 0g 03s 00c.")
-    test.assertContains(messages[3], "reserved 0g 00s 50c from loot income. Total owed: 0g 03s 50c.")
+    test.assertContains(messages[1], "+1|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from loot · owed 1|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
+    test.assertContains(messages[2], "+2|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from vendor sales · owed 3|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
+    test.assertContains(messages[3], "+50|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t tithe from loot · owed 3|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 50|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
 end)
 
 test.test("a fractional-only accrual is silent until the group reserves whole copper", function()
@@ -69,7 +69,7 @@ test.test("a fractional-only accrual is silent until the group reserves whole co
     runTimers()
 
     test.assertEqual(1, #messages)
-    test.assertContains(messages[1], "reserved 0g 00s 03c from loot income. Total owed: 0g 00s 10c.")
+    test.assertContains(messages[1], "+3|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t tithe from loot · owed 10|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
 end)
 
 test.test("a long burst reports once the group reaches its size limit", function()
@@ -81,7 +81,7 @@ test.test("a long burst reports once the group reaches its size limit", function
     end
 
     test.assertEqual(1, #messages)
-    test.assertContains(messages[1], "reserved 0g 02s 00c from vendor sale income")
+    test.assertContains(messages[1], "+2|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from vendor sales")
 end)
 
 test.test("without a scheduler every accrual reports immediately", function()

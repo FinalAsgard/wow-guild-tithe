@@ -165,15 +165,15 @@ function Controller:Open()
         self:BindPage(self.client:CreateHistoryWindow(HistoryController.TITLE, self:Layout()))
     end
     if self.page == nil then
-        self.client:Print(addon.Identity.displayName ..
-            ": donation history is unavailable on this client.")
+        self.client:Print(addon.Identity.chatPrefix ..
+            " Donation history is unavailable on this client.")
         return false
     end
     self.offset = 0
     self:Render()
     if not self.client:OpenHistoryPage(self.page) then
-        self.client:Print(addon.Identity.displayName ..
-            ": donation history could not be opened.")
+        self.client:Print(addon.Identity.chatPrefix ..
+            " Donation history could not be opened.")
         return false
     end
     return true

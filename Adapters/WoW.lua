@@ -838,7 +838,7 @@ function Client:RegisterSettingsCategory(options)
         end
     end
 
-    local ok, category, balanceInitializer, lifetimeInitializer = pcall(function()
+    local ok, category, balanceInitializer = pcall(function()
         local percentage = options.percentage
         local registeredCategory, layout = settings.RegisterVerticalLayoutCategory(
             options.categoryName
@@ -856,16 +856,6 @@ function Client:RegisterSettingsCategory(options)
             error("balance display was not created")
         end
         layout:AddInitializer(balanceInitializer)
-
-        local lifetimeInitializer
-        if type(options.lifetimeText) == "string" then
-            lifetimeInitializer = createSectionHeader("Tithe - Lifetime given: " ..
-                options.lifetimeText)
-            if lifetimeInitializer == nil then
-                error("lifetime display was not created")
-            end
-            layout:AddInitializer(lifetimeInitializer)
-        end
 
         local setting = settings.RegisterProxySetting(
             registeredCategory,
@@ -949,7 +939,7 @@ function Client:RegisterSettingsCategory(options)
         end
 
         settings.RegisterAddOnCategory(registeredCategory)
-        return registeredCategory, balanceInitializer, lifetimeInitializer
+        return registeredCategory, balanceInitializer
     end)
 
     if not ok then
@@ -958,8 +948,6 @@ function Client:RegisterSettingsCategory(options)
 
     self.balanceInitializers = self.balanceInitializers or {}
     self.balanceInitializers[category] = balanceInitializer
-    self.lifetimeInitializers = self.lifetimeInitializers or {}
-    self.lifetimeInitializers[category] = lifetimeInitializer
     return category
 end
 
@@ -1003,14 +991,6 @@ function Client:RefreshSettingsBalance(category, balanceText)
     end
     return self:RefreshSettingsHeader(self.balanceInitializers, category,
         "Tithe - Current balance: " .. balanceText)
-end
-
-function Client:RefreshSettingsLifetime(category, lifetimeText)
-    if type(lifetimeText) ~= "string" then
-        return false
-    end
-    return self:RefreshSettingsHeader(self.lifetimeInitializers, category,
-        "Tithe - Lifetime given: " .. lifetimeText)
 end
 
 function Client:OpenSettingsCategory(category)

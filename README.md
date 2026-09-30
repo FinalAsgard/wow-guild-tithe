@@ -17,9 +17,13 @@ Interface numbers are release metadata, not permanent constants. Confirm them fr
 
 ## Current foundation
 
-The add-on currently provides its Forever and Retail manifests, load lifecycle, client compatibility boundary, per-character saved state, exact tithe accounting service, money formatter, and extensible `/agt` command router. On clients with the supported native Settings API, `/agt` opens an AddOns settings page where the current character's outstanding balance is shown read-only and the whole-number tithe percentage, seven income-source preferences, print-tithe-updates preference, and deposit-tithe-automatically preference can be changed. Clients without that API keep loading normally and explain that settings are unavailable. The settings page also shows **Lifetime given**: the total donated at the guild bank by every character on the account. It is kept in an account-wide donation ledger and updates as soon as a donation is confirmed. `/agt clear` resets the current character's tithe balance to zero, including its fractional remainder, and reports the amount that was cleared.
+The add-on currently provides its Forever and Retail manifests, load lifecycle, client compatibility boundary, per-character saved state, exact tithe accounting service, money formatter, and extensible `/agt` command router. On clients with the supported native Settings API, `/agt` opens an AddOns settings page where the current character's outstanding balance is shown read-only and the whole-number tithe percentage, seven income-source preferences, print-tithe-updates preference, and deposit-tithe-automatically preference can be changed. Clients without that API keep loading normally and explain that settings are unavailable. `/agt clear` resets the current character's tithe balance to zero, including its fractional remainder, and reports the amount that was cleared.
 
 All direct WoW API access belongs in `Adapters/`; core modules are client-independent Lua. See [the persistence schema and recovery contract](docs/persistence.md) for migration and corruption behavior, and [the testing conventions](docs/testing.md) for the project boundary, client profiles, and test style.
+
+## Chat messages
+
+Messages start with a short gold **[Guild Tithe]** tag (**[Guild Tithe (Dev)]** in the development build) and show money with the game's gold, silver, and copper coin icons, leaving out empty units. For example: `[Guild Tithe] +5c tithe from loot · owed 12s 34c` for income, and `[Guild Tithe] Gave 50s to Knights of Camelot. Your tithe is paid in full!` after a donation (with coin icons in place of the letters). The same coin icons are used in the Give Tithe tooltip, the settings balance, and donation history.
 
 ## Income tracking
 

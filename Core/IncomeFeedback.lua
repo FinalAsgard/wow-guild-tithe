@@ -13,13 +13,13 @@ local Feedback = {}
 Feedback.__index = Feedback
 
 local SOURCE_LABELS = {
-    auctions = "auction",
+    auctions = "auctions",
     loot = "loot",
-    mailbox = "mailbox",
-    miscellaneous = "miscellaneous/system",
-    playerTrades = "player trade",
-    quests = "quest",
-    vendorSales = "vendor sale",
+    mailbox = "mail",
+    miscellaneous = "other income",
+    playerTrades = "a trade",
+    quests = "quests",
+    vendorSales = "vendor sales",
 }
 
 -- `after(seconds, callback)` schedules a callback and returns false when it
@@ -48,9 +48,8 @@ function Feedback:Flush()
         return false
     end
 
-    self.output(addon.Identity.displayName .. ": reserved " .. reserved ..
-        " from " .. (SOURCE_LABELS[group.source] or group.source) ..
-        " income. Total owed: " .. total .. ".")
+    self.output(addon.Identity.chatPrefix .. " +" .. reserved .. " tithe from " ..
+        (SOURCE_LABELS[group.source] or group.source) .. " \194\183 owed " .. total)
     return true
 end
 

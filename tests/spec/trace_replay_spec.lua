@@ -13,7 +13,7 @@ test.test("captured Forever vendor sale replays as one vendor sale", function()
     -- 28 copper at 10% is 2 whole copper with 80 hundredths carried.
     test.assertEqual(1, #world.messages)
     test.assertEqual(
-        "Asgard's Guild Tithe: reserved 0g 00s 02c from vendor sale income. Total owed: 0g 00s 02c.",
+        "|cffd4af37[Guild Tithe]|r +2|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t tithe from vendor sales · owed 2|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
         world.messages[1]
     )
     test.assertEqual(2, character(world).outstandingCopper)
@@ -28,10 +28,10 @@ test.test("captured Retail questing replays as exactly four quest rewards", func
     -- Rewards 255060, 25505, 127530, 127530 copper at 10%. Combat, gossip,
     -- repeated quest events, and guild-bank money updates add nothing.
     test.assertEqual(4, #world.messages)
-    test.assertContains(world.messages[1], "reserved 2g 55s 06c from quest income")
-    test.assertContains(world.messages[2], "reserved 0g 25s 50c from quest income")
-    test.assertContains(world.messages[3], "reserved 1g 27s 53c from quest income")
-    test.assertContains(world.messages[4], "reserved 1g 27s 53c from quest income. Total owed: 5g 35s 62c.")
+    test.assertContains(world.messages[1], "+2|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 55|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 6|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t tithe from quests")
+    test.assertContains(world.messages[2], "+25|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 50|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t tithe from quests")
+    test.assertContains(world.messages[3], "+1|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 27|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 53|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t tithe from quests")
+    test.assertContains(world.messages[4], "+1|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 27|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 53|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t tithe from quests · owed 5|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 35|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 62|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
     test.assertEqual(53562, character(world).outstandingCopper)
     test.assertEqual(50, character(world).fractionalRemainder)
 end)

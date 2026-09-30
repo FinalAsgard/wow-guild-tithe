@@ -31,7 +31,7 @@ local function registerProfileTests(profile)
         fixtures.settle(world)
 
         test.assertEqual(1, #world.messages)
-        test.assertContains(lastMessage(world), "from player trade income")
+        test.assertContains(lastMessage(world), "from a trade")
         test.assertEqual(5000, character(world).outstandingCopper)
     end)
 
@@ -42,7 +42,7 @@ local function registerProfileTests(profile)
         fixtures.fire(world, "PLAYER_INTERACTION_MANAGER_FRAME_HIDE", 1)
         fixtures.setMoney(world, STARTING_MONEY + 50000)
 
-        test.assertContains(lastMessage(world), "from player trade income")
+        test.assertContains(lastMessage(world), "from a trade")
     end)
 
     test.test(profile .. " a cancelled trade records nothing", function()
@@ -103,7 +103,7 @@ local function registerProfileTests(profile)
         fixtures.fire(world, "GUILDBANK_UPDATE_WITHDRAWMONEY")
         fixtures.setMoney(world, STARTING_MONEY + 1000)
 
-        test.assertContains(lastMessage(world), "from miscellaneous/system income")
+        test.assertContains(lastMessage(world), "from other income")
     end)
 
     test.test(profile .. " an item refund at a vendor is excluded while real sales still count", function()
@@ -116,7 +116,7 @@ local function registerProfileTests(profile)
         test.assertEqual(0, #world.messages)
 
         fixtures.setMoney(world, STARTING_MONEY + 6000)
-        test.assertContains(lastMessage(world), "from vendor sale income")
+        test.assertContains(lastMessage(world), "from vendor sales")
         test.assertEqual(100, character(world).outstandingCopper)
     end)
 
@@ -149,7 +149,7 @@ local function registerProfileTests(profile)
         fixtures.fire(world, "MERCHANT_SHOW")
         fixtures.advance(world, 600)
         fixtures.setMoney(world, STARTING_MONEY + 1000)
-        test.assertContains(world.messages[#world.messages], "from vendor sale income")
+        test.assertContains(world.messages[#world.messages], "from vendor sales")
         fixtures.fire(world, "MERCHANT_CLOSED")
         fixtures.advance(world, 5)
 
@@ -158,7 +158,7 @@ local function registerProfileTests(profile)
         fixtures.setMoney(world, STARTING_MONEY + 2000, false)
         fixtures.fire(world, "TRADE_CLOSED")
         fixtures.settle(world)
-        test.assertContains(world.messages[#world.messages], "from player trade income")
+        test.assertContains(world.messages[#world.messages], "from a trade")
         fixtures.advance(world, 5)
 
         -- A withdrawal after ten minutes at the guild bank, with no hooked

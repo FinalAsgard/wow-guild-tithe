@@ -249,7 +249,7 @@ test.test("settings display the formatted balance read-only and hide the remaind
     test.assertTrue(controller:Register())
 
     test.assertEqual(
-        "Tithe - Current balance: 12g 34s 56c",
+        "Tithe - Current balance: 12|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 34|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 56|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
         api.balanceHeading
     )
     test.assertEqual(4, #api.layout.initializers)
@@ -267,14 +267,14 @@ test.test("opening settings refreshes the balance from current character state",
 
     test.assertTrue(controller:Register())
     test.assertEqual(
-        "Tithe - Current balance: 0g 00s 00c",
+        "Tithe - Current balance: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
         api.balanceHeading
     )
     test.assertTrue(state:SetFinancialState(123456, 78))
 
     test.assertTrue(controller:Open())
     test.assertEqual(
-        "Tithe - Current balance: 12g 34s 56c",
+        "Tithe - Current balance: 12|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 34|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 56|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
         api.balanceHeading
     )
 end)
@@ -498,7 +498,7 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     test.assertTrue(router:Execute(""))
     test.assertEqual(database, environment.AsgardsGuildTitheDB)
     test.assertEqual(10, state:GetCurrentCharacter().percentage)
-    test.assertContains(messages[1], "settings are unavailable")
+    test.assertContains(messages[1], "Settings are unavailable")
     test.assertContains(messages[1], "/agt help")
 
     local incompatibleAPI = newSettingsAPI()

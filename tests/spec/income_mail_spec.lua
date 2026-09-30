@@ -31,7 +31,7 @@ local function registerProfileTests(profile)
 
         fixtures.collectMail(world, 1)
 
-        test.assertContains(lastMessage(world), "from auction income")
+        test.assertContains(lastMessage(world), "from auctions")
         test.assertEqual(2000, character(world).outstandingCopper)
     end)
 
@@ -40,7 +40,7 @@ local function registerProfileTests(profile)
 
         fixtures.collectMail(world, 1, "AutoLootMailItem")
 
-        test.assertContains(lastMessage(world), "from mailbox income")
+        test.assertContains(lastMessage(world), "from mail")
         test.assertEqual(1000, character(world).outstandingCopper)
     end)
 
@@ -55,7 +55,7 @@ local function registerProfileTests(profile)
         test.assertEqual(0, #world.messages)
 
         fixtures.collectMail(world, 2)
-        test.assertContains(lastMessage(world), "from mailbox income")
+        test.assertContains(lastMessage(world), "from mail")
         test.assertEqual(1000, character(world).outstandingCopper)
     end)
 
@@ -70,7 +70,7 @@ local function registerProfileTests(profile)
         test.assertEqual(0, #world.messages)
 
         fixtures.collectMail(world, 2)
-        test.assertContains(lastMessage(world), "from auction income")
+        test.assertContains(lastMessage(world), "from auctions")
         test.assertEqual(2000, character(world).outstandingCopper)
     end)
 
@@ -118,8 +118,8 @@ local function registerProfileTests(profile)
 
         -- Three results; the two ordinary mails share one grouped message.
         test.assertEqual(2, #world.messages)
-        test.assertContains(world.messages[1], "reserved 0g 10s 00c from auction income")
-        test.assertContains(world.messages[2], "reserved 0g 13s 00c from mailbox income")
+        test.assertContains(world.messages[1], "+10|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from auctions")
+        test.assertContains(world.messages[2], "+13|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from mail")
         test.assertEqual(2300, character(world).outstandingCopper)
     end)
 
@@ -132,7 +132,7 @@ local function registerProfileTests(profile)
         fixtures.advance(world, 3)
         fixtures.setMoney(world, STARTING_MONEY + 10000)
 
-        test.assertContains(lastMessage(world), "from mailbox income")
+        test.assertContains(lastMessage(world), "from mail")
     end)
 
     test.test(profile .. " a gain that does not match the collected mail is not mail income", function()
@@ -140,7 +140,7 @@ local function registerProfileTests(profile)
 
         fixtures.collectMail(world, 1, "TakeInboxMoney", 999)
 
-        test.assertContains(lastMessage(world), "from miscellaneous/system income")
+        test.assertContains(lastMessage(world), "from other income")
     end)
 end
 
@@ -157,7 +157,7 @@ test.test("mail money is miscellaneous when the client cannot hook mail collecti
 
     fixtures.collectMail(world, 1)
 
-    test.assertContains(lastMessage(world), "from miscellaneous/system income")
+    test.assertContains(lastMessage(world), "from other income")
 end)
 
 test.test("correlator: an exclusion reports its reason and a used amount note is consumed", function()

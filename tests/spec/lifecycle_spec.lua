@@ -62,7 +62,7 @@ test.test("lifecycle registers slash handling at add-on load and state at player
 
     environment.SlashCmdList.AGT("")
     test.assertEqual(
-        "Asgard's Guild Tithe: /agt help - show available commands",
+        "|cffd4af37[Guild Tithe]|r Commands: /agt help - show available commands",
         messages[1]
     )
 end)

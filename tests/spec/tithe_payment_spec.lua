@@ -76,7 +76,7 @@ local function registerProfileTests(profile)
 
         test.assertTrue(panel(addon):IsShown())
         test.assertEqual(
-            "Pay to Knights of Camelot\nTithe: 0g 50s 00c",
+            "Give to Knights of Camelot\nTithe: 50|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t",
             panel(addon).body.text
         )
         test.assertTrue(panel(addon).button.shown)
@@ -151,9 +151,9 @@ local function registerProfileTests(profile)
 
             inline.scripts.OnEnter(inline)
             test.assertTrue(tooltip.shown)
-            test.assertEqual("Asgard's Guild Tithe", tooltip.lines[1])
-            test.assertEqual("Pay to Knights of Camelot", tooltip.lines[2])
-            test.assertEqual("Tithe: 0g 50s 00c", tooltip.lines[3])
+            test.assertEqual("Guild Tithe", tooltip.lines[1])
+            test.assertEqual("Give to Knights of Camelot", tooltip.lines[2])
+            test.assertEqual("Tithe: 50|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t", tooltip.lines[3])
             test.assertEqual(nil, tooltip.lines[4])
             inline.scripts.OnLeave(inline)
             test.assertFalse(tooltip.shown)
@@ -210,8 +210,8 @@ local function registerProfileTests(profile)
 
         inline.scripts.OnEnter(inline)
 
-        test.assertEqual("Tithe: 0g 30s 00c", tooltip.lines[3])
-        test.assertEqual("Still owed after: 0g 20s 00c", tooltip.lines[4])
+        test.assertEqual("Tithe: 30|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t", tooltip.lines[3])
+        test.assertEqual("Still owed after: 20|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t", tooltip.lines[4])
     end)
 
     test.test(profile .. " the button appears when the bank window loads after the open event", function()
@@ -266,7 +266,7 @@ local function registerProfileTests(profile)
         test.assertEqual(0, character(world).outstandingCopper)
         test.assertEqual(40, character(world).fractionalRemainder)
         test.assertEqual(
-            "Asgard's Guild Tithe: deposited 0g 50s 00c to Knights of Camelot. Still owed: 0g 00s 00c.",
+            "|cffd4af37[Guild Tithe]|r Gave 50|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t to Knights of Camelot. Your tithe is paid in full!",
             lastMessage(world)
         )
         test.assertFalse(panel(addon):IsShown())
@@ -276,14 +276,14 @@ local function registerProfileTests(profile)
         local world, addon = newWorld(profile, 5000, { money = 3000 })
         openBank(world)
 
-        test.assertContains(panel(addon).body.text, "Tithe: 0g 30s 00c")
-        test.assertContains(panel(addon).body.text, "Still owed after: 0g 20s 00c")
+        test.assertContains(panel(addon).body.text, "Tithe: 30|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
+        test.assertContains(panel(addon).body.text, "Still owed after: 20|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
         fixtures.click(panel(addon).button)
         fixtures.setMoney(world, 0)
 
         test.assertEqual(3000, world.deposits[1])
         test.assertEqual(2000, character(world).outstandingCopper)
-        test.assertContains(lastMessage(world), "Still owed: 0g 20s 00c.")
+        test.assertContains(lastMessage(world), "Still owed: 20|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
     end)
 
     test.test(profile .. " nothing is offered with no debt, no money, or no guild", function()
@@ -337,7 +337,7 @@ local function registerProfileTests(profile)
         fixtures.advance(world, 11)
 
         test.assertEqual(5000, character(world).outstandingCopper)
-        test.assertContains(lastMessage(world), "not confirmed")
+        test.assertContains(lastMessage(world), "wasn't confirmed")
         test.assertContains(lastMessage(world), "unchanged")
         test.assertTrue(panel(addon).button.shown)
     end)
@@ -387,7 +387,7 @@ local function registerProfileTests(profile)
         fixtures.click(panel(addon).button)
         fixtures.setMoney(world, CARRIED - 5000)
 
-        test.assertContains(lastMessage(world), "deposited 0g 50s 00c")
+        test.assertContains(lastMessage(world), "Gave 50|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
     end)
 
     test.test(profile .. " a payment is saved as a pending intent until it resolves", function()
@@ -462,7 +462,7 @@ local function registerProfileTests(profile)
         test.assertEqual("42", donation.guild.id)
         test.assertEqual("Knights of Camelot", donation.guild.name)
         test.assertEqual("Camelot", donation.guild.realm)
-        test.assertContains(lastMessage(world), "deposited 0g 80s 00c")
+        test.assertContains(lastMessage(world), "Gave 80|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
     end)
 
     test.test(profile .. " a deposit that lands before a reload is confirmed once after it", function()
@@ -542,7 +542,7 @@ local function registerProfileTests(profile)
         test.assertEqual(5000, character(world).outstandingCopper)
         test.assertEqual(nil, character(world).pendingPayment)
         test.assertEqual(0, #donations)
-        test.assertContains(lastMessage(world), "not confirmed")
+        test.assertContains(lastMessage(world), "wasn't confirmed")
         openBank(world)
         test.assertTrue(panel(addon).button.shown)
     end)
@@ -620,8 +620,8 @@ local function registerProfileTests(profile)
 
         openBank(world)
 
-        test.assertContains(panel(addon).body.text, "Pay to Horde Traders")
-        test.assertContains(panel(addon).body.text, "Tithe: 0g 50s 00c")
+        test.assertContains(panel(addon).body.text, "Give to Horde Traders")
+        test.assertContains(panel(addon).body.text, "Tithe: 50|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
     end)
 
     test.test(profile .. " with auto-deposit on, opening the bank pays without a click", function()
@@ -641,7 +641,7 @@ local function registerProfileTests(profile)
 
         test.assertEqual(0, character(world).outstandingCopper)
         test.assertEqual("automatic", donations[1].method)
-        test.assertContains(lastMessage(world), "deposited 0g 50s 00c")
+        test.assertContains(lastMessage(world), "Gave 50|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
     end)
 
     test.test(profile .. " the automatic deposit waits a moment after the bank opens", function()
@@ -683,7 +683,7 @@ local function registerProfileTests(profile)
         openBank(world)
         test.assertEqual(0, #world.deposits)
         test.assertTrue(panel(addon).button.shown)
-        test.assertContains(panel(addon).body.text, "Tithe: 0g 50s 00c")
+        test.assertContains(panel(addon).body.text, "Tithe: 50|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t")
 
         fixtures.click(panel(addon).button)
         fixtures.setMoney(world, CARRIED - 5000)
@@ -709,7 +709,7 @@ local function registerProfileTests(profile)
         fixtures.advance(world, 11)
 
         test.assertEqual(5000, character(world).outstandingCopper)
-        test.assertContains(lastMessage(world), "not confirmed")
+        test.assertContains(lastMessage(world), "wasn't confirmed")
         test.assertTrue(panel(addon).button.shown)
     end)
 
@@ -814,7 +814,7 @@ local function registerProfileTests(profile)
             test.assertEqual(case.deposit, donations[1].amount, "case " .. index)
             test.assertEqual("manual", donations[1].method, "case " .. index)
             test.assertEqual("Knights of Camelot", donations[1].guild.name, "case " .. index)
-            test.assertContains(lastMessage(world), "deposited " .. addon.MoneyFormatter.Format(case.deposit))
+            test.assertContains(lastMessage(world), "Gave " .. addon.MoneyFormatter.Format(case.deposit))
         end
     end)
 
@@ -834,7 +834,7 @@ local function registerProfileTests(profile)
         test.assertEqual(5000, character(world).outstandingCopper)
         test.assertEqual(0, #donations)
         test.assertEqual(nil, character(world).pendingPayment)
-        test.assertContains(lastMessage(world), "was not counted toward your tithe")
+        test.assertContains(lastMessage(world), "wasn't counted toward your tithe")
     end)
 
     test.test(profile .. " a deposit call outside a guild-bank session is ignored", function()
@@ -930,7 +930,7 @@ local function registerProfileTests(profile)
         fixtures.setMoney(world, CARRIED - 5000)
 
         test.assertEqual(1, #world.messages)
-        test.assertContains(world.messages[1], "deposited")
+        test.assertContains(world.messages[1], "Gave")
     end)
 end
 

@@ -178,21 +178,12 @@ local function buildAutoDepositCheckbox(state)
     }
 end
 
--- `ledger` (optional) supplies the account-wide lifetime total.
-function SettingsController.Create(client, state, formatter, ledger)
+function SettingsController.Create(client, state, formatter)
     return setmetatable({
         client = client,
         formatter = formatter or addon.MoneyFormatter,
-        ledger = ledger,
         state = state,
     }, Controller)
-end
-
-function Controller:LifetimeText()
-    if self.ledger == nil then
-        return nil
-    end
-    return self.formatter.Format(self.ledger:Totals().overall)
 end
 
 function Controller:Register()
@@ -207,7 +198,6 @@ function Controller:Register()
     local category = self.client:RegisterSettingsCategory({
         categoryName = addon.Identity.displayName,
         balanceText = balanceText,
-        lifetimeText = self:LifetimeText(),
         percentage = {
             variable = addon.Identity.settingsPrefix .. "_Percentage",
             label = "Tithe percentage",
@@ -251,11 +241,6 @@ function Controller:Register()
             self:RefreshBalance()
         end)
     end
-    if self.ledger ~= nil then
-        self.ledger:OnAppend(function()
-            self:RefreshLifetime()
-        end)
-    end
     local index
     for index = 1, #(self.registeredListeners or {}) do
         pcall(self.registeredListeners[index], category)
@@ -273,17 +258,6 @@ function Controller:OnRegistered(listener)
     table.insert(self.registeredListeners, listener)
 end
 
-function Controller:RefreshLifetime()
-    local lifetimeText = self:LifetimeText()
-    if self.category == nil
-        or lifetimeText == nil
-        or type(self.client.RefreshSettingsLifetime) ~= "function"
-    then
-        return false
-    end
-    return self.client:RefreshSettingsLifetime(self.category, lifetimeText)
-end
-
 function Controller:RefreshBalance()
     if self.category == nil then
         return false
@@ -299,14 +273,13 @@ end
 
 function Controller:Open()
     self:RefreshBalance()
-    self:RefreshLifetime()
 
     if self.category ~= nil and self.client:OpenSettingsCategory(self.category) then
         return true
     end
 
-    self.client:Print(addon.Identity.displayName ..
-        ": settings are unavailable on this client. Use " ..
+    self.client:Print(addon.Identity.chatPrefix ..
+        " Settings are unavailable on this client. Use " ..
         addon.Identity.slashCommand .. " help.")
     return false
 end

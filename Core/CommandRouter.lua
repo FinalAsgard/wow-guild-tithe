@@ -20,7 +20,7 @@ function CommandRouter.Create(output)
         commands = {},
         commandOrder = {},
         defaultCommand = "help",
-        displayName = addon.Identity.displayName,
+        chatPrefix = addon.Identity.chatPrefix,
         output = type(output) == "function" and output or function() end,
         slashCommand = addon.Identity.slashCommand,
     }, Router)
@@ -62,7 +62,7 @@ function Router:PrintHelp()
         table.insert(entries, self.slashCommand .. " " .. command .. " - " .. description)
     end
 
-    self.output(self.displayName .. ": " .. table.concat(entries, "; "))
+    self.output(self.chatPrefix .. " Commands: " .. table.concat(entries, "; "))
 end
 
 function Router:Execute(input)
@@ -73,7 +73,7 @@ function Router:Execute(input)
 
     local route = self.commands[command]
     if route == nil then
-        self.output(self.displayName .. ": unknown command '" .. command ..
+        self.output(self.chatPrefix .. " Unknown command '" .. command ..
             "'. Use " .. self.slashCommand .. " help.")
         return false
     end

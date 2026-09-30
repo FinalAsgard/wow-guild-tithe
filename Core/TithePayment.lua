@@ -74,7 +74,7 @@ function Payment:OnDonation(listener)
 end
 
 function Payment:Say(message)
-    self.client:Print(addon.Identity.displayName .. ": " .. message)
+    self.client:Print(addon.Identity.chatPrefix .. " " .. message)
 end
 
 function Payment:Money(copper)
@@ -85,7 +85,7 @@ function Payment:Start()
     if self.started then
         return true
     end
-    self.panel = self.client:CreatePaymentPanel(addon.Identity.displayName)
+    self.panel = self.client:CreatePaymentPanel(addon.Identity.shortName)
     self.client:ObserveGuildBankDeposits(function(copper)
         self:OnManualDeposit(copper)
     end)
@@ -143,7 +143,7 @@ function Payment:ShowProposal()
         return
     end
     local lines = {
-        "Pay to " .. proposal.guild.name,
+        "Give to " .. proposal.guild.name,
         "Tithe: " .. self:Money(proposal.amount),
     }
     if proposal.remainder > 0 then
@@ -249,8 +249,8 @@ function Payment:OnActionBlocked(functionName)
 
     self.autoDepositBlocked = true
     self:Resolve(pending, "rejected")
-    self:Say("the game blocked the automatic deposit, so your tithe balance is unchanged. " ..
-        "Use the Give Tithe button on the guild bank.")
+    self:Say("The game blocked the automatic deposit, so your balance is unchanged. " ..
+        "Use the Give Tithe button in the guild bank.")
     if self.sessionOpen then
         self:ShowProposal()
     end
@@ -275,13 +275,13 @@ function Payment:Pay(method)
     end
     local proposal, reason = self:CurrentProposal()
     if proposal == nil then
-        self:Say("nothing was deposited (" .. reason .. ").")
+        self:Say("Nothing was given (" .. reason .. ").")
         return false
     end
 
     local pending = self:BeginPending(proposal.amount, method or "button", proposal.guild)
     if pending == nil then
-        self:Say("nothing was deposited (the payment could not be saved).")
+        self:Say("Nothing was given (the payment could not be saved).")
         return false
     end
     local intent = pending.intent
@@ -293,7 +293,7 @@ function Payment:Pay(method)
     -- flight, so it can never be counted a second time as a manual deposit.
     if not self.client:DepositGuildBankMoney(intent.amount) then
         self:Resolve(pending, "rejected")
-        self:Say("the guild bank deposit failed. Your tithe balance is unchanged.")
+        self:Say("The guild bank deposit failed, so your balance is unchanged.")
         self:ShowProposal()
         return false
     end
@@ -369,10 +369,10 @@ function Payment:Expire()
     local pending = self.pending
     self:Resolve(pending, "expired")
     if pending.intent.method == "manual" then
-        self:Say("your guild-bank deposit was not confirmed, so it was not counted toward your tithe.")
+        self:Say("Your guild bank deposit wasn't confirmed, so it wasn't counted toward your tithe.")
         return
     end
-    self:Say("the deposit was not confirmed, so your tithe balance is unchanged. Try again at the guild bank.")
+    self:Say("The deposit wasn't confirmed, so your balance is unchanged. Try again at the guild bank.")
     if self.sessionOpen then
         self:ShowProposal()
     end
@@ -416,8 +416,8 @@ function Payment:Reconcile(pending)
     end
     if not TithePayment.SameGuild(intent.guild, guild) then
         self:Resolve(pending, "unresolved")
-        self:Say("your guild changed before the deposit to " .. intent.guild.name ..
-            " was confirmed, so your tithe balance is unchanged.")
+        self:Say("Your guild changed before the deposit to " .. intent.guild.name ..
+            " was confirmed, so your balance is unchanged.")
         return
     end
     self:Confirm(pending)
@@ -430,7 +430,7 @@ function Payment:Confirm(pending)
     end
     local character = self.state:GetCurrentCharacter()
     if type(character) ~= "table" then
-        self:Say("the deposit went through, but your tithe balance could not be updated.")
+        self:Say("The deposit went through, but your tithe balance couldn't be updated.")
         return
     end
 
@@ -443,8 +443,13 @@ function Payment:Confirm(pending)
         return
     end
 
-    self:Say("deposited " .. self:Money(intent.amount) .. " to " .. intent.guild.name ..
-        ". Still owed: " .. self:Money(remaining) .. ".")
+    if remaining == 0 then
+        self:Say("Gave " .. self:Money(intent.amount) .. " to " .. intent.guild.name ..
+            ". Your tithe is paid in full!")
+    else
+        self:Say("Gave " .. self:Money(intent.amount) .. " to " .. intent.guild.name ..
+            ". Still owed: " .. self:Money(remaining))
+    end
     self:Publish(intent)
     if self.sessionOpen then
         self:ShowProposal()
