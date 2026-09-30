@@ -2,6 +2,8 @@
 # Validates a built release zip: both production manifests and every runtime
 # module they load must be present, and nothing development-only may ship.
 # Usage: tools/check-package.sh <package.zip>
+# With EXPECTED_VERSION set (the release tag), the packaged manifests must
+# declare exactly that version.
 set -euo pipefail
 
 zip_path="${1:?usage: tools/check-package.sh <package.zip>}"
@@ -49,6 +51,14 @@ done
 if [ "${#manifest_versions[@]}" -eq 2 ] && [ "${manifest_versions[0]}" != "${manifest_versions[1]}" ]; then
     fail "production manifests disagree on version: ${manifest_versions[0]} vs ${manifest_versions[1]}"
 fi
+for version in "${manifest_versions[@]}"; do
+    case "$version" in
+        *@*@*) fail "packaged manifest still has an unreplaced placeholder: $version" ;;
+    esac
+    if [ -n "${EXPECTED_VERSION:-}" ] && [ "$version" != "$EXPECTED_VERSION" ]; then
+        fail "packaged manifest declares version $version, not the release tag $EXPECTED_VERSION"
+    fi
+done
 
 for pattern in "${forbidden_patterns[@]}"; do
     matches="$(printf '%s\n' "$entries" | grep -E -- "$pattern" || true)"

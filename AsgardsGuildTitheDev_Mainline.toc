@@ -2,7 +2,7 @@
 ## Title: Asgard's Guild Tithe (Dev)
 ## Notes: Development build of Asgard's Guild Tithe.
 ## Author: FinalAsgard
-## Version: 0.1.0-dev
+## Version: dev
 ## SavedVariables: AsgardsGuildTitheDevDB, AsgardsGuildTitheDevTraceDB
 ## X-Client: Retail
 

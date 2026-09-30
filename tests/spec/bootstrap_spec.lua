@@ -33,7 +33,8 @@ local PRODUCTS = {
         slashCommand = "/agt",
         slashAlias = "/asgardstithe",
         slashKey = "AGT",
-        version = "0.1.0",
+        -- The packager writes the release tag here when it builds a release.
+        version = "@project-version@",
     },
     {
         addonName = "AsgardsGuildTitheDev",
@@ -45,7 +46,7 @@ local PRODUCTS = {
         slashCommand = "/agtdev",
         slashAlias = "/asgardstithedev",
         slashKey = "AGTDEV",
-        version = "0.1.0-dev",
+        version = "dev",
     },
 }
 
@@ -371,13 +372,15 @@ test.test("only the supported client manifests exist", function()
     test.assertEqual(#VARIANTS, found)
 end)
 
-test.test("each client's production and development manifests share one version line", function()
+test.test("production manifests take their version from the release tag and match dev interfaces", function()
     local clientIndex
     for clientIndex = 1, #CLIENTS do
         local suffix = CLIENTS[clientIndex].suffix
         local production = tocMetadata("AsgardsGuildTithe" .. suffix .. ".toc")
         local development = tocMetadata("AsgardsGuildTitheDev" .. suffix .. ".toc")
-        test.assertEqual(production.Version .. "-dev", development.Version, suffix)
+        -- A hard-coded version would ship regardless of the release tag.
+        test.assertEqual("@project-version@", production.Version, suffix)
+        test.assertEqual("dev", development.Version, suffix)
         test.assertEqual(production.Interface, development.Interface, suffix)
     end
 end)
