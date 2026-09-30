@@ -48,6 +48,8 @@ jobs:
           name: AsgardsGuildTithe-package
           path: .release/AsgardsGuildTithe-*.zip
           if-no-files-found: error
+          # The package is written to .release/, a hidden directory.
+          include-hidden-files: true
           retention-days: 30
 
   windows-installer:
