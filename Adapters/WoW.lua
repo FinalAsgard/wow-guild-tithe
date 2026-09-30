@@ -1079,7 +1079,6 @@ function Client:CreateHistoryView(frame, layout)
     end
     y = y - 10
 
-    local listTop = y
     local x = 16
     for index = 1, #HISTORY_COLUMNS do
         page.headers[index] = text("GameFontNormal", x, y, HISTORY_COLUMNS[index].width)
@@ -1126,7 +1125,6 @@ function Client:CreateHistoryView(frame, layout)
             page.onScroll(-delta * layout.wheelStep)
         end
     end)
-    page.listTop = listTop
 
     function page:SetScrollHandler(handler)
         self.onScroll = handler

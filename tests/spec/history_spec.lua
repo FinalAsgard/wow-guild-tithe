@@ -7,8 +7,12 @@ local function character(world)
     return world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]
 end
 
+local sequence = 0
+
 local function login(profile, options)
     options = options or {}
+    -- Each login starts a fresh ledger, so donation ids and times restart.
+    sequence = 0
     local world = fixtures.newEnvironment(profile, {
         money = CARRIED,
         settings = options.settings,
@@ -22,7 +26,6 @@ local function login(profile, options)
     return world, addon
 end
 
-local sequence = 0
 local function record(addon, overrides)
     sequence = sequence + 1
     local donation = {
@@ -159,6 +162,29 @@ local function registerProfileTests(profile)
         test.assertEqual("1-12 of 30", page(addon).range.text)
         test.assertEqual("Lifetime given: 0g 04s 65c", page(addon).overall.text)
         fixtures.assertSameData(before, world.environment.AsgardsGuildTitheDB.donations)
+    end)
+
+    test.test(profile .. " a very large history still pages quickly to both ends", function()
+        local world, addon = login(profile)
+        local count = 5000
+        local index
+        for index = 1, count do
+            record(addon, { amount = 1 })
+        end
+
+        local started = os.clock()
+        history(world)
+        test.assertEqual("1-12 of 5000", page(addon).range.text)
+        for index = 1, 500 do
+            fixtures.click(page(addon).older)
+        end
+        local elapsed = os.clock() - started
+
+        test.assertEqual("4989-5000 of 5000", page(addon).range.text)
+        test.assertFalse(page(addon).older.enabled)
+        test.assertEqual("Lifetime given: 0g 50s 00c", page(addon).overall.text)
+        test.assertEqual(count, addon.donationLedger:Count())
+        test.assertTrue(elapsed < 2, "paging took " .. elapsed .. "s")
     end)
 
     test.test(profile .. " the tab updates live after a confirmed donation", function()
