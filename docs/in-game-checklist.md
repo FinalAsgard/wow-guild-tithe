@@ -58,6 +58,21 @@ Run these on a guilded character that owes some tithe (earn a little income firs
 7. Turn off **Print tithe updates** and pay once. Confirm the payment message still appears.
 8. With some tithe owed, deposit a smaller amount of gold yourself through the guild bank's own **Deposit** money window (not **Give Tithe**). Confirm chat shows `deposited <amount> to <guild>. Still owed: <remainder>.` and the balance went down by that amount. Then withdraw some gold and confirm the balance does not change.
 
+## Donation history steps
+
+Run these on a guilded character, on both clients. **Required** steps can be done by any character; **When convenient** steps never block sign-off.
+
+**Required**
+1. Before any donation, run `/agt history`. Confirm the settings panel opens on **Donation History** (under the add-on's entry), it says there are no donations yet, and **Lifetime given** reads 0. If the panel opens but not on that tab, or a separate window opens instead, note which.
+2. Give a tithe at the guild bank. With the tab open, confirm the new row appears right away with today's date, your guild, your character, the amount, and **Guild Tithe**, and that the totals update.
+3. `/reload`, then reopen the tab. Confirm the same row and totals, with nothing duplicated.
+
+**When convenient**
+4. Deposit gold yourself through the guild bank's own window. Confirm a **Manual** row.
+5. Give from a second character. Confirm both characters' donations appear in the same history.
+6. Give to a second guild. Confirm separate guild totals.
+7. With more than 12 donations, scroll with the mouse wheel and the **Newer**/**Older** buttons.
+
 ## WoW Forever
 
 ### Install

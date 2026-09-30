@@ -256,7 +256,21 @@ function Controller:Register()
             self:RefreshLifetime()
         end)
     end
+    local index
+    for index = 1, #(self.registeredListeners or {}) do
+        pcall(self.registeredListeners[index], category)
+    end
     return true
+end
+
+-- Calls listener(category) once the settings category exists, so pages
+-- such as donation history can be added beneath it.
+function Controller:OnRegistered(listener)
+    if type(listener) ~= "function" then
+        return
+    end
+    self.registeredListeners = self.registeredListeners or {}
+    table.insert(self.registeredListeners, listener)
 end
 
 function Controller:RefreshLifetime()

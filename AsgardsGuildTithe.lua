@@ -12,6 +12,7 @@ router:Register("help", "show available commands", function()
 end)
 
 local state, titheService, settingsController, incomeObserver, tithePayment, donationLedger
+local historyController
 if clientProfile.supported then
     state = addon.CharacterState.Create(client)
     donationLedger = addon.DonationLedger.Create(function()
@@ -21,6 +22,11 @@ if clientProfile.supported then
     settingsController = addon.SettingsController.Create(client, state, addon.MoneyFormatter,
         donationLedger)
     settingsController:RegisterCommands(router)
+    historyController = addon.HistoryController.Create(client, donationLedger, addon.MoneyFormatter)
+    historyController:RegisterCommands(router)
+    settingsController:OnRegistered(function(category)
+        historyController:RegisterSettingsPage(category)
+    end)
     local incomeFeedback = addon.IncomeFeedback.Create(function(message)
         client:Print(message)
     end, addon.MoneyFormatter, function(seconds, callback)
@@ -97,6 +103,7 @@ local lifecycle = addon.Lifecycle.Create(
 addon.client = client
 addon.clientProfile = clientProfile
 addon.donationLedger = donationLedger
+addon.historyController = historyController
 addon.eventTrace = eventTrace
 addon.incomeObserver = incomeObserver
 addon.lifecycle = lifecycle

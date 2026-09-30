@@ -128,6 +128,11 @@ function Ledger:OnAppend(listener)
     end
 end
 
+-- True once the saved ledger is loaded and readable.
+function Ledger:IsAvailable()
+    return self:List() ~= nil
+end
+
 function Ledger:Count()
     local list = self:List()
     return list ~= nil and #list or 0

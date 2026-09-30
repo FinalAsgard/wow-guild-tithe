@@ -18,6 +18,7 @@ local MANIFEST_FILES = {
     "Core/IncomeObserver.lua",
     "Core/TithePayment.lua",
     "Core/DonationLedger.lua",
+    "Core/HistoryController.lua",
     "Core/Lifecycle.lua",
     "AsgardsGuildTithe.lua",
 }

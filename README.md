@@ -33,6 +33,10 @@ Opening your guild bank adds a **Give Tithe** button to the guild bank window, j
 
 Gold you deposit yourself through the guild bank's own money window also counts: while the guild bank is open, the add-on sees the deposit request and credits it once your carried gold drops by exactly that amount. A deposit larger than what you owe clears the balance without going below zero. Withdrawals and other spending never count, and a deposit made while the add-on's own payment is still waiting is not counted. A deposit is counted once, even across a `/reload`. If you leave or switch guilds before a deposit is confirmed, it is not credited, and your balance stays as it was.
 
+## Donation history
+
+Every donation confirmed at the guild bank is recorded in an account-wide history shared by all your characters. Open it with `/agt history`, or pick **Donation History** under the add-on's entry in the game's AddOns settings. The tab shows your lifetime total, a total for each guild you have given to, and a newest-first list with the date, guild, character, amount, and how it was given: **Guild Tithe** for deposits the add-on made (automatic or the Give Tithe button) and **Manual** for deposits you made through the guild bank's own window. Scroll with the mouse wheel or the **Newer** and **Older** buttons. It updates as soon as a donation is confirmed. Before your first donation it says there are none yet. History cannot be edited or deleted. On a client whose settings cannot host the tab, `/agt history` opens the same view in its own window.
+
 ## Verify the scaffold
 
 Run the automated suite with Lua 5.1:
