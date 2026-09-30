@@ -20,6 +20,9 @@ jobs:
       TAG: ${{ github.event.release.tag_name }}
       # The packaged manifests must carry exactly this version.
       EXPECTED_VERSION: ${{ github.event.release.tag_name }}
+      # The game versions this release supports; see docs/packaging.md.
+      FOREVER_INTERFACE: ${{ vars.FOREVER_INTERFACE }}
+      RETAIL_INTERFACE: ${{ vars.RETAIL_INTERFACE }}
     steps:
       - name: Check out the release tag
         uses: actions/checkout@v4
@@ -50,6 +53,9 @@ jobs:
 
       - name: Run automated tests
         run: lua5.1 tests/run.lua
+
+      - name: Apply the supported game versions
+        run: tools/apply-interfaces.sh
 
       - name: Use the release notes as the changelog
         env:

@@ -56,9 +56,8 @@ CI runs the same script on every pull request in the **Release package** job.
 ## Before a release
 
 1. Confirm each client's interface number from the running client
-   (`/dump (select(4, GetBuildInfo()))`) and, if it changed, run
-   `tools/set-interface.sh <forever|retail> <interface>`. It updates both of
-   that client's manifests, the test expectation, and the README table.
+   (`/dump (select(4, GetBuildInfo()))`) and, if it changed, update that
+   client's repository variable (see **Game versions** below).
 2. Run both in-game checklists in [in-game-checklist.md](in-game-checklist.md).
    A release claims compatibility with a client only after that client's
    checklist passes on the current live build. A pass on one client never
@@ -72,16 +71,20 @@ Publishing a GitHub release publishes the add-on. The **Release** workflow
 
 1. checks that the release's tag is a valid version and that the production
    manifests take their version from it (`tools/check-release-tag.sh`), and that
-   **Set as a pre-release**
-   matches the tag (checked for `alpha`/`beta` tags, unchecked otherwise);
+   **Set as a pre-release** matches the tag (checked for `alpha`/`beta` tags,
+   unchecked otherwise);
 2. runs the Lua syntax check and the full test suite;
-3. writes the release notes to `CHANGELOG.md`, so they become the changelog on
+3. writes the game versions from the `FOREVER_INTERFACE` and `RETAIL_INTERFACE`
+   repository variables into the production manifests
+   (`tools/apply-interfaces.sh`), failing if either is missing or malformed;
+4. writes the release notes to `CHANGELOG.md`, so they become the changelog on
    CurseForge and inside the package (with no notes, a changelog is generated
    from git history instead);
-4. builds and validates the package without uploading (`tools/build-package.sh`);
-5. builds it again with the same pinned packager and uploads it to CurseForge,
+5. builds and validates the package without uploading (`tools/build-package.sh`),
+   including that it carries exactly the tag's version and those game versions;
+6. builds it again with the same pinned packager and uploads it to CurseForge,
    tagged for both Forever and Retail (`tools/publish-release.sh`);
-6. attaches the zip to the GitHub release.
+7. attaches the zip to the GitHub release.
 
 Any failed step stops the release before anything is uploaded, except the
 upload steps themselves. The packager never edits the GitHub release, so the
@@ -93,7 +96,9 @@ in `tools/packager.env`, and shared by builds and releases.
 1. Create the add-on project on CurseForge (World of Warcraft, AddOns) and note
    its **Project ID** from the project's About panel.
 2. In the GitHub repository, open **Settings → Secrets and variables → Actions**:
-   - under **Variables**, add `CURSEFORGE_PROJECT_ID` with the project ID;
+   - under **Variables**, add `CURSEFORGE_PROJECT_ID` with the project ID, and
+     `FOREVER_INTERFACE` and `RETAIL_INTERFACE` with the supported game
+     versions (see **Game versions**);
    - under **Secrets**, add `CF_API_KEY` with a token from
      <https://legacy.curseforge.com/account/api-tokens>.
 
@@ -103,7 +108,39 @@ Without both, the upload step fails with a message naming what is missing.
    webhook to GitHub. This workflow already uploads every release, so both
    together would upload each version twice.
 
-Both are configured for this project: ID `1719265`, and the token secret.
+All are configured for this project: ID `1719265`, the token secret,
+`FOREVER_INTERFACE=16000, 16001`, and `RETAIL_INTERFACE=120100`.
+
+### Game versions
+
+The game versions (interface numbers) a release supports come from two
+repository variables, not from code. They are set in **Settings → Secrets and
+variables → Actions → Variables**:
+
+| Variable | Client | Example |
+| --- | --- | --- |
+| `FOREVER_INTERFACE` | WoW Forever | `16000, 16001` |
+| `RETAIL_INTERFACE` | WoW Retail | `120100` |
+
+Each is a comma-separated list. The game marks the add-on out of date only
+when the running client's interface is missing from its list, and CurseForge
+tags each file with these game versions.
+
+When a client patches, test it in game. If nothing needs changing, update that
+client's variable and publish a release (for example "Updated to support
+120200"):
+
+- **Keep the previous version and add the new one**, for example
+  `120100, 120200`. Retail patches reach regions on different days, so for a
+  while players are on either build.
+- **Remove anything older than those two.** Past support is already recorded in
+  each release's notes, CurseForge's file list, and the in-game sign-offs.
+
+The manifests committed to the repository are used only by the development
+install and CI. After a patch the development install may show as out of date
+until **Load out of date AddOns** is checked at character select, or until
+`tools/set-interface.sh <forever|retail> <interface...>` brings the committed
+manifests up to date.
 
 ### Versions
 
