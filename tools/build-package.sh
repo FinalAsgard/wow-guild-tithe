@@ -9,10 +9,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 release_dir="${1:-$repo_root/.release}"
 packager_bash="${PACKAGER_BASH:-bash}"
-# Pinned to an exact packager commit (the v2 tag as of 2026-09-28) so an
-# upstream change cannot alter what runs here. Update deliberately.
-packager_commit="e50a250f8705041e40f2fa1ddcb280a686d65aa0"
-packager_url="https://raw.githubusercontent.com/BigWigsMods/packager/${packager_commit}/release.sh"
+# The pinned packager revision, shared with tools/publish-release.sh.
+# shellcheck source=tools/packager.env
+source "$repo_root/tools/packager.env"
+packager_url="https://raw.githubusercontent.com/BigWigsMods/packager/${PACKAGER_COMMIT}/release.sh"
 
 if ! "$packager_bash" -c '(( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 3) ))'; then
     echo "The packager needs bash 4.3 or newer; '$packager_bash' is older. Set PACKAGER_BASH to a newer bash." >&2

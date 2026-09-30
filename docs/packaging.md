@@ -28,8 +28,8 @@ tools/build-package.sh            # writes .release/AsgardsGuildTithe-<version>.
 unzip -l .release/AsgardsGuildTithe-*.zip
 ```
 
-The script downloads the packager at a pinned commit (`packager_commit` in
-the script; update it deliberately) and runs it with `-d`, so nothing is ever
+The script downloads the packager at a pinned commit (`PACKAGER_COMMIT` in
+`tools/packager.env`; update it deliberately) and runs it with `-d`, so nothing is ever
 uploaded. It fails unless the packager tags the build for both clients
 (`Build type: multi-version`). It then runs `tools/check-package.sh`, which fails
 when:
@@ -61,5 +61,49 @@ CI runs the same script on every pull request in the **Release package** job.
    counts for the other.
 3. Build and inspect the package as above.
 
-Publishing to CurseForge, configuring its API token, and release notes are
-separate release operations and are not automated in this repository.
+## Publishing to CurseForge
+
+Pushing a version tag publishes the release. The **Release** workflow
+(`.github/workflows/release.yml`) then:
+
+1. checks that the tag matches `## Version` in both production manifests
+   (`tools/check-release-tag.sh`);
+2. runs the Lua syntax check and the full test suite;
+3. builds and validates the package without uploading (`tools/build-package.sh`);
+4. builds it again with the same pinned packager and uploads it to CurseForge,
+   tagged for both Forever and Retail, and creates a matching GitHub release
+   with the generated changelog (`tools/publish-release.sh`).
+
+Any failed step stops the release before anything is uploaded, except the last
+step itself. The packager revision is pinned once, in `tools/packager.env`, and
+shared by builds and releases.
+
+### One-time setup
+
+1. Create the add-on project on CurseForge (World of Warcraft, AddOns) and note
+   its **Project ID** from the project's About panel.
+2. In the GitHub repository, open **Settings → Secrets and variables → Actions**:
+   - under **Variables**, add `CURSEFORGE_PROJECT_ID` with the project ID;
+   - under **Secrets**, add `CF_API_KEY` with a token from
+     <https://legacy.curseforge.com/account/api-tokens>.
+
+Without both, the upload step fails with a message naming what is missing.
+
+### Cutting a release
+
+1. Do the checks in **Before a release** above.
+2. Set the new version in all four manifests. The production manifests use
+   `X.Y.Z` and the development manifests `X.Y.Z-dev`; the tests enforce this.
+   Merge that change to `main`.
+3. Tag the merge commit and push the tag:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+   A tag containing `alpha` or `beta` (for example `v0.2.0-beta1`) is published
+   as an alpha or beta file. Any other tag is a release file. For a beta tag,
+   the production manifests declare the full `0.2.0-beta1` version.
+4. Watch the **Release** run in the repository's **Actions** tab. CurseForge
+   may take a few minutes to review and list a new file.
