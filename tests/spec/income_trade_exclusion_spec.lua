@@ -165,6 +165,7 @@ local function registerProfileTests(profile)
         -- withdraw call, must still be excluded rather than tithed.
         local owed = character(world).outstandingCopper
         local messages = #world.messages
+        character(world).autoDeposit = false
         fixtures.fire(world, "GUILDBANKFRAME_OPENED")
         fixtures.advance(world, 600)
         fixtures.setMoney(world, STARTING_MONEY + 102000)

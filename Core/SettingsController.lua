@@ -65,6 +65,14 @@ local CHAT_FEEDBACK_SETTING = {
     defaultValue = true,
 }
 
+local AUTO_DEPOSIT_SETTING = {
+    variableSuffix = "AutoDeposit",
+    label = "Deposit tithe automatically",
+    tooltip = "Deposit your tithe as soon as you open the guild bank. " ..
+        "The Give Tithe button on the guild bank is always available too.",
+    defaultValue = true,
+}
+
 local function currentCharacter(state)
     local character = state:GetCurrentCharacter()
     if type(character) ~= "table" then
@@ -153,6 +161,23 @@ local function buildChatFeedbackCheckbox(state)
     }
 end
 
+local function buildAutoDepositCheckbox(state)
+    return {
+        variable = addon.Identity.settingsPrefix .. "_" ..
+            AUTO_DEPOSIT_SETTING.variableSuffix,
+        label = AUTO_DEPOSIT_SETTING.label,
+        tooltip = AUTO_DEPOSIT_SETTING.tooltip,
+        defaultValue = AUTO_DEPOSIT_SETTING.defaultValue,
+        getValue = function()
+            local character = currentCharacter(state)
+            return character and character.autoDeposit
+        end,
+        setValue = function(value)
+            return state:SetAutoDeposit(value)
+        end,
+    }
+end
+
 function SettingsController.Create(client, state, formatter)
     return setmetatable({
         client = client,
@@ -197,6 +222,10 @@ function Controller:Register()
                 heading = "Feedback",
                 checkboxes = { buildChatFeedbackCheckbox(self.state) },
             },
+            {
+                heading = "Guild Bank",
+                checkboxes = { buildAutoDepositCheckbox(self.state) },
+            },
         },
     })
 
@@ -205,18 +234,31 @@ function Controller:Register()
     end
 
     self.category = category
+    -- Keeps the balance current while the settings page is open, whether it
+    -- changed through income, a guild-bank deposit, or /agt clear.
+    if type(self.state.OnFinancialChange) == "function" then
+        self.state:OnFinancialChange(function()
+            self:RefreshBalance()
+        end)
+    end
     return true
 end
 
-function Controller:Open()
-    if self.category ~= nil then
-        local balanceText = currentBalance(self.state, self.formatter)
-        if balanceText ~= nil
-            and type(self.client.RefreshSettingsBalance) == "function"
-        then
-            self.client:RefreshSettingsBalance(self.category, balanceText)
-        end
+function Controller:RefreshBalance()
+    if self.category == nil then
+        return false
     end
+    local balanceText = currentBalance(self.state, self.formatter)
+    if balanceText == nil
+        or type(self.client.RefreshSettingsBalance) ~= "function"
+    then
+        return false
+    end
+    return self.client:RefreshSettingsBalance(self.category, balanceText)
+end
+
+function Controller:Open()
+    self:RefreshBalance()
 
     if self.category ~= nil and self.client:OpenSettingsCategory(self.category) then
         return true

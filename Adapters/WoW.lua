@@ -215,6 +215,19 @@ end
 
 -- Runs callback once after `seconds`. Returns false when the client has no
 -- timer, so callers can act immediately instead.
+-- Wall-clock seconds for saved records; GetTime() restarts with the client.
+function Client:Timestamp()
+    local ok, now = callFunction(self.environment.GetServerTime)
+    if not ok or type(now) ~= "number" then
+        ok, now = callFunction(self.environment.time)
+    end
+    if not ok or type(now) ~= "number" then
+        return nil
+    end
+
+    return now
+end
+
 function Client:After(seconds, callback)
     local timers = self.environment.C_Timer
     if type(timers) ~= "table" or type(timers.After) ~= "function" or type(callback) ~= "function" then
@@ -447,6 +460,329 @@ function Client:ObserveMailCollection(onContext)
     return hooked
 end
 
+-- The player's current guild as { name, realm }, or nil when guildless or
+-- unknown. GetGuildInfo reports no realm for a guild on the player's realm.
+function Client:GetGuildIdentity()
+    local ok, name, _, _, realm = callFunction(self.environment.GetGuildInfo, "player")
+    if not ok or type(name) ~= "string" or name == "" then
+        return nil
+    end
+
+    if type(realm) ~= "string" or realm == "" then
+        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
+        realm = realmOk and currentRealm or nil
+    end
+    if type(realm) ~= "string" or realm == "" then
+        return nil
+    end
+
+    -- Newer clients expose a stable guild club id; the realm-qualified name
+    -- is the fallback identity everywhere else.
+    local identity = { name = name, realm = realm }
+    local clubs = self.environment.C_Club
+    if type(clubs) == "table" then
+        local idOk, clubId = callFunction(clubs.GetGuildClubId)
+        if idOk and (type(clubId) == "string" or type(clubId) == "number") then
+            identity.id = tostring(clubId)
+        end
+    end
+    return identity
+end
+
+-- Calls onOpen() / onClose() when the guild bank window opens or closes.
+-- Newer clients report it through the interaction manager (GuildBanker = 10).
+local GUILD_BANK_INTERACTION = 10
+
+function Client:ObserveGuildBank(onOpen, onClose)
+    if type(onOpen) ~= "function" or type(onClose) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function(_, eventName, interactionType)
+            if eventName == "GUILDBANKFRAME_OPENED"
+                or (eventName == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW"
+                    and interactionType == GUILD_BANK_INTERACTION)
+            then
+                onOpen()
+            elseif eventName == "GUILDBANKFRAME_CLOSED"
+                or (eventName == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE"
+                    and interactionType == GUILD_BANK_INTERACTION)
+            then
+                onClose()
+            end
+        end)
+    then
+        return false
+    end
+
+    local registered = false
+    local index
+    local events = {
+        "GUILDBANKFRAME_OPENED",
+        "GUILDBANKFRAME_CLOSED",
+        "PLAYER_INTERACTION_MANAGER_FRAME_SHOW",
+        "PLAYER_INTERACTION_MANAGER_FRAME_HIDE",
+    }
+    for index = 1, #events do
+        registered = self:RegisterEvent(frame, events[index]) or registered
+    end
+
+    self.guildBankFrame = frame
+    return registered
+end
+
+-- Calls onBlocked(functionName) when the client refuses a protected call
+-- made by this add-on (ADDON_ACTION_BLOCKED / ADDON_ACTION_FORBIDDEN).
+function Client:ObserveActionBlocked(onBlocked)
+    if type(onBlocked) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function(_, _, addonName, functionName)
+            if addonName == addon.Identity.addonName then
+                onBlocked(functionName)
+            end
+        end)
+    then
+        return false
+    end
+
+    local blocked = self:RegisterEvent(frame, "ADDON_ACTION_BLOCKED")
+    local forbidden = self:RegisterEvent(frame, "ADDON_ACTION_FORBIDDEN")
+    return blocked or forbidden
+end
+
+-- Calls onDeposit(copper) after every guild-bank money deposit request,
+-- including ones made from Blizzard's own guild-bank window.
+function Client:ObserveGuildBankDeposits(onDeposit)
+    local hook = self.environment.hooksecurefunc
+    if type(onDeposit) ~= "function"
+        or type(hook) ~= "function"
+        or type(self.environment.DepositGuildBankMoney) ~= "function"
+        or self.depositsHooked
+    then
+        return false
+    end
+
+    self.depositsHooked = pcall(hook, "DepositGuildBankMoney", function(copper)
+        onDeposit(copperAmount(copper))
+    end)
+    return self.depositsHooked
+end
+
+-- Asks the client to move `copper` from the player into the guild bank.
+-- Returns true when the request was made; completion is confirmed later by
+-- the player's carried money dropping by that amount.
+function Client:DepositGuildBankMoney(copper)
+    if copperAmount(copper) == nil or copper <= 0 then
+        return false
+    end
+    local ok = callFunction(self.environment.DepositGuildBankMoney, copper)
+    return ok == true
+end
+
+-- The tithe offer shown with the guild bank. Returns nil when the client
+-- cannot create frames. It exposes Show(lines, onDeposit), Hide(), and
+-- IsShown(). When the guild bank window's Withdraw button can be found, the
+-- offer is a "Give Tithe" button just left of it, with the lines in its
+-- tooltip; otherwise it is a small panel beside the bank. The pay button
+-- only works when onDeposit is given.
+function Client:CreatePaymentPanel(title)
+    local createFrame = self.environment.CreateFrame
+    if type(createFrame) ~= "function" then
+        return nil
+    end
+
+    local environment = self.environment
+    local ok, panel = pcall(function()
+        -- Newer clients need BackdropTemplate for a frame to take a backdrop.
+        local template = environment.BackdropTemplateMixin ~= nil and "BackdropTemplate" or nil
+        local frame = createFrame("Frame", nil, environment.UIParent, template)
+        frame:SetSize(260, 96)
+        frame:SetPoint("CENTER")
+        -- Above the guild bank window, which would otherwise cover it.
+        pcall(frame.SetFrameStrata, frame, "DIALOG")
+        pcall(frame.SetBackdrop, frame, {
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 8, right = 8, top = 8, bottom = 8 },
+        })
+
+        local heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        heading:SetPoint("TOPLEFT", 10, -10)
+        heading:SetText(title)
+
+        local body = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        body:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -6)
+        body:SetJustifyH("LEFT")
+
+        local button = createFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        button:SetSize(120, 22)
+        button:SetPoint("BOTTOMLEFT", 10, 10)
+        button:SetText("Deposit")
+
+        frame:Hide()
+        return { body = body, button = button, frame = frame }
+    end)
+    if not ok then
+        return nil
+    end
+
+    -- The game's Withdraw button, under its current or older name.
+    local function findWithdrawButton()
+        local bank = environment.GuildBankFrame
+        if type(bank) ~= "table" then
+            return nil
+        end
+        return bank.WithdrawButton or environment.GuildBankFrameWithdrawButton
+    end
+
+    local function showTooltip(owner)
+        local tooltip = environment.GameTooltip
+        if type(tooltip) ~= "table" or type(panel.lines) ~= "table" then
+            return
+        end
+        pcall(function()
+            tooltip:SetOwner(owner, "ANCHOR_TOP")
+            tooltip:SetText(title)
+            local index
+            for index = 1, #panel.lines do
+                tooltip:AddLine(panel.lines[index], 1, 1, 1)
+            end
+            tooltip:Show()
+        end)
+    end
+
+    -- The pay button inside the guild bank window, or nil when the window's
+    -- Withdraw button cannot be found.
+    function panel:Inline()
+        local withdraw = findWithdrawButton()
+        if withdraw == nil then
+            return nil
+        end
+        if self.inlineButton ~= nil and self.inlineAnchor == withdraw then
+            return self.inlineButton
+        end
+        local created, button = pcall(function()
+            local inline = createFrame("Button", nil, environment.GuildBankFrame,
+                "UIPanelButtonTemplate")
+            inline:SetSize(100, 22)
+            inline:SetPoint("RIGHT", withdraw, "LEFT", -4, 0)
+            -- Disabled buttons ignore the mouse unless told otherwise, and
+            -- the tooltip is how a disabled Give Tithe explains itself.
+            pcall(inline.SetMotionScriptsWhileDisabled, inline, true)
+            inline:SetScript("OnEnter", showTooltip)
+            inline:SetScript("OnLeave", function()
+                local tooltip = environment.GameTooltip
+                if type(tooltip) == "table" then
+                    pcall(tooltip.Hide, tooltip)
+                end
+            end)
+            return inline
+        end)
+        if not created then
+            return nil
+        end
+        if self.inlineButton ~= nil then
+            self.inlineButton:Hide()
+        end
+        self.inlineButton = button
+        self.inlineAnchor = withdraw
+        return button
+    end
+
+    -- The guild bank window loads on demand, after this panel is created, so
+    -- the panel attaches beside it each time it is shown.
+    function panel:Attach()
+        local bank = environment.GuildBankFrame
+        if bank == nil or self.attachedTo == bank then
+            return
+        end
+        local frame = self.frame
+        local attached = pcall(function()
+            frame:SetParent(bank)
+            frame:ClearAllPoints()
+            frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", 4, 0)
+            frame:SetFrameStrata("DIALOG")
+        end)
+        if attached then
+            self.attachedTo = bank
+        end
+    end
+
+    function panel:Show(lines, onDeposit)
+        self.lines = lines
+        self.body:SetText(table.concat(lines, "\n"))
+        local inline = self:Inline()
+        if inline ~= nil then
+            self.frame:Hide()
+            inline:SetText(onDeposit ~= nil and "Give Tithe" or "Depositing...")
+            inline:SetScript("OnClick", onDeposit)
+            if onDeposit ~= nil then
+                pcall(inline.Enable, inline)
+            else
+                pcall(inline.Disable, inline)
+            end
+            inline:Show()
+            self.inlineShown = true
+            return
+        end
+        self.inlineShown = false
+        self:Attach()
+        self.button:SetScript("OnClick", onDeposit)
+        if onDeposit ~= nil then
+            self.button:Show()
+        else
+            self.button:Hide()
+        end
+        self.frame:Show()
+    end
+
+    -- Nothing can be given now. The in-bank button stays, disabled, with
+    -- `lines` in its tooltip; the side panel is simply hidden.
+    function panel:ShowUnavailable(lines)
+        local inline = self:Inline()
+        if inline == nil then
+            self:Hide()
+            return
+        end
+        self.lines = lines
+        self.body:SetText(table.concat(lines, "\n"))
+        self.frame:Hide()
+        inline:SetText("Give Tithe")
+        inline:SetScript("OnClick", nil)
+        pcall(inline.Disable, inline)
+        inline:Show()
+        self.inlineShown = true
+    end
+
+    function panel:Hide()
+        self.button:SetScript("OnClick", nil)
+        self.frame:Hide()
+        if self.inlineButton ~= nil then
+            self.inlineButton:SetScript("OnClick", nil)
+            self.inlineButton:Hide()
+        end
+        self.inlineShown = false
+    end
+
+    function panel:IsShown()
+        if self.inlineShown then
+            return self.inlineButton:IsShown() == true
+        end
+        return self.frame:IsShown() == true
+    end
+
+    return panel
+end
+
 function Client:GetAccountDatabase()
     return self.environment[self.databaseName]
 end
@@ -635,6 +971,18 @@ function Client:RefreshSettingsBalance(category, balanceText)
     end
 
     data.name = "Tithe - Current balance: " .. balanceText
+    -- The header only reads its text when drawn, so repaint it if the
+    -- settings page is showing it right now.
+    local settingsPanel = self.environment.SettingsPanel
+    if type(settingsPanel) == "table" then
+        pcall(function()
+            settingsPanel:GetSettingsList().ScrollBox:ForEachFrame(function(frame)
+                if frame:GetElementData() == initializer and frame.Title ~= nil then
+                    frame.Title:SetText(data.name)
+                end
+            end)
+        end)
+    end
     return true
 end
 

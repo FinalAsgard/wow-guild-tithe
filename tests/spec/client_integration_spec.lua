@@ -10,6 +10,7 @@ local CHECKBOX_VARIABLES = {
     "AsgardsGuildTithe_Source_PlayerTrades",
     "AsgardsGuildTithe_Source_Miscellaneous",
     "AsgardsGuildTithe_ChatFeedback",
+    "AsgardsGuildTithe_AutoDeposit",
 }
 
 local function otherProfile(profile)
@@ -56,6 +57,7 @@ local function registerProfileTests(profile)
         test.assertContains(headings[1], "Current balance: 0g 00s 00c")
         test.assertEqual("Income Sources", headings[2])
         test.assertEqual("Feedback", headings[3])
+        test.assertEqual("Guild Bank", headings[4])
 
         -- Only the percentage and the eight preferences are editable.
         test.assertEqual(1 + #CHECKBOX_VARIABLES, #settings.bindingOrder)
@@ -185,3 +187,99 @@ test.test("Forever registers slash through the native API and Retail through Sla
     test.assertEqual("function", type(forever.environment.SlashCmdList.AGT))
     test.assertEqual("function", type(retail.environment.SlashCmdList.AGT))
 end)
+
+local function registerClearTests(profile)
+    test.test(profile .. " balance changes repaint an open settings page", function()
+        local world = fixtures.newEnvironment(profile, { money = 1000 })
+        fixtures.login(world)
+        local header = { Title = {} }
+        function header.Title:SetText(text)
+            self.text = text
+        end
+        function header:GetElementData()
+            return world.settings.layout.initializers[1]
+        end
+        local other = { Title = {} }
+        function other.Title:SetText(text)
+            self.text = text
+        end
+        function other:GetElementData()
+            return world.settings.layout.initializers[2]
+        end
+        world.environment.SettingsPanel = {
+            GetSettingsList = function()
+                return {
+                    ScrollBox = {
+                        ForEachFrame = function(_, callback)
+                            callback(other)
+                            callback(header)
+                        end,
+                    },
+                }
+            end,
+        }
+        world.environment.SlashCmdList.AGT("")
+        local character = world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]
+
+        world.money = 13345
+        fixtures.fire(world, "LOOT_OPENED")
+        fixtures.fire(world, "PLAYER_MONEY")
+        fixtures.settle(world)
+        test.assertEqual(1234, character.outstandingCopper)
+        test.assertContains(fixtures.balanceText(world), "0g 12s 34c")
+        test.assertEqual(fixtures.balanceText(world), header.Title.text)
+
+        world.environment.SlashCmdList.AGT("clear")
+        test.assertContains(fixtures.balanceText(world), "Current balance: 0g 00s 00c")
+        test.assertEqual("Tithe - Current balance: 0g 00s 00c", header.Title.text)
+        test.assertEqual(nil, other.Title.text)
+    end)
+
+    test.test(profile .. " /agt clear resets the balance and reports what was cleared", function()
+        local world = fixtures.newEnvironment(profile, { money = 100000 })
+        fixtures.login(world)
+        local character = world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]
+        character.outstandingCopper = 12345
+        character.fractionalRemainder = 67
+        character.percentage = 25
+
+        world.environment.SlashCmdList.AGT("clear")
+
+        test.assertEqual(0, character.outstandingCopper)
+        test.assertEqual(0, character.fractionalRemainder)
+        test.assertEqual(25, character.percentage)
+        test.assertEqual(
+            "Asgard's Guild Tithe: cleared your tithe balance (was 1g 23s 45c).",
+            world.messages[#world.messages]
+        )
+    end)
+
+    test.test(profile .. " /agt clear withdraws an open guild-bank offer", function()
+        local world = fixtures.newEnvironment(profile, { money = 100000 })
+        local addon = fixtures.login(world)
+        local character = world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]
+        character.outstandingCopper = 5000
+        character.autoDeposit = false
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        test.assertTrue(addon.tithePayment.panel:IsShown())
+
+        world.environment.SlashCmdList.AGT("clear")
+
+        test.assertFalse(addon.tithePayment.panel:IsShown())
+        test.assertEqual(0, #world.deposits)
+    end)
+
+    test.test(profile .. " /agt help lists the clear command", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+
+        world.environment.SlashCmdList.AGT("help")
+
+        test.assertContains(world.messages[1], "/agt clear - clear the current tithe balance")
+    end)
+end
+
+local clearIndex
+for clearIndex = 1, #fixtures.PROFILES do
+    registerClearTests(fixtures.PROFILES[clearIndex])
+end

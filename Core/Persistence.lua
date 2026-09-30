@@ -1,7 +1,9 @@
 local _, addon = ...
 
 local Persistence = {
-    LATEST_SCHEMA_VERSION = 2,
+    LATEST_SCHEMA_VERSION = 3,
+    -- Resolved payment operation ids kept to refuse a replayed confirmation.
+    MAX_RESOLVED_PAYMENTS = 20,
     MAX_SAFE_INTEGER = 9007199254740991,
 }
 addon.Persistence = Persistence
@@ -100,7 +102,10 @@ local function newCharacter(identity)
         outstandingCopper = 0,
         fractionalRemainder = 0,
         chatFeedback = true,
+        autoDeposit = true,
         sources = defaultSources(),
+        resolvedPayments = {},
+        paymentSequence = 0,
     }
 end
 
@@ -111,8 +116,28 @@ local function migrateVersion1To2(database)
     database.schemaVersion = 2
 end
 
+-- Version 3 adds per-character payment idempotency state: the one pending
+-- payment intent (absent when none) and recently resolved operation ids.
+local function migrateVersion2To3(database)
+    if type(database.characters) == "table" then
+        local _, character
+        for _, character in pairs(database.characters) do
+            if type(character) == "table" then
+                if character.resolvedPayments == nil then
+                    character.resolvedPayments = {}
+                end
+                if character.paymentSequence == nil then
+                    character.paymentSequence = 0
+                end
+            end
+        end
+    end
+    database.schemaVersion = 3
+end
+
 local MIGRATIONS = {
     [1] = migrateVersion1To2,
+    [2] = migrateVersion2To3,
 }
 
 local function validateQuarantine(database)
@@ -232,6 +257,11 @@ local function repairConfiguration(character, characterKey, report)
         recordRepair(report, characterKey, "chatFeedback")
     end
 
+    if type(character.autoDeposit) ~= "boolean" then
+        character.autoDeposit = true
+        recordRepair(report, characterKey, "autoDeposit")
+    end
+
     if type(character.sources) ~= "table" then
         character.sources = defaultSources()
         recordRepair(report, characterKey, "sources")
@@ -244,6 +274,65 @@ local function repairConfiguration(character, characterKey, report)
             character.sources[source] = defaultValue
             recordRepair(report, characterKey, "sources." .. source)
         end
+    end
+end
+
+local PAYMENT_METHODS = { automatic = true, button = true, manual = true }
+
+local function isText(value)
+    return type(value) == "string" and value ~= ""
+end
+
+local function isGuildSnapshot(guild)
+    return type(guild) == "table"
+        and isText(guild.name)
+        and isText(guild.realm)
+        and (guild.id == nil or isText(guild.id))
+end
+
+function Persistence.IsPendingPayment(intent)
+    return type(intent) == "table"
+        and isText(intent.operationId)
+        and isSafeInteger(intent.amount) and intent.amount > 0
+        and PAYMENT_METHODS[intent.method] == true
+        and type(intent.character) == "table" and isText(intent.character.key)
+        and isGuildSnapshot(intent.guild)
+        and isSafeInteger(intent.moneyBefore)
+        and type(intent.createdAt) == "number"
+        and intent.status == "pending"
+end
+
+-- An unreadable payment record is dropped: without it the balance stays
+-- unchanged, which a later payment can always fix.
+local function repairPayments(character, characterKey, report)
+    if character.pendingPayment ~= nil
+        and not Persistence.IsPendingPayment(character.pendingPayment)
+    then
+        character.pendingPayment = nil
+        recordRepair(report, characterKey, "pendingPayment")
+    end
+
+    local resolved = character.resolvedPayments
+    local valid = type(resolved) == "table" and #resolved <= Persistence.MAX_RESOLVED_PAYMENTS
+    if valid then
+        local count = 0
+        local key, value
+        for key, value in pairs(resolved) do
+            count = count + 1
+            if type(key) ~= "number" or not isText(value) then
+                valid = false
+            end
+        end
+        valid = valid and count == #resolved
+    end
+    if not valid then
+        character.resolvedPayments = {}
+        recordRepair(report, characterKey, "resolvedPayments")
+    end
+
+    if not isSafeInteger(character.paymentSequence) then
+        character.paymentSequence = 0
+        recordRepair(report, characterKey, "paymentSequence")
     end
 end
 
@@ -282,6 +371,7 @@ local function validateCharacters(database, report, context)
             end
             repairIdentity(character, characterKey, report, currentCharacter)
             repairConfiguration(character, characterKey, report)
+            repairPayments(character, characterKey, report)
         end
     end
 

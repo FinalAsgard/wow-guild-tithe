@@ -39,6 +39,39 @@ local function registeredFor(world, eventName)
 end
 
 local function registerProfileTests(profile)
+    test.test(profile .. " dev trace records guild-bank calls, blocks, and the add-on's messages", function()
+        local world = fixtures.newEnvironment(profile, { money = 100000 })
+        world.environment.GetTime = function()
+            return 100.5
+        end
+        fixtures.installTransferCalls(world, {})
+        local addon = fixtures.loadAddon(world, DEV)
+        fixtures.fire(world, "ADDON_LOADED", DEV)
+        world.playerReady = true
+        fixtures.fire(world, "PLAYER_LOGIN")
+        local character = world.environment.AsgardsGuildTitheDevDB.characters["jaina-camelot"]
+        character.outstandingCopper = 5000
+        trace(world, "start")
+
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        fixtures.advance(world, 1)
+        fixtures.fire(world, "ADDON_ACTION_BLOCKED", DEV, "SomeCall()")
+        world.environment.WithdrawGuildBankMoney(700)
+        fixtures.setMoney(world, 95000)
+
+        local found = {}
+        local index
+        for index = 1, #entries(world) do
+            local entry = entries(world)[index]
+            found[entry.kind .. ":" .. entry.name] = entry
+        end
+        test.assertEqual(5000, found["call:DepositGuildBankMoney"].args[1])
+        test.assertEqual(700, found["call:WithdrawGuildBankMoney"].args[1])
+        test.assertEqual("SomeCall()", found["event:ADDON_ACTION_BLOCKED"].args[2])
+        test.assertContains(found["chat:message"].args[1], "deposited 0g 50s 00c")
+        test.assertEqual(0, character.outstandingCopper)
+    end)
+
     test.test(profile .. " production build has no trace command or trace data", function()
         local world = fixtures.newEnvironment(profile)
         local addon = fixtures.login(world)

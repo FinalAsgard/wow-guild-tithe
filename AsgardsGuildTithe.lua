@@ -11,7 +11,7 @@ router:Register("help", "show available commands", function()
     client:Print(addon.Identity.displayName .. ": client - " .. clientProfile.label .. ".")
 end)
 
-local state, titheService, settingsController, incomeObserver
+local state, titheService, settingsController, incomeObserver, tithePayment
 if clientProfile.supported then
     state = addon.CharacterState.Create(client)
     titheService = addon.TitheService.Create(state, addon.Accounting)
@@ -29,6 +29,18 @@ if clientProfile.supported then
         incomeFeedback
     )
     incomeObserver = addon.IncomeObserver.Create(client, incomeCoordinator)
+    tithePayment = addon.TithePayment.Create(client, state, addon.MoneyFormatter)
+    router:Register("clear", "clear the current tithe balance", function()
+        local character = state:GetCurrentCharacter()
+        if character == nil or not state:SetFinancialState(0, 0) then
+            client:Print(addon.Identity.displayName ..
+                ": your tithe balance is unavailable, so nothing was cleared.")
+            return
+        end
+        client:Print(addon.Identity.displayName .. ": cleared your tithe balance (was " ..
+            addon.MoneyFormatter.Format(character.outstandingCopper) .. ").")
+        tithePayment:RefreshOffer()
+    end)
 else
     -- Never touch saved character data on a client we cannot identify.
     client:Print(addon.Identity.displayName .. ": this game client is not supported (" ..
@@ -70,7 +82,8 @@ local lifecycle = addon.Lifecycle.Create(
     router,
     state,
     settingsController,
-    incomeObserver
+    incomeObserver,
+    tithePayment
 )
 
 addon.client = client
@@ -81,6 +94,7 @@ addon.lifecycle = lifecycle
 addon.router = router
 addon.settingsController = settingsController
 addon.state = state
+addon.tithePayment = tithePayment
 addon.titheService = titheService
 
 lifecycle:Start()

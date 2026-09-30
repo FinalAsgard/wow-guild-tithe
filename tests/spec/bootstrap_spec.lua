@@ -16,6 +16,7 @@ local MANIFEST_FILES = {
     "Core/IncomeCoordinator.lua",
     "Core/IncomeCorrelator.lua",
     "Core/IncomeObserver.lua",
+    "Core/TithePayment.lua",
     "Core/Lifecycle.lua",
     "AsgardsGuildTithe.lua",
 }
@@ -266,7 +267,7 @@ local function registerBootstrapTest(variant)
         frame.handler(frame, "PLAYER_LOGIN")
 
         local database = environment[variant.databaseName]
-        test.assertEqual(2, database.schemaVersion)
+        test.assertEqual(3, database.schemaVersion)
         test.assertEqual("table", type(database.characters["jaina-camelot"]))
         test.assertEqual(otherVariantDatabase, environment[variant.otherDatabaseName])
         test.assertEqual(legacyDatabase, environment.GuildTitheDB)
@@ -289,10 +290,21 @@ local function registerBootstrapTest(variant)
         test.assertEqual(0, #messages)
         test.assertEqual(variant.client == "Forever" and "forever" or "retail", addon.clientProfile.id)
         test.assertTrue(addon.lifecycle.incomeReady)
-        -- Income tracking adds a money frame and a source-context frame.
-        test.assertEqual(3, #frames)
-        test.assertTrue(frames[2].registeredEvents.PLAYER_MONEY)
-        test.assertTrue(frames[3].registeredEvents.LOOT_OPENED)
+        test.assertTrue(addon.lifecycle.paymentReady)
+        -- Income tracking and guild-bank payments register their own frames
+        -- once character state is ready.
+        local function registered(eventName)
+            local index
+            for index = 1, #frames do
+                if frames[index].registeredEvents[eventName] then
+                    return true
+                end
+            end
+            return false
+        end
+        test.assertTrue(registered("PLAYER_MONEY"))
+        test.assertTrue(registered("LOOT_OPENED"))
+        test.assertTrue(registered("GUILDBANKFRAME_OPENED"))
     end)
 end
 

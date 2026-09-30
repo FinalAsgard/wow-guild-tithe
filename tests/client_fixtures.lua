@@ -36,10 +36,65 @@ local function newFrame(world)
     function frame:UnregisterAllEvents()
         self.registeredEvents = {}
     end
-    function frame:SetScript(_, handler)
-        self.handler = handler
+    -- OnEvent is kept as `handler` for event delivery; every script is also
+    -- kept by name so tests can click buttons.
+    frame.scripts = {}
+    function frame:SetScript(scriptName, handler)
+        self.scripts[scriptName] = handler
+        if scriptName == "OnEvent" then
+            self.handler = handler
+        end
+    end
+    -- The small part of the widget API the add-on's panels use.
+    frame.shown = true
+    function frame:Show()
+        self.shown = true
+    end
+    function frame:Hide()
+        self.shown = false
+    end
+    function frame:IsShown()
+        return self.shown
+    end
+    function frame:SetText(text)
+        self.text = text
+    end
+    function frame:SetSize() end
+    function frame:SetPoint(point, relativeTo, relativePoint)
+        self.point = { point, relativeTo, relativePoint }
+    end
+    function frame:ClearAllPoints()
+        self.point = nil
+    end
+    function frame:SetParent(parent)
+        self.parent = parent
+    end
+    function frame:SetFrameStrata(strata)
+        self.strata = strata
+    end
+    function frame:SetMotionScriptsWhileDisabled(enabled)
+        self.motionWhileDisabled = enabled
+    end
+    frame.enabled = true
+    function frame:Enable()
+        self.enabled = true
+    end
+    function frame:Disable()
+        self.enabled = false
+    end
+    function frame:SetJustifyH() end
+    function frame:CreateFontString()
+        return newFrame(world)
     end
     return frame
+end
+
+-- Clicks a button created by the add-on.
+function Fixtures.click(button)
+    local onClick = button.scripts.OnClick
+    if onClick ~= nil then
+        onClick(button)
+    end
 end
 
 -- The native Settings surface both clients expose for add-on categories.
@@ -201,6 +256,9 @@ function Fixtures.newEnvironment(profile, options)
         GetTime = function()
             return world.now
         end,
+        GetServerTime = function()
+            return 1790000000 + world.now
+        end,
         IsLoggedIn = function()
             return false
         end,
@@ -224,6 +282,29 @@ function Fixtures.newEnvironment(profile, options)
     if options.guildApi ~= false then
         environment.IsInGuild = function()
             return world.inGuild
+        end
+        -- GetGuildInfo reports no realm for a guild on the player's realm.
+        world.guildName = options.guildName or "Knights of Camelot"
+        environment.GetGuildInfo = function()
+            if not world.inGuild then
+                return nil
+            end
+            return world.guildName, "Member", 3, world.guildRealm
+        end
+        -- `world.guildClubId` stands in for the stable id newer clients expose.
+        environment.C_Club = {
+            GetGuildClubId = function()
+                return world.inGuild and world.guildClubId or nil
+            end,
+        }
+        -- Records deposit requests; `world.depositError` makes the call fail.
+        -- The money itself moves only when a test changes carried money.
+        world.deposits = {}
+        environment.DepositGuildBankMoney = function(copper)
+            if world.depositError then
+                error(world.depositError)
+            end
+            table.insert(world.deposits, copper)
         end
     end
     if options.settings ~= false then

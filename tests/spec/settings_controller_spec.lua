@@ -186,6 +186,11 @@ local PREFERENCE_CASES = {
         field = "chatFeedback",
         defaultValue = true,
     },
+    {
+        variable = "AsgardsGuildTithe_AutoDeposit",
+        field = "autoDeposit",
+        defaultValue = true,
+    },
 }
 
 local function preferenceValue(character, preference)
@@ -247,7 +252,7 @@ test.test("settings display the formatted balance read-only and hide the remaind
         "Tithe - Current balance: 12g 34s 56c",
         api.balanceHeading
     )
-    test.assertEqual(3, #api.layout.initializers)
+    test.assertEqual(4, #api.layout.initializers)
     test.assertEqual(nil, api.bindings.AsgardsGuildTithe_Balance)
     test.assertFalse(string.find(api.balanceHeading, "78", 1, true) ~= nil)
 end)
@@ -280,8 +285,8 @@ test.test("settings expose all source and chat preferences with fresh-character 
     local controller = createController(addon, newEnvironment("Tyrande", "Camelot", nil, api))
 
     test.assertTrue(controller:Register())
-    test.assertEqual(8, #api.checkboxes)
-    test.assertEqual(3, #api.sectionHeadings)
+    test.assertEqual(9, #api.checkboxes)
+    test.assertEqual(4, #api.sectionHeadings)
     test.assertContains(api.sectionHeadings[1], "Tithe")
     test.assertEqual("Income Sources", api.sectionHeadings[2])
     test.assertEqual("Feedback", api.sectionHeadings[3])
@@ -289,6 +294,13 @@ test.test("settings expose all source and chat preferences with fresh-character 
     test.assertContains(api.events[4], "Source_Loot")
     test.assertContains(api.events[11], "Feedback")
     test.assertContains(api.events[12], "ChatFeedback")
+    test.assertEqual("Guild Bank", api.sectionHeadings[4])
+    test.assertContains(api.events[13], "Guild Bank")
+    test.assertContains(api.events[14], "AutoDeposit")
+    local autoDeposit = api.checkboxes[9]
+    test.assertEqual("AsgardsGuildTithe_AutoDeposit", autoDeposit.setting.variable)
+    test.assertContains(autoDeposit.tooltip, "open the guild bank")
+    test.assertContains(autoDeposit.tooltip, "Give Tithe button")
 
     local index
     for index = 1, #PREFERENCE_CASES do

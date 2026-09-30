@@ -34,6 +34,7 @@ local function completeCharacter(overrides)
         outstandingCopper = 123456,
         fractionalRemainder = 78,
         chatFeedback = false,
+        autoDeposit = false,
         sources = {
             auctions = true,
             loot = false,
@@ -90,7 +91,7 @@ local function createStore(addon, environment)
     return addon.Persistence.Create(addon.Compatibility.Create(environment))
 end
 
-test.test("schema one migrates to schema two without losing recognized or display data", function()
+test.test("schema one migrates to the latest schema without losing recognized or display data", function()
     local addon = loadPersistenceModules()
     local character = completeCharacter()
     local environment = newEnvironment("Jaina", "Camelot", {
@@ -104,9 +105,10 @@ test.test("schema one migrates to schema two without losing recognized or displa
 
     local database, report = store:Load()
 
-    test.assertEqual(2, database.schemaVersion)
+    test.assertEqual(3, database.schemaVersion)
     test.assertEqual("1 -> 2", report.migrations[1])
-    test.assertEqual(1, #report.migrations)
+    test.assertEqual("2 -> 3", report.migrations[2])
+    test.assertEqual(2, #report.migrations)
     test.assertEqual(0, #report.repairedFields)
     test.assertEqual(37, database.characters["jaina-camelot"].percentage)
     test.assertEqual(123456, database.characters["jaina-camelot"].outstandingCopper)
@@ -430,4 +432,206 @@ test.test("repaired state survives a reload round trip without further changes",
     test.assertEqual(7654321, character.outstandingCopper)
     test.assertEqual(9, character.fractionalRemainder)
     test.assertEqual(0, #reloaded:GetPersistenceReport().repairedFields)
+end)
+
+local function pendingPayment(overrides)
+    local intent = {
+        operationId = "jaina-camelot:1790001000:1",
+        amount = 5000,
+        method = "button",
+        character = { key = "jaina-camelot", name = "Jaina", realm = "Camelot" },
+        guild = { name = "Knights of Camelot", realm = "Camelot" },
+        moneyBefore = 100000,
+        createdAt = 1790001000,
+        status = "pending",
+    }
+    local key, value
+    for key, value in pairs(overrides or {}) do
+        intent[key] = value
+    end
+    return intent
+end
+
+test.test("schema two migrates to schema three with empty payment state", function()
+    local addon = loadPersistenceModules()
+    local character = completeCharacter()
+    local environment = newEnvironment("Jaina", "Camelot", {
+        schemaVersion = 2,
+        characters = { ["jaina-camelot"] = character },
+        quarantinedCharacters = {},
+    })
+
+    local database, report = createStore(addon, environment):Load()
+    local migrated = database.characters["jaina-camelot"]
+
+    test.assertEqual(3, database.schemaVersion)
+    test.assertEqual("2 -> 3", report.migrations[1])
+    test.assertEqual(1, #report.migrations)
+    test.assertEqual(0, #report.repairedFields)
+    test.assertEqual(nil, migrated.pendingPayment)
+    test.assertEqual(0, #migrated.resolvedPayments)
+    test.assertEqual(0, migrated.paymentSequence)
+    test.assertEqual(123456, migrated.outstandingCopper)
+    test.assertEqual(78, migrated.fractionalRemainder)
+    test.assertEqual(3, environment.AsgardsGuildTitheDB.schemaVersion)
+
+    local snapshot = copy(database)
+    local again, againReport = createStore(addon, environment):Load()
+    assertDeepEqual(snapshot, again)
+    test.assertEqual(0, #againReport.migrations)
+    test.assertEqual(0, #againReport.repairedFields)
+end)
+
+test.test("a valid pending payment and resolved ids survive reloads unchanged", function()
+    local addon = loadPersistenceModules()
+    local environment = newEnvironment("Jaina", "Camelot", {
+        schemaVersion = 3,
+        characters = {
+            ["jaina-camelot"] = completeCharacter({
+                pendingPayment = pendingPayment({
+                    guild = { id = "42", name = "Knights of Camelot", realm = "Camelot" },
+                }),
+                resolvedPayments = { "jaina-camelot:1790000000:1" },
+                paymentSequence = 1,
+            }),
+        },
+        quarantinedCharacters = {},
+    })
+    local snapshot = copy(environment.AsgardsGuildTitheDB)
+
+    local database, report = createStore(addon, environment):Load()
+
+    assertDeepEqual(snapshot, database)
+    test.assertEqual(0, #report.repairedFields)
+end)
+
+test.test("unreadable payment state is dropped without touching the balance", function()
+    local addon = loadPersistenceModules()
+    local cases = {
+        { field = "pendingPayment", value = pendingPayment({ amount = 0 }) },
+        { field = "pendingPayment", value = pendingPayment({ method = "wire" }) },
+        { field = "pendingPayment", value = pendingPayment({ status = "confirmed" }) },
+        { field = "pendingPayment", value = pendingPayment({ guild = { name = "Knights" } }) },
+        { field = "pendingPayment", value = "pending" },
+        { field = "resolvedPayments", value = { "ok", 7 } },
+        { field = "resolvedPayments", value = { first = "not a list" } },
+        { field = "paymentSequence", value = -1 },
+    }
+    local index
+    for index = 1, #cases do
+        local case = cases[index]
+        local character = completeCharacter({ resolvedPayments = {}, paymentSequence = 3 })
+        character[case.field] = case.value
+        local environment = newEnvironment("Jaina", "Camelot", {
+            schemaVersion = 3,
+            characters = { ["jaina-camelot"] = character },
+            quarantinedCharacters = {},
+        })
+
+        local database, report = createStore(addon, environment):Load()
+        local repaired = database.characters["jaina-camelot"]
+
+        test.assertEqual(1, #report.repairedFields, "case " .. index)
+        test.assertEqual(case.field, report.repairedFields[1].field, "case " .. index)
+        test.assertEqual(nil, repaired.pendingPayment, "case " .. index)
+        test.assertEqual("table", type(repaired.resolvedPayments), "case " .. index)
+        test.assertEqual(123456, repaired.outstandingCopper, "case " .. index)
+        test.assertEqual(78, repaired.fractionalRemainder, "case " .. index)
+    end
+end)
+
+test.test("the schema after the latest is incompatible without writeback", function()
+    local addon = loadPersistenceModules()
+    local future = {
+        schemaVersion = addon.Persistence.LATEST_SCHEMA_VERSION + 1,
+        characters = { ["jaina-camelot"] = completeCharacter() },
+    }
+    local snapshot = copy(future)
+    local writes = 0
+    local client = {
+        GetAccountDatabase = function()
+            return future
+        end,
+        SetAccountDatabase = function()
+            writes = writes + 1
+            return true
+        end,
+    }
+
+    local database, loadError = addon.Persistence.Create(client):Load()
+
+    test.assertEqual(nil, database)
+    test.assertContains(loadError, "newer")
+    test.assertEqual(0, writes)
+    assertDeepEqual(snapshot, future)
+end)
+
+test.test("a payment resolves once and its operation id is never reused", function()
+    local addon = loadPersistenceModules()
+    local environment = newEnvironment("Jaina", "Camelot", nil)
+    local state = addon.CharacterState.Create(addon.Compatibility.Create(environment))
+    test.assertTrue(state:Initialize())
+    test.assertTrue(state:SetFinancialState(5000, 40))
+
+    local operationId = state:NextPaymentOperationId(1790001000)
+    local intent = pendingPayment({ operationId = operationId })
+    test.assertTrue(state:BeginPayment(intent))
+    test.assertFalse(state:BeginPayment(pendingPayment({ operationId = "other" })))
+
+    test.assertTrue(state:ResolvePayment(operationId, "confirmed", 0, 40))
+    test.assertFalse(state:ResolvePayment(operationId, "confirmed", 0, 40))
+    test.assertEqual(nil, state:GetPendingPayment())
+    test.assertEqual(0, state:GetCurrentCharacter().outstandingCopper)
+
+    -- A replayed intent with a resolved id can never be pending again.
+    test.assertFalse(state:BeginPayment(intent))
+    test.assertTrue(state:NextPaymentOperationId(1790001000) ~= operationId)
+
+    local index
+    for index = 1, addon.Persistence.MAX_RESOLVED_PAYMENTS + 5 do
+        local id = state:NextPaymentOperationId(1790002000)
+        test.assertTrue(state:BeginPayment(pendingPayment({ operationId = id })))
+        test.assertTrue(state:ResolvePayment(id, "expired"))
+    end
+    test.assertEqual(addon.Persistence.MAX_RESOLVED_PAYMENTS,
+        #state:GetCurrentCharacter().resolvedPayments)
+    test.assertEqual(0, state:GetCurrentCharacter().outstandingCopper)
+end)
+
+test.test("existing characters gain auto-deposit on through field repair", function()
+    local addon = loadPersistenceModules()
+    local character = completeCharacter({ resolvedPayments = {}, paymentSequence = 2 })
+    character.autoDeposit = nil
+    local environment = newEnvironment("Jaina", "Camelot", {
+        schemaVersion = 3,
+        characters = { ["jaina-camelot"] = character },
+        quarantinedCharacters = {},
+    })
+
+    local database, report = createStore(addon, environment):Load()
+    local repaired = database.characters["jaina-camelot"]
+
+    test.assertTrue(repaired.autoDeposit)
+    test.assertEqual(1, #report.repairedFields)
+    test.assertEqual("autoDeposit", report.repairedFields[1].field)
+    test.assertEqual(37, repaired.percentage)
+    test.assertFalse(repaired.chatFeedback)
+    test.assertTrue(repaired.sources.auctions)
+    test.assertEqual(123456, repaired.outstandingCopper)
+    test.assertEqual(78, repaired.fractionalRemainder)
+end)
+
+test.test("the auto-deposit setting is saved per character and rejects non-booleans", function()
+    local addon = loadPersistenceModules()
+    local environment = newEnvironment("Jaina", "Camelot", nil)
+    local state = addon.CharacterState.Create(addon.Compatibility.Create(environment))
+    test.assertTrue(state:Initialize())
+    test.assertTrue(state:GetCurrentCharacter().autoDeposit)
+
+    test.assertFalse(state:SetAutoDeposit("no"))
+    test.assertTrue(state:SetAutoDeposit(false))
+
+    local reloaded = addon.CharacterState.Create(addon.Compatibility.Create(environment))
+    test.assertTrue(reloaded:Initialize())
+    test.assertFalse(reloaded:GetCurrentCharacter().autoDeposit)
 end)

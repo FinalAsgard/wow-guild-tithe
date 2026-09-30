@@ -72,6 +72,7 @@ end
 function CharacterState.Create(client, persistence)
     return setmetatable({
         client = client,
+        financialListeners = {},
         initialized = false,
         persistence = persistence or addon.Persistence.Create(client),
     }, State)
@@ -150,6 +151,15 @@ function State:SetChatFeedback(enabled)
     return true
 end
 
+function State:SetAutoDeposit(enabled)
+    if not self.initialized or type(enabled) ~= "boolean" then
+        return false
+    end
+
+    self.character.autoDeposit = enabled
+    return true
+end
+
 function State:SetSourceEnabled(source, enabled)
     if not self.initialized
         or SOURCE_DEFAULTS[source] == nil
@@ -173,5 +183,95 @@ function State:SetFinancialState(outstandingCopper, fractionalRemainder)
 
     self.character.outstandingCopper = outstandingCopper
     self.character.fractionalRemainder = fractionalRemainder
+    local index
+    for index = 1, #self.financialListeners do
+        -- A failing listener must not undo or block a saved balance.
+        pcall(self.financialListeners[index])
+    end
+    return true
+end
+
+-- Calls listener() after every saved change to the balance, whatever its cause.
+function State:OnFinancialChange(listener)
+    if type(listener) == "function" then
+        table.insert(self.financialListeners, listener)
+    end
+end
+
+local function isResolved(character, operationId)
+    local index
+    for index = 1, #character.resolvedPayments do
+        if character.resolvedPayments[index] == operationId then
+            return true
+        end
+    end
+    return false
+end
+
+function State:GetPendingPayment()
+    if not self.initialized or self.character.pendingPayment == nil then
+        return nil
+    end
+
+    return copyTable(self.character.pendingPayment)
+end
+
+-- A new operation id unique among this character's remembered payments.
+function State:NextPaymentOperationId(timestamp)
+    if not self.initialized then
+        return nil
+    end
+
+    local operationId
+    repeat
+        self.character.paymentSequence = self.character.paymentSequence + 1
+        operationId = self.characterKey .. ":" .. tostring(timestamp or 0) .. ":" ..
+            tostring(self.character.paymentSequence)
+    until not isResolved(self.character, operationId)
+    return operationId
+end
+
+-- Saves `intent` as the one pending payment. Refused while another payment
+-- is pending or when the operation id was already resolved.
+function State:BeginPayment(intent)
+    if not self.initialized
+        or self.character.pendingPayment ~= nil
+        or not addon.Persistence.IsPendingPayment(intent)
+        or isResolved(self.character, intent.operationId)
+    then
+        return false
+    end
+
+    self.character.pendingPayment = copyTable(intent)
+    return true
+end
+
+-- Resolves the pending payment `operationId` exactly once. A confirmed
+-- payment saves the reduced balance in the same step, so a replayed signal
+-- or a reload can never apply it twice.
+function State:ResolvePayment(operationId, status, outstandingCopper, fractionalRemainder)
+    if not self.initialized then
+        return false
+    end
+    local pending = self.character.pendingPayment
+    if pending == nil
+        or pending.operationId ~= operationId
+        or isResolved(self.character, operationId)
+    then
+        return false
+    end
+
+    if status == "confirmed" then
+        if not self:SetFinancialState(outstandingCopper, fractionalRemainder) then
+            return false
+        end
+    end
+
+    local resolved = self.character.resolvedPayments
+    table.insert(resolved, operationId)
+    while #resolved > addon.Persistence.MAX_RESOLVED_PAYMENTS do
+        table.remove(resolved, 1)
+    end
+    self.character.pendingPayment = nil
     return true
 end
