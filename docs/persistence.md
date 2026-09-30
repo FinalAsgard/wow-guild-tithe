@@ -186,8 +186,18 @@ example when the leaderboard opens or on a timer, at any point after
 it loads first. There is no change notification, so re-read to pick up new
 donations.
 
-**Which version.** Check `AsgardsGuildTitheDB.schemaVersion == 4` before
-reading, and treat any other value as unavailable rather than guessing.
+**Which version.** Guild Tithe is optional, so it may not be installed and
+`AsgardsGuildTitheDB` may not exist. First check that it is a table, then that
+its `schemaVersion` is 4 and its `donations` is a table. Treat anything else as
+unavailable rather than guessing:
+
+```lua
+local db = AsgardsGuildTitheDB
+if type(db) ~= "table" or db.schemaVersion ~= 4 or type(db.donations) ~= "table" then
+    return nil -- Guild Tithe data is unavailable
+end
+```
+
 Guild Tithe raises `schemaVersion` whenever the donation format changes, and
 this section documents the current one.
 
