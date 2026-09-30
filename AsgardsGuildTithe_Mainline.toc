@@ -2,7 +2,7 @@
 ## Title: Asgard's Guild Tithe
 ## Notes: Tracks a configurable guild tithe.
 ## Author: FinalAsgard
-## Version: 0.1.0
+## Version: @project-version@
 ## SavedVariables: AsgardsGuildTitheDB
 ## X-Client: Retail
 

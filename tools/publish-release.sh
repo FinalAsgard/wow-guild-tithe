@@ -40,6 +40,8 @@ if ! grep -q '^Build type: multi-version' "$work_dir/packager.log"; then
     exit 1
 fi
 
+"$repo_root/tools/check-package.sh" "$work_dir"/release/AsgardsGuildTithe-*.zip
+
 if [ -n "${PUBLISH_DIR:-}" ]; then
     mkdir -p "$PUBLISH_DIR"
     cp "$work_dir"/release/AsgardsGuildTithe-*.zip "$PUBLISH_DIR"/

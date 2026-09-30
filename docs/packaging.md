@@ -35,7 +35,9 @@ uploaded. It fails unless the packager tags the build for both clients
 when:
 
 - a production manifest is missing, or a module it loads is not in the zip
-- the production manifests disagree on `## Version`
+- the production manifests disagree on `## Version`, or still contain an
+  unreplaced `@project-version@` (and, during a release, when the version is not
+  exactly the release tag)
 - a development manifest, test, tool, doc, `ai/`, or CI file was packaged
 - any manifest other than the two production manifests was packaged
 
@@ -68,8 +70,9 @@ CI runs the same script on every pull request in the **Release package** job.
 Publishing a GitHub release publishes the add-on. The **Release** workflow
 (`.github/workflows/release.yml`) runs when a release is published and:
 
-1. checks that the release's tag matches `## Version` in both production
-   manifests (`tools/check-release-tag.sh`), and that **Set as a pre-release**
+1. checks that the release's tag is a valid version and that the production
+   manifests take their version from it (`tools/check-release-tag.sh`), and that
+   **Set as a pre-release**
    matches the tag (checked for `alpha`/`beta` tags, unchecked otherwise);
 2. runs the Lua syntax check and the full test suite;
 3. writes the release notes to `CHANGELOG.md`, so they become the changelog on
@@ -102,24 +105,29 @@ Without both, the upload step fails with a message naming what is missing.
 
 Both are configured for this project: ID `1719265`, and the token secret.
 
+### Versions
+
+The add-on's version comes from the release tag. The production manifests
+declare `## Version: @project-version@`, which the packager replaces with the
+tag (for example `v0.2.0`) when it builds a release. That is the version shown
+in the game's AddOns list and on CurseForge. The development manifests declare
+`dev`. Builds that are not releases, such as those on pull requests, are
+versioned by the packager from the commit instead.
+
 ### Cutting a release
 
 1. Do the checks in **Before a release** above.
-2. Set the new version in all four manifests, and the matching expected
-   `version` values in `tests/spec/bootstrap_spec.lua` (`PRODUCTS`). Each
-   development manifest declares its production version plus `-dev`, including
-   any prerelease suffix (for example `0.2.0-beta1` and `0.2.0-beta1-dev`); the
-   tests enforce this. Merge that change to `main`.
-3. On GitHub, open **Releases → Draft a new release**:
+2. On GitHub, open **Releases → Draft a new release**:
    - **Choose a tag**: type the new tag, for example `v0.2.0`, and create it on
-     `main`. It must match the manifest version with a leading `v`.
+     `main`. This tag is the version: the packager writes it into the
+     production manifests' `## Version`, so nothing needs editing beforehand.
    - **Release title** and **notes**: whatever players should read. The notes
      become the CurseForge changelog.
    - **Set as a pre-release**: check it for `alpha` or `beta` tags (for example
      `v0.2.0-beta1`), which CurseForge lists as alpha or beta files; leave it
      unchecked for a full release.
    - Click **Publish release**. Saving a draft does not start a release.
-4. Watch the **Release** run in the repository's **Actions** tab. The zip is
+3. Watch the **Release** run in the repository's **Actions** tab. The zip is
    attached to the release when it finishes. CurseForge may take a few minutes
    to review and list a new file.
 

@@ -18,13 +18,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.release.tag_name }}
+      # The packaged manifests must carry exactly this version.
+      EXPECTED_VERSION: ${{ github.event.release.tag_name }}
     steps:
       - name: Check out the release tag
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check the tag matches the manifest versions
+      - name: Check the tag is a valid version
         run: tools/check-release-tag.sh "$TAG"
 
       - name: Check the pre-release setting matches the tag
