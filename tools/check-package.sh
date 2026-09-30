@@ -3,7 +3,8 @@
 # module they load must be present, and nothing development-only may ship.
 # Usage: tools/check-package.sh <package.zip>
 # With EXPECTED_VERSION set (the release tag), the packaged manifests must
-# declare exactly that version.
+# declare exactly that version. With FOREVER_INTERFACE and RETAIL_INTERFACE
+# set (the release's game versions), each manifest must declare exactly those.
 set -euo pipefail
 
 zip_path="${1:?usage: tools/check-package.sh <package.zip>}"
@@ -41,6 +42,18 @@ for manifest in "${production_manifests[@]}"; do
 
     contents="$(unzip -p "$zip_path" "$path" | tr -d '\r')"
     manifest_versions+=("$(printf '%s\n' "$contents" | sed -n 's/^## Version:[[:space:]]*//p')")
+
+    expected_interface=""
+    case "$manifest" in
+        *_Camelot.toc) expected_interface="${FOREVER_INTERFACE:-}" ;;
+        *_Mainline.toc) expected_interface="${RETAIL_INTERFACE:-}" ;;
+    esac
+    if [ -n "$expected_interface" ]; then
+        packaged_interface="$(printf '%s\n' "$contents" | sed -n 's/^## Interface:[[:space:]]*//p' | tr -d '[:space:]')"
+        if [ "$packaged_interface" != "$(printf '%s' "$expected_interface" | tr -d '[:space:]')" ]; then
+            fail "$manifest declares interface $packaged_interface, not the release's $expected_interface"
+        fi
+    fi
 
     while IFS= read -r module; do
         [ -z "$module" ] && continue
