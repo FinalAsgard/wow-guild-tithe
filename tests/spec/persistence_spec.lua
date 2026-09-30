@@ -105,10 +105,11 @@ test.test("schema one migrates to the latest schema without losing recognized or
 
     local database, report = store:Load()
 
-    test.assertEqual(3, database.schemaVersion)
+    test.assertEqual(4, database.schemaVersion)
     test.assertEqual("1 -> 2", report.migrations[1])
     test.assertEqual("2 -> 3", report.migrations[2])
-    test.assertEqual(2, #report.migrations)
+    test.assertEqual("3 -> 4", report.migrations[3])
+    test.assertEqual(3, #report.migrations)
     test.assertEqual(0, #report.repairedFields)
     test.assertEqual(37, database.characters["jaina-camelot"].percentage)
     test.assertEqual(123456, database.characters["jaina-camelot"].outstandingCopper)
@@ -452,7 +453,7 @@ local function pendingPayment(overrides)
     return intent
 end
 
-test.test("schema two migrates to schema three with empty payment state", function()
+test.test("schema two migrates forward with empty payment state", function()
     local addon = loadPersistenceModules()
     local character = completeCharacter()
     local environment = newEnvironment("Jaina", "Camelot", {
@@ -464,16 +465,17 @@ test.test("schema two migrates to schema three with empty payment state", functi
     local database, report = createStore(addon, environment):Load()
     local migrated = database.characters["jaina-camelot"]
 
-    test.assertEqual(3, database.schemaVersion)
+    test.assertEqual(4, database.schemaVersion)
     test.assertEqual("2 -> 3", report.migrations[1])
-    test.assertEqual(1, #report.migrations)
+    test.assertEqual("3 -> 4", report.migrations[2])
+    test.assertEqual(2, #report.migrations)
     test.assertEqual(0, #report.repairedFields)
     test.assertEqual(nil, migrated.pendingPayment)
     test.assertEqual(0, #migrated.resolvedPayments)
     test.assertEqual(0, migrated.paymentSequence)
     test.assertEqual(123456, migrated.outstandingCopper)
     test.assertEqual(78, migrated.fractionalRemainder)
-    test.assertEqual(3, environment.AsgardsGuildTitheDB.schemaVersion)
+    test.assertEqual(4, environment.AsgardsGuildTitheDB.schemaVersion)
 
     local snapshot = copy(database)
     local again, againReport = createStore(addon, environment):Load()
@@ -485,7 +487,9 @@ end)
 test.test("a valid pending payment and resolved ids survive reloads unchanged", function()
     local addon = loadPersistenceModules()
     local environment = newEnvironment("Jaina", "Camelot", {
-        schemaVersion = 3,
+        schemaVersion = 4,
+        donations = {},
+        quarantinedDonations = {},
         characters = {
             ["jaina-camelot"] = completeCharacter({
                 pendingPayment = pendingPayment({

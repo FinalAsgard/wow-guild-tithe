@@ -17,6 +17,7 @@ local MANIFEST_FILES = {
     "Core/IncomeCorrelator.lua",
     "Core/IncomeObserver.lua",
     "Core/TithePayment.lua",
+    "Core/DonationLedger.lua",
     "Core/Lifecycle.lua",
     "AsgardsGuildTithe.lua",
 }
@@ -267,7 +268,7 @@ local function registerBootstrapTest(variant)
         frame.handler(frame, "PLAYER_LOGIN")
 
         local database = environment[variant.databaseName]
-        test.assertEqual(3, database.schemaVersion)
+        test.assertEqual(4, database.schemaVersion)
         test.assertEqual("table", type(database.characters["jaina-camelot"]))
         test.assertEqual(otherVariantDatabase, environment[variant.otherDatabaseName])
         test.assertEqual(legacyDatabase, environment.GuildTitheDB)

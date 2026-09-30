@@ -11,11 +11,15 @@ router:Register("help", "show available commands", function()
     client:Print(addon.Identity.displayName .. ": client - " .. clientProfile.label .. ".")
 end)
 
-local state, titheService, settingsController, incomeObserver, tithePayment
+local state, titheService, settingsController, incomeObserver, tithePayment, donationLedger
 if clientProfile.supported then
     state = addon.CharacterState.Create(client)
+    donationLedger = addon.DonationLedger.Create(function()
+        return state:GetDonationRecords()
+    end)
     titheService = addon.TitheService.Create(state, addon.Accounting)
-    settingsController = addon.SettingsController.Create(client, state, addon.MoneyFormatter)
+    settingsController = addon.SettingsController.Create(client, state, addon.MoneyFormatter,
+        donationLedger)
     settingsController:RegisterCommands(router)
     local incomeFeedback = addon.IncomeFeedback.Create(function(message)
         client:Print(message)
@@ -30,6 +34,10 @@ if clientProfile.supported then
     )
     incomeObserver = addon.IncomeObserver.Create(client, incomeCoordinator)
     tithePayment = addon.TithePayment.Create(client, state, addon.MoneyFormatter)
+    -- Only confirmed payments reach the ledger; nothing else can append.
+    tithePayment:OnDonation(function(donation)
+        donationLedger:Append(donation)
+    end)
     router:Register("clear", "clear the current tithe balance", function()
         local character = state:GetCurrentCharacter()
         if character == nil or not state:SetFinancialState(0, 0) then
@@ -88,6 +96,7 @@ local lifecycle = addon.Lifecycle.Create(
 
 addon.client = client
 addon.clientProfile = clientProfile
+addon.donationLedger = donationLedger
 addon.eventTrace = eventTrace
 addon.incomeObserver = incomeObserver
 addon.lifecycle = lifecycle

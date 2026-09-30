@@ -275,3 +275,12 @@ function State:ResolvePayment(operationId, status, outstandingCopper, fractional
     self.character.pendingPayment = nil
     return true
 end
+
+-- The account-wide donation list shared by every character, or nil before
+-- state is ready. Only the donation ledger writes to it.
+function State:GetDonationRecords()
+    if not self.initialized or type(self.persistence.GetDonations) ~= "function" then
+        return nil
+    end
+    return self.persistence:GetDonations()
+end

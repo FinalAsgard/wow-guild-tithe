@@ -178,12 +178,21 @@ local function buildAutoDepositCheckbox(state)
     }
 end
 
-function SettingsController.Create(client, state, formatter)
+-- `ledger` (optional) supplies the account-wide lifetime total.
+function SettingsController.Create(client, state, formatter, ledger)
     return setmetatable({
         client = client,
         formatter = formatter or addon.MoneyFormatter,
+        ledger = ledger,
         state = state,
     }, Controller)
+end
+
+function Controller:LifetimeText()
+    if self.ledger == nil then
+        return nil
+    end
+    return self.formatter.Format(self.ledger:Totals().overall)
 end
 
 function Controller:Register()
@@ -198,6 +207,7 @@ function Controller:Register()
     local category = self.client:RegisterSettingsCategory({
         categoryName = addon.Identity.displayName,
         balanceText = balanceText,
+        lifetimeText = self:LifetimeText(),
         percentage = {
             variable = addon.Identity.settingsPrefix .. "_Percentage",
             label = "Tithe percentage",
@@ -241,7 +251,23 @@ function Controller:Register()
             self:RefreshBalance()
         end)
     end
+    if self.ledger ~= nil then
+        self.ledger:OnAppend(function()
+            self:RefreshLifetime()
+        end)
+    end
     return true
+end
+
+function Controller:RefreshLifetime()
+    local lifetimeText = self:LifetimeText()
+    if self.category == nil
+        or lifetimeText == nil
+        or type(self.client.RefreshSettingsLifetime) ~= "function"
+    then
+        return false
+    end
+    return self.client:RefreshSettingsLifetime(self.category, lifetimeText)
 end
 
 function Controller:RefreshBalance()
@@ -259,6 +285,7 @@ end
 
 function Controller:Open()
     self:RefreshBalance()
+    self:RefreshLifetime()
 
     if self.category ~= nil and self.client:OpenSettingsCategory(self.category) then
         return true

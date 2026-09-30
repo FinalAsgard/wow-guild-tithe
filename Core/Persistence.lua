@@ -1,7 +1,7 @@
 local _, addon = ...
 
 local Persistence = {
-    LATEST_SCHEMA_VERSION = 3,
+    LATEST_SCHEMA_VERSION = 4,
     -- Resolved payment operation ids kept to refuse a replayed confirmation.
     MAX_RESOLVED_PAYMENTS = 20,
     MAX_SAFE_INTEGER = 9007199254740991,
@@ -77,6 +77,7 @@ local function newReport(schemaVersion)
         migrations = {},
         repairedFields = {},
         quarantinedCharacters = {},
+        quarantinedDonations = {},
     }
 end
 
@@ -135,9 +136,22 @@ local function migrateVersion2To3(database)
     database.schemaVersion = 3
 end
 
+-- Version 4 adds the account-wide donation ledger and a quarantine for
+-- entries that cannot be read.
+local function migrateVersion3To4(database)
+    if database.donations == nil then
+        database.donations = {}
+    end
+    if database.quarantinedDonations == nil then
+        database.quarantinedDonations = {}
+    end
+    database.schemaVersion = 4
+end
+
 local MIGRATIONS = {
     [1] = migrateVersion1To2,
     [2] = migrateVersion2To3,
+    [3] = migrateVersion3To4,
 }
 
 local function validateQuarantine(database)
@@ -336,6 +350,82 @@ local function repairPayments(character, characterKey, report)
     end
 end
 
+local function isOptionalText(value)
+    return value == nil or isText(value)
+end
+
+-- A completed donation as the ledger stores it. Amounts are exact positive
+-- copper; timestamps are non-negative server times.
+function Persistence.IsDonation(entry)
+    return type(entry) == "table"
+        and isText(entry.operationId)
+        and isSafeInteger(entry.amount) and entry.amount > 0
+        and type(entry.timestamp) == "number"
+        and entry.timestamp >= 0
+        and entry.timestamp <= Persistence.MAX_SAFE_INTEGER
+        and PAYMENT_METHODS[entry.method] == true
+        and type(entry.character) == "table"
+        and isText(entry.character.key)
+        and isOptionalText(entry.character.name)
+        and isOptionalText(entry.character.realm)
+        and isOptionalText(entry.character.stableId)
+        and isGuildSnapshot(entry.guild)
+end
+
+local function quarantineDonation(database, report, record, reason)
+    table.insert(database.quarantinedDonations, {
+        reason = reason,
+        record = record,
+        schemaVersion = Persistence.LATEST_SCHEMA_VERSION,
+    })
+    table.insert(report.quarantinedDonations, {
+        operationId = type(record) == "table" and tostring(record.operationId) or nil,
+        reason = reason,
+    })
+end
+
+-- Unreadable or duplicate ledger entries are moved aside intact, never
+-- coerced, so every valid donation stays available and totals stay exact.
+local function validateDonations(database, report)
+    if database.quarantinedDonations == nil then
+        database.quarantinedDonations = {}
+    end
+    if type(database.quarantinedDonations) ~= "table" then
+        return false, "saved data donation quarantine is invalid"
+    end
+
+    if type(database.donations) ~= "table" then
+        quarantineDonation(database, report, database.donations, "donation ledger is not a list")
+        database.donations = {}
+        return true
+    end
+
+    local valid, seen = {}, {}
+    local count = #database.donations
+    local key, entry
+    for key, entry in pairs(database.donations) do
+        if type(key) ~= "number" or key < 1 or key > count or key ~= math.floor(key) then
+            quarantineDonation(database, report, entry, "donation is outside the ledger list")
+        end
+    end
+    local index
+    for index = 1, count do
+        entry = database.donations[index]
+        if not Persistence.IsDonation(entry) then
+            quarantineDonation(database, report, entry, "donation record is invalid")
+        elseif seen[entry.operationId] then
+            quarantineDonation(database, report, entry, "donation operation id is repeated")
+        else
+            seen[entry.operationId] = true
+            table.insert(valid, entry)
+        end
+    end
+    if #report.quarantinedDonations > 0 then
+        database.donations = valid
+    end
+    return true
+end
+
 local function validateCharacters(database, report, context)
     if type(database.characters) ~= "table" then
         return false, "saved data character collection is invalid"
@@ -402,6 +492,8 @@ function Store:Load(context)
             schemaVersion = Persistence.LATEST_SCHEMA_VERSION,
             characters = {},
             quarantinedCharacters = {},
+            donations = {},
+            quarantinedDonations = {},
         }
         if self.client:SetAccountDatabase(database) ~= true then
             return nil, "new saved data could not be stored"
@@ -459,6 +551,11 @@ function Store:Load(context)
         return nil, charactersError
     end
 
+    local donationsOk, donationsError = validateDonations(database, report)
+    if not donationsOk then
+        return nil, donationsError
+    end
+
     if self.client:SetAccountDatabase(database) ~= true then
         return nil, "validated saved data could not be stored"
     end
@@ -494,4 +591,12 @@ function Store:GetReport()
     end
 
     return copyValue(self.report)
+end
+
+-- The live account-wide donation list, newest last, or nil before Load.
+function Store:GetDonations()
+    if self.database == nil then
+        return nil
+    end
+    return self.database.donations
 end

@@ -55,9 +55,10 @@ local function registerProfileTests(profile)
             table.insert(headings, settings.layout.initializers[index]:GetData().name)
         end
         test.assertContains(headings[1], "Current balance: 0g 00s 00c")
-        test.assertEqual("Income Sources", headings[2])
-        test.assertEqual("Feedback", headings[3])
-        test.assertEqual("Guild Bank", headings[4])
+        test.assertEqual("Tithe - Lifetime given: 0g 00s 00c", headings[2])
+        test.assertEqual("Income Sources", headings[3])
+        test.assertEqual("Feedback", headings[4])
+        test.assertEqual("Guild Bank", headings[5])
 
         -- Only the percentage and the eight preferences are editable.
         test.assertEqual(1 + #CHECKBOX_VARIABLES, #settings.bindingOrder)
@@ -204,7 +205,7 @@ local function registerClearTests(profile)
             self.text = text
         end
         function other:GetElementData()
-            return world.settings.layout.initializers[2]
+            return world.settings.layout.initializers[3]
         end
         world.environment.SettingsPanel = {
             GetSettingsList = function()

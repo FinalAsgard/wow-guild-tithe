@@ -319,6 +319,7 @@ function Payment:BeginPending(amount, method, guild)
             key = self.state:GetCharacterKey(),
             name = identity.displayName,
             realm = identity.displayRealm,
+            stableId = identity.stableId,
         },
         guild = guild,
         moneyBefore = moneyBefore,
@@ -460,6 +461,7 @@ function Payment:Publish(intent)
             key = intent.character.key,
             name = intent.character.name,
             realm = intent.character.realm,
+            stableId = intent.character.stableId,
         },
         guild = {
             id = intent.guild.id,

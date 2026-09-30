@@ -7,13 +7,13 @@ only through `Adapters/WoW.lua`. `Core/Persistence.lua` is the single loading,
 migration, and validation boundary used by character state. Settings and
 accounting receive state only after that boundary succeeds.
 
-## Current schema: version 3
+## Current schema: version 4
 
 The persisted shape is:
 
 ```lua
 AsgardsGuildTitheDB = {
-    schemaVersion = 3,
+    schemaVersion = 4,
     characters = {
         ["normalizedname-normalizedrealm"] = {
             identity = {
@@ -54,9 +54,25 @@ AsgardsGuildTitheDB = {
             {
                 reason = "diagnostic text",
                 record = {}, -- preserved original record
-                schemaVersion = 3,
+                schemaVersion = 4,
             },
         },
+    },
+    -- Account-wide, append-only record of completed donations.
+    donations = {
+        {
+            operationId = "jaina-camelot:1790001000:1",
+            timestamp = 1790001004,     -- server time
+            amount = 5000,              -- exact copper, always positive
+            method = "button",          -- "automatic", "button", or "manual"
+            character = { key = "jaina-camelot", name = "Jaina", realm = "Camelot",
+                stableId = "Player-7" },  -- stableId optional
+            guild = { id = "42", name = "Guild", realm = "Realm" }, -- id optional
+        },
+    },
+    -- Ledger entries that could not be read, kept intact.
+    quarantinedDonations = {
+        { reason = "diagnostic text", record = {}, schemaVersion = 4 },
     },
 }
 ```
@@ -75,7 +91,9 @@ The copy is written back only after migration and full validation succeed.
 - Version 2 to version 3 gives every character record an empty
   `resolvedPayments` list and a `paymentSequence` of 0. No payment is pending
   after the upgrade.
-- Version 3 is validated and repaired without a schema change.
+- Version 3 to version 4 adds an empty account-wide `donations` ledger and an
+  empty `quarantinedDonations` list when absent.
+- Version 4 is validated and repaired without a schema change.
 
 Loading the result again performs no migration and makes no further structural
 or value changes.
@@ -105,7 +123,7 @@ record, so it cannot shadow or block valid characters. Cyclic saved tables are
 rejected before migration or writeback because they cannot be safely represented
 as SavedVariables.
 
-A schema version newer than 3 is incompatible. It is returned as an error before
+A schema version newer than 4 is incompatible. It is returned as an error before
 copying, migration, validation, or writeback, leaving the SavedVariables table
 and all nested values untouched for a newer add-on version to handle.
 
@@ -123,3 +141,24 @@ After a reload, a saved intent is confirmed if carried money already equals
 `moneyBefore - amount`; otherwise it waits for that drop with a fresh timeout.
 Guild identity is compared by stable id when both sides have one and by
 realm-qualified name otherwise.
+
+## Donation ledger
+
+`donations` is shared by every character on the account and is appended to only
+when a guild-bank payment is confirmed (the completed-donation event). The
+operation id is the idempotency key: a donation whose id is already recorded
+adds nothing, before or after a reload. Invalid donations (no id, a zero,
+negative or fractional amount, a bad timestamp, an unknown method, or missing
+character or guild identity) are rejected without writing anything. Income is
+never recorded here.
+
+On load, an unreadable entry, a repeated operation id (the first entry is
+kept), or an entry outside the list is moved intact to `quarantinedDonations`
+with a reason, and every valid entry stays. A `donations` value that is not a
+list is quarantined whole and replaced with an empty list. Amounts are never
+coerced.
+
+Totals are always derived from the entries: an overall total and one total per
+guild. Guilds are grouped by stable id when present, otherwise by
+realm-qualified name (case and spacing ignored), so a rename under the same id
+stays one guild and shows its newest name.
