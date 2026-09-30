@@ -121,5 +121,6 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 
 - **Date:** 2026-09-29
 - **Result:** Signed off by Jon Zenor on both clients: "All testing checks out in retail and Forever." Automatic deposit works and resets the balance to zero, the **Give Tithe** button appears in the guild bank window and works, and `/agt clear` updates the open settings page live. Found during testing and fixed: the offer was hidden under the bank window, the button was missing on the first bank visit after login, and the button now stays disabled instead of disappearing when nothing is owed.
-- **Clients and builds:** WoW Forever 1.60.1 (70058); WoW Retail, build not recorded.
+- **Forever:** interface `16001`, build 1.60.1 (70058), from the in-game trace header captured during this test.
+- **Retail:** interface `120100` (the `_Mainline` manifest target). The build was not reported for this test; the last recorded Retail build is 12.1.0 (69933), from the PRD #2 sign-off.
 - **Signed off by:** Jon Zenor
