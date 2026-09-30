@@ -61,6 +61,7 @@ function Ledger:List()
         self.list = list
         self.byId = nil
         self.sorted = nil
+        self.totals = nil
     end
     return list
 end
@@ -111,6 +112,7 @@ function Ledger:Append(donation)
     table.insert(self.list, entry)
     index[entry.operationId] = entry
     self.sorted = nil
+    self.totals = nil
 
     local copy = copyTable(entry)
     local listenerIndex
@@ -168,13 +170,21 @@ function Ledger:Entries(offset, limit)
 end
 
 -- The overall lifetime total and one total per guild (largest first, then
--- by name), each with the guild's most recent display snapshot.
+-- by name), each with the guild's most recent display snapshot. Totals are
+-- worked out once per change to the ledger and returned as copies.
 function Ledger:Totals()
-    local totals = { overall = 0, guilds = {} }
     local list = self:List()
     if list == nil then
-        return totals
+        return { overall = 0, guilds = {} }
     end
+    if self.totals == nil then
+        self.totals = self:ComputeTotals(list)
+    end
+    return copyTable(self.totals)
+end
+
+function Ledger:ComputeTotals(list)
+    local totals = { overall = 0, guilds = {} }
 
     local byGuild = {}
     local index
