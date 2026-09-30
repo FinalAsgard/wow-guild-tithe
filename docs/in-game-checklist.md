@@ -139,3 +139,11 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 - **Forever:** interface `16001`, build 1.60.1 (70058), from the in-game trace header captured during this test.
 - **Retail:** interface `120100`, build 12.1.0 (69933). Jon confirmed the build is unchanged since the PRD #2 sign-off.
 - **Signed off by:** Jon Zenor
+
+## Donation history sign-off (PRD #5)
+
+- **Date:** 2026-09-30
+- **Result:** Signed off by Jon Zenor on both clients. On Forever: "Everything checks out in Forever!" On Retail: "Testing in retail passed. The new text changes are awesome!" This covers the Donation History tab (the empty state, a live new row, and the reload check) and the reworded chat messages with coin icons. Feedback from the Forever test (shorter chat tag, friendlier wording, coin icons, Lifetime given removed from settings) was fixed in #43 before the Retail test.
+- **Forever:** interface `16001`, build 1.60.1 (70058). The build was not re-reported and is assumed unchanged from the PRD #4 sign-off.
+- **Retail:** interface `120100`, build 12.1.0 (69933). The build was not re-reported and is assumed unchanged from the PRD #4 sign-off.
+- **Signed off by:** Jon Zenor
