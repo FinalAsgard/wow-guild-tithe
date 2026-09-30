@@ -1,6 +1,6 @@
 # Asgard's Guild Tithe
 
-A World of Warcraft add-on for configuring and accounting for a guild tithe. It watches the character's carried money, works out where each gain came from, and reserves the configured percentage of income from the sources you enable. When you open your guild bank, it gives your tithe automatically, or with a **Give Tithe** button in the bank window.
+A World of Warcraft add-on for configuring and accounting for a guild tithe. It watches the character's carried money, works out where each gain came from, and reserves the configured percentage of income from the sources you enable. When you open your guild bank, it gives your tithe automatically, or with a **Give Tithe** button in the bank window. Every confirmed donation is kept in an account-wide history you can review with `/agt history`.
 
 ## Supported clients
 
