@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Builds the tagged release with the BigWigs packager and uploads it to
-# CurseForge (and a GitHub release). Run by the Release workflow when a
-# version tag is pushed; see docs/packaging.md.
+# CurseForge. Run by the Release workflow when a GitHub release is published;
+# see docs/packaging.md.
 # Needs: CF_API_KEY (CurseForge API token) and CURSEFORGE_PROJECT_ID.
-# GITHUB_OAUTH, when set, also publishes a GitHub release.
+# PUBLISH_DIR, when set, receives a copy of the uploaded zip.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,6 +21,11 @@ if [[ ! "$CURSEFORGE_PROJECT_ID" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
+# The packager would rewrite the GitHub release's title and notes with its
+# own changelog, so it never gets a GitHub token; the workflow attaches the
+# zip to the release itself.
+unset GITHUB_OAUTH
+
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 curl -fsSL "https://raw.githubusercontent.com/BigWigsMods/packager/${PACKAGER_COMMIT}/release.sh" \
@@ -33,4 +38,9 @@ bash "$work_dir/release.sh" -t "$repo_root" -r "$work_dir/release" -p "$CURSEFOR
 if ! grep -q '^Build type: multi-version' "$work_dir/packager.log"; then
     echo "The packager did not tag this release for both Forever and Retail." >&2
     exit 1
+fi
+
+if [ -n "${PUBLISH_DIR:-}" ]; then
+    mkdir -p "$PUBLISH_DIR"
+    cp "$work_dir"/release/AsgardsGuildTithe-*.zip "$PUBLISH_DIR"/
 fi
