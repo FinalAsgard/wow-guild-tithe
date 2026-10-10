@@ -1479,5 +1479,25 @@ function Client:RegisterMinimapLauncher(options)
     if not pcall(icons.Register, icons, options.name, dataObject, options.iconState) then
         return false, "the minimap icon could not be created"
     end
+    self.minimapIcons = icons
     return true
+end
+
+-- Shows or hides a minimap icon added by RegisterMinimapLauncher.
+function Client:SetMinimapIconShown(name, shown)
+    local icons = self.minimapIcons
+    if icons == nil then
+        return false
+    end
+    return pcall(shown and icons.Show or icons.Hide, icons, name)
+end
+
+-- Asks a settings control to re-read its value, e.g. after a slash command
+-- changed it while the settings page is open.
+function Client:RefreshSettingValue(variable)
+    local settings = self.environment.Settings
+    if type(settings) ~= "table" or type(settings.NotifyUpdate) ~= "function" then
+        return false
+    end
+    return pcall(settings.NotifyUpdate, variable)
 end

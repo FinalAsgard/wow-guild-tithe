@@ -26,6 +26,7 @@ function Launcher.Create(client, state, formatter, actions)
         client = client,
         formatter = formatter or addon.MoneyFormatter,
         state = state,
+        visibilityListeners = {},
     }, Controller)
 end
 
@@ -100,4 +101,51 @@ function Controller:Start()
         end,
     })
     return self.started
+end
+
+-- Whether the client is showing the icon (the libraries loaded).
+function Controller:IsAvailable()
+    return self.started == true
+end
+
+-- Whether the icon is set to show; it shows by default.
+function Controller:IsShown()
+    local iconState = self.state:GetMinimapState()
+    return type(iconState) ~= "table" or iconState.hide ~= true
+end
+
+-- Saves whether the icon shows on every character and applies it now.
+-- Returns false, changing nothing, when there is no icon to show or hide.
+function Controller:SetShown(shown)
+    if not self:IsAvailable() or not self.state:SetMinimapIconShown(shown) then
+        return false
+    end
+    self.client:SetMinimapIconShown(addon.Identity.addonName, shown)
+    local index
+    for index = 1, #self.visibilityListeners do
+        pcall(self.visibilityListeners[index])
+    end
+    return true
+end
+
+-- Calls listener() after the icon is shown or hidden, however it happened.
+function Controller:OnVisibilityChange(listener)
+    if type(listener) == "function" then
+        table.insert(self.visibilityListeners, listener)
+    end
+end
+
+function Controller:RegisterCommands(router)
+    return router:Register("minimap", "show or hide the minimap icon", function()
+        local shown = not self:IsShown()
+        if not self:SetShown(shown) then
+            self.client:Print(addon.Identity.chatPrefix ..
+                " The minimap icon is unavailable on this client.")
+        elseif shown then
+            self.client:Print(addon.Identity.chatPrefix .. " Minimap icon shown.")
+        else
+            self.client:Print(addon.Identity.chatPrefix .. " Minimap icon hidden. Use " ..
+                addon.Identity.slashCommand .. " minimap to show it again.")
+        end
+    end)
 end

@@ -209,10 +209,43 @@ local function buildAutoDepositCheckbox(state)
     }
 end
 
-function SettingsController.Create(client, state, formatter)
+local MINIMAP_SETTING = {
+    variableSuffix = "MinimapIcon",
+    label = "Show minimap icon",
+    tooltip = "Show the Guild Tithe icon on the minimap on all your characters. " ..
+        "You can also type " .. addon.Identity.slashCommand .. " minimap.",
+    defaultValue = true,
+}
+
+local function minimapVariable()
+    return addon.Identity.settingsPrefix .. "_" .. MINIMAP_SETTING.variableSuffix
+end
+
+local function buildMinimapCheckbox(launcher)
+    return {
+        variable = minimapVariable(),
+        label = MINIMAP_SETTING.label,
+        tooltip = MINIMAP_SETTING.tooltip,
+        defaultValue = MINIMAP_SETTING.defaultValue,
+        getValue = function()
+            return launcher:IsShown()
+        end,
+        setValue = function(value)
+            return launcher:SetShown(value)
+        end,
+        -- Greyed out when this client cannot show the icon.
+        isEnabled = function()
+            return launcher:IsAvailable()
+        end,
+    }
+end
+
+-- `launcher`, when given, adds the Minimap section.
+function SettingsController.Create(client, state, formatter, launcher)
     return setmetatable({
         client = client,
         formatter = formatter or addon.MoneyFormatter,
+        launcher = launcher,
         state = state,
     }, Controller)
 end
@@ -221,6 +254,27 @@ function Controller:Register()
     local balanceText = currentBalance(self.state, self.formatter)
     if self.category ~= nil or balanceText == nil then
         return self.category ~= nil
+    end
+
+    local checkboxSections = {
+        {
+            heading = "Income Sources",
+            checkboxes = buildSourceCheckboxes(self.state),
+        },
+        {
+            heading = "Feedback",
+            checkboxes = { buildChatFeedbackCheckbox(self.state) },
+        },
+        {
+            heading = "Guild Bank",
+            checkboxes = { buildAutoDepositCheckbox(self.state) },
+        },
+    }
+    if self.launcher ~= nil then
+        table.insert(checkboxSections, {
+            heading = "Minimap",
+            checkboxes = { buildMinimapCheckbox(self.launcher) },
+        })
     end
 
     local category = self.client:RegisterSettingsCategory({
@@ -245,20 +299,7 @@ function Controller:Register()
                 return hasGuildSettings(self.state)
             end,
         },
-        checkboxSections = {
-            {
-                heading = "Income Sources",
-                checkboxes = buildSourceCheckboxes(self.state),
-            },
-            {
-                heading = "Feedback",
-                checkboxes = { buildChatFeedbackCheckbox(self.state) },
-            },
-            {
-                heading = "Guild Bank",
-                checkboxes = { buildAutoDepositCheckbox(self.state) },
-            },
-        },
+        checkboxSections = checkboxSections,
     })
 
     if category == nil then
@@ -278,6 +319,12 @@ function Controller:Register()
     if type(self.state.OnGuildSettingsChange) == "function" then
         self.state:OnGuildSettingsChange(function()
             self:RefreshGuild()
+        end)
+    end
+    -- /agt minimap changes the checkbox's value behind the open page.
+    if self.launcher ~= nil and type(self.client.RefreshSettingValue) == "function" then
+        self.launcher:OnVisibilityChange(function()
+            self.client:RefreshSettingValue(minimapVariable())
         end)
     end
     local index

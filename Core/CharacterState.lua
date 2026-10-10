@@ -387,3 +387,13 @@ function State:GetMinimapState()
     end
     return self.persistence:GetMinimapState()
 end
+
+-- Shows or hides the minimap icon on every character of the account.
+function State:SetMinimapIconShown(shown)
+    local iconState = self:GetMinimapState()
+    if type(iconState) ~= "table" or type(shown) ~= "boolean" then
+        return false
+    end
+    iconState.hide = not shown
+    return true
+end

@@ -86,9 +86,11 @@ Run these on both clients.
 3. Left-click the icon and confirm the settings page opens. Right-click it and confirm **Donation History** opens.
 4. Drag the icon to another spot around the minimap, `/reload`, and confirm it stays there. Log in to another character and confirm the icon is in the same spot.
 5. On a guildless character, hover the icon and confirm the tooltip shows the balance and `Not in a guild`, with no guild name or percentage.
+6. In `/agtdev`, confirm a **Minimap** section with **Show minimap icon** checked. Uncheck it and confirm the icon disappears at once; check it and confirm it returns.
+7. Type `/agtdev minimap`. Confirm the icon hides and chat says `Minimap icon hidden. Use /agtdev minimap to show it again.` With the settings page open, confirm **Show minimap icon** is now unchecked (if it only updates after reopening the page, note it). Log in to another character and confirm the icon is hidden there too, then type `/agtdev minimap` again and confirm `Minimap icon shown.` and the icon returns. Confirm `/agtdev help` lists `minimap`.
 
 **When convenient**
-6. With another add-on that also bundles LibDBIcon installed (most minimap-icon add-ons do), confirm both icons appear and no Lua error mentions LibStub, LibDataBroker, or LibDBIcon.
+8. With another add-on that also bundles LibDBIcon installed (most minimap-icon add-ons do), confirm both icons appear and no Lua error mentions LibStub, LibDataBroker, or LibDBIcon.
 
 ## WoW Forever
 

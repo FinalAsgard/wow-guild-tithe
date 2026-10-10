@@ -30,6 +30,13 @@ local function hasLine(lines, text)
     return false
 end
 
+local CHECKBOX = "AsgardsGuildTithe_MinimapIcon"
+
+local function minimap(world)
+    world.environment.SlashCmdList.AGT("minimap")
+    return world.messages[#world.messages]
+end
+
 local function registerProfileTests(profile)
     test.test(profile .. " a fresh install shows the gold-coin icon on the minimap", function()
         local world, addon = login(profile)
@@ -129,6 +136,66 @@ local function registerProfileTests(profile)
         fixtures.setMoney(world, 20000)
         test.assertEqual(2000,
             world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"].outstandingCopper)
+    end)
+
+    test.test(profile .. " the Show minimap icon checkbox hides and shows the icon at once", function()
+        local world = login(profile)
+        local checkbox = world.settings.bindings[CHECKBOX]
+
+        test.assertTrue(checkbox.getValue())
+        test.assertTrue(world.settings.controls[CHECKBOX]:IsEnabled())
+
+        checkbox.setValue(false)
+        test.assertFalse(icon(world).shown)
+        test.assertTrue(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+        test.assertFalse(checkbox.getValue())
+
+        checkbox.setValue(true)
+        test.assertTrue(icon(world).shown)
+        test.assertFalse(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+    end)
+
+    test.test(profile .. " /agt minimap toggles the icon, reports it, and updates the checkbox", function()
+        local world = login(profile)
+        local checkbox = world.settings.bindings[CHECKBOX]
+
+        test.assertContains(minimap(world), "Minimap icon hidden. Use /agt minimap to show it again.")
+        test.assertFalse(icon(world).shown)
+        test.assertFalse(checkbox.getValue())
+        test.assertEqual(1, world.settings.notified[CHECKBOX])
+
+        test.assertContains(minimap(world), "Minimap icon shown.")
+        test.assertTrue(icon(world).shown)
+        test.assertTrue(checkbox.getValue())
+        test.assertEqual(2, world.settings.notified[CHECKBOX])
+
+        world.environment.SlashCmdList.AGT("help")
+        test.assertContains(table.concat(world.messages, "\n"), "minimap")
+    end)
+
+    test.test(profile .. " a hidden icon stays hidden after a reload and on other characters", function()
+        local world = login(profile)
+        minimap(world)
+
+        local alt = login(profile, {
+            database = world.environment.AsgardsGuildTitheDB,
+            playerName = "Thrall",
+        })
+        test.assertFalse(icon(alt).shown)
+        test.assertFalse(alt.settings.bindings[CHECKBOX].getValue())
+
+        test.assertContains(minimap(alt), "Minimap icon shown.")
+        test.assertFalse(alt.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+    end)
+
+    test.test(profile .. " without the icon libraries /agt minimap reports the icon is unavailable", function()
+        local world = login(profile, { libraries = false })
+
+        test.assertContains(minimap(world), "The minimap icon is unavailable on this client.")
+        test.assertFalse(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+        test.assertFalse(world.settings.controls[CHECKBOX]:IsEnabled())
+        test.assertFalse(world.settings.bindings[CHECKBOX].setValue(false) == true)
+        test.assertFalse(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
     end)
 end
 

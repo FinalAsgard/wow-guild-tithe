@@ -48,7 +48,7 @@ Every donation confirmed at the guild bank is recorded in an account-wide histor
 
 ## Minimap icon
 
-A gold-coin icon on the minimap gives quick access to the add-on. Hovering it shows this character's balance and the guild it tithes to with that guild's percentage, or `Not in a guild`. Left-click opens settings and right-click opens donation history. Drag it around the minimap edge to move it; its position is shared by all your characters. The icon uses the bundled LibDataBroker and LibDBIcon libraries; if they cannot load, the add-on works the same without an icon.
+A gold-coin icon on the minimap gives quick access to the add-on. Hovering it shows this character's balance and the guild it tithes to with that guild's percentage, or `Not in a guild`. Left-click opens settings and right-click opens donation history. Drag it around the minimap edge to move it. Hide or show it with **Show minimap icon** in the settings' **Minimap** section, or type `/agt minimap` (which prints whether the icon is now shown or hidden). Its position and whether it shows are shared by all your characters. The icon uses the bundled LibDataBroker and LibDBIcon libraries; if they cannot load, the add-on works the same without an icon.
 
 ## Verify the scaffold
 

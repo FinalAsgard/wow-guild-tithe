@@ -19,7 +19,16 @@ if clientProfile.supported then
         return state:GetDonationRecords()
     end)
     titheService = addon.TitheService.Create(state, addon.Accounting)
-    settingsController = addon.SettingsController.Create(client, state, addon.MoneyFormatter)
+    launcher = addon.Launcher.Create(client, state, addon.MoneyFormatter, {
+        LeftButton = function()
+            settingsController:Open()
+        end,
+        RightButton = function()
+            historyController:Open()
+        end,
+    })
+    launcher:RegisterCommands(router)
+    settingsController = addon.SettingsController.Create(client, state, addon.MoneyFormatter, launcher)
     settingsController:RegisterCommands(router)
     historyController = addon.HistoryController.Create(client, donationLedger, addon.MoneyFormatter)
     historyController:RegisterCommands(router)
@@ -39,14 +48,6 @@ if clientProfile.supported then
     )
     incomeObserver = addon.IncomeObserver.Create(client, incomeCoordinator)
     tithePayment = addon.TithePayment.Create(client, state, addon.MoneyFormatter)
-    launcher = addon.Launcher.Create(client, state, addon.MoneyFormatter, {
-        LeftButton = function()
-            settingsController:Open()
-        end,
-        RightButton = function()
-            historyController:Open()
-        end,
-    })
     -- Only confirmed payments reach the ledger; nothing else can append.
     tithePayment:OnDonation(function(donation)
         donationLedger:Append(donation)
