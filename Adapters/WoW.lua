@@ -259,12 +259,17 @@ local CONTEXT_EVENTS = {
     -- fire for guild funds changes that never touch the player's money.
     GUILDBANKFRAME_CLOSED = { source = "guildBankWithdrawal", action = "close" },
     GUILDBANKFRAME_OPENED = { source = "guildBankWithdrawal", action = "open" },
+    -- Money gained while the mailbox is open that no collected letter
+    -- explains (Open All, mail add-ons) is mail, never miscellaneous.
+    MAIL_CLOSED = { source = "mailbox", action = "close" },
+    MAIL_SHOW = { source = "mailbox", action = "open" },
 }
 
 -- Newer clients report interaction windows by Enum.PlayerInteractionType.
 local INTERACTION_TYPES = {
     [1] = "playerTrades", -- TradePartner
     [10] = "guildBankWithdrawal", -- GuildBanker
+    [17] = "mailbox", -- MailInfo
 }
 local INTERACTION_ACTIONS = {
     PLAYER_INTERACTION_MANAGER_FRAME_HIDE = "close",

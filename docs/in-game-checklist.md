@@ -41,9 +41,10 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 14. Turn off **Quest income** and **Vendor sales** one at a time, and confirm each stops only its own source. Turn them back on.
 15. Turn on **Mailbox income**, mail gold from one of your characters to another, collect it, and confirm it is reported `from mailbox income`. Turn **Mailbox income** off again and confirm the next mailed gold changes nothing.
 16. When convenient: collect auction-sale money with **Auction income** on and **Mailbox income** off, and confirm it is reported `from auction income`. Then try the reverse and confirm the auction money is ignored.
-17. When convenient: receive gold in a completed trade and confirm it is reported `from player trade income`. Cancel a trade that offered gold and confirm nothing happens.
-18. When convenient: withdraw gold from the guild bank and confirm the balance does not change and no message appears.
-19. When convenient: buy an item from a vendor and sell it back for a refund. Confirm the refund is not tithed.
+17. Open All (especially on Camelot): with **Auction income** and **Mailbox income** both off, collect several auction-sale mails at once with the mailbox's **Open All** button (or a mail add-on such as Postal or TSM). Confirm the balance does not change and no `from other income` message appears. Then turn **Mailbox income** on, collect several ordinary gold mails with Open All, and confirm they are reported `from mail`, never `from other income`.
+18. When convenient: receive gold in a completed trade and confirm it is reported `from player trade income`. Cancel a trade that offered gold and confirm nothing happens.
+19. When convenient: withdraw gold from the guild bank and confirm the balance does not change and no message appears.
+20. When convenient: buy an item from a vendor and sell it back for a refund. Confirm the refund is not tithed.
 
 ## Guild-bank payment steps
 
