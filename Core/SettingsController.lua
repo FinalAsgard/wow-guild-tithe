@@ -82,22 +82,36 @@ local function currentCharacter(state)
     return character
 end
 
-local function currentPercentage(state)
-    local character = currentCharacter(state)
-    if character == nil then
+-- The percentage and sources shown are the current guild's shared settings.
+-- While there are none (guildless), the defaults are shown and changes are
+-- refused.
+local function currentTitheSettings(state)
+    local settings = state:GetTitheSettings()
+    if type(settings) ~= "table" then
         return nil
     end
 
-    return character.percentage
+    return settings
 end
 
-local function currentSource(state, source)
-    local character = currentCharacter(state)
-    if character == nil or type(character.sources) ~= "table" then
-        return nil
+local DEFAULT_PERCENTAGE = 10
+
+local function currentPercentage(state)
+    local settings = currentTitheSettings(state)
+    if settings == nil then
+        return DEFAULT_PERCENTAGE
     end
 
-    return character.sources[source]
+    return settings.percentage
+end
+
+local function currentSource(state, definition)
+    local settings = currentTitheSettings(state)
+    if settings == nil or type(settings.sources) ~= "table" then
+        return definition.defaultValue
+    end
+
+    return settings.sources[definition.key]
 end
 
 local function currentChatFeedback(state)
@@ -134,7 +148,7 @@ local function buildSourceCheckboxes(state)
             tooltip = definition.tooltip,
             defaultValue = definition.defaultValue,
             getValue = function()
-                return currentSource(state, source)
+                return currentSource(state, definition)
             end,
             setValue = function(value)
                 return state:SetSourceEnabled(source, value)
@@ -188,10 +202,7 @@ end
 
 function Controller:Register()
     local balanceText = currentBalance(self.state, self.formatter)
-    if self.category ~= nil
-        or currentPercentage(self.state) == nil
-        or balanceText == nil
-    then
+    if self.category ~= nil or balanceText == nil then
         return self.category ~= nil
     end
 
@@ -202,7 +213,7 @@ function Controller:Register()
             variable = addon.Identity.settingsPrefix .. "_Percentage",
             label = "Tithe percentage",
             tooltip = "Percentage of eligible income reserved for your guild tithe.",
-            defaultValue = 10,
+            defaultValue = DEFAULT_PERCENTAGE,
             minimum = 0,
             maximum = 100,
             step = 1,

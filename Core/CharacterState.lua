@@ -8,16 +8,6 @@ addon.CharacterState = CharacterState
 local State = {}
 State.__index = State
 
-local SOURCE_DEFAULTS = {
-    auctions = false,
-    loot = true,
-    mailbox = false,
-    miscellaneous = true,
-    playerTrades = true,
-    quests = true,
-    vendorSales = true,
-}
-
 local function isInteger(value)
     return type(value) == "number"
         and value >= 0
@@ -70,11 +60,13 @@ local function buildCharacterKey(identity)
 end
 
 function CharacterState.Create(client, persistence)
+    persistence = persistence or addon.Persistence.Create(client)
     return setmetatable({
         client = client,
         financialListeners = {},
+        guildSettings = addon.GuildSettings.Create(persistence),
         initialized = false,
-        persistence = persistence or addon.Persistence.Create(client),
+        persistence = persistence,
     }, State)
 end
 
@@ -111,7 +103,51 @@ function State:Initialize()
     self.character = character
     self.characterKey = characterKey
     self.initialized = true
+    -- Seeds or adopts the current guild's shared settings at login.
+    self:GetTitheSettings()
     return true
+end
+
+-- The current guild as { name, realm, id }, or nil when guildless or when
+-- the client cannot report it yet.
+function State:GetGuildIdentity()
+    if type(self.client.IsInGuild) ~= "function"
+        or type(self.client.GetGuildIdentity) ~= "function"
+        or self.client:IsInGuild() ~= true
+    then
+        return nil
+    end
+    return self.client:GetGuildIdentity()
+end
+
+-- The tithe settings in effect, shared by the account's characters in the
+-- current guild: { guild, guildKey, percentage, sources }, or nil while
+-- guildless or when the guild is unknown or its record is quarantined.
+-- A guild with no record yet is created from this character's settings
+-- left over from before schema 5, or the defaults; once the character's
+-- guild has a record, those leftover fields are removed.
+function State:GetTitheSettings()
+    if not self.initialized then
+        return nil
+    end
+
+    local guild = self:GetGuildIdentity()
+    if guild == nil then
+        return nil
+    end
+
+    local settings = self.guildSettings:Get(guild, {
+        percentage = self.character.percentage,
+        sources = self.character.sources,
+    })
+    if settings == nil then
+        return nil
+    end
+
+    self.character.percentage = nil
+    self.character.sources = nil
+    settings.guild = copyTable(guild)
+    return settings
 end
 
 function State:GetPersistenceReport()
@@ -130,16 +166,15 @@ function State:GetCurrentCharacter()
     return copyTable(self.character)
 end
 
+-- Changes the current guild's shared percentage; refused while guildless.
 function State:SetPercentage(percentage)
-    if not self.initialized
-        or not isInteger(percentage)
-        or percentage > 100
-    then
+    if not isInteger(percentage) or percentage > 100 then
         return false
     end
 
-    self.character.percentage = percentage
-    return true
+    local settings = self:GetTitheSettings()
+    return settings ~= nil
+        and self.guildSettings:SetPercentage(settings.guildKey, percentage)
 end
 
 function State:SetChatFeedback(enabled)
@@ -160,16 +195,16 @@ function State:SetAutoDeposit(enabled)
     return true
 end
 
+-- Turns one of the current guild's shared sources on or off; refused while
+-- guildless.
 function State:SetSourceEnabled(source, enabled)
-    if not self.initialized
-        or SOURCE_DEFAULTS[source] == nil
-        or type(enabled) ~= "boolean"
-    then
+    if not addon.Persistence.IsSource(source) or type(enabled) ~= "boolean" then
         return false
     end
 
-    self.character.sources[source] = enabled
-    return true
+    local settings = self:GetTitheSettings()
+    return settings ~= nil
+        and self.guildSettings:SetSourceEnabled(settings.guildKey, source, enabled)
 end
 
 function State:SetFinancialState(outstandingCopper, fractionalRemainder)

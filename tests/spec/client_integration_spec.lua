@@ -77,9 +77,11 @@ local function registerProfileTests(profile)
         bindings.AsgardsGuildTithe_Source_Auctions.setValue(true)
         bindings.AsgardsGuildTithe_ChatFeedback.setValue(false)
 
-        local character = world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"]
-        test.assertEqual(25, character.percentage)
-        test.assertTrue(character.sources.auctions)
+        local database = world.environment.AsgardsGuildTitheDB
+        local character = database.characters["jaina-camelot"]
+        local guild = database.guilds["knights of camelot-camelot"]
+        test.assertEqual(25, guild.percentage)
+        test.assertTrue(guild.sources.auctions)
         test.assertFalse(character.chatFeedback)
         test.assertEqual(0, character.outstandingCopper)
         test.assertEqual(25, bindings.AsgardsGuildTithe_Percentage.getValue())
@@ -121,7 +123,7 @@ local function registerProfileTests(profile)
         test.assertContains(world.messages[1], "Settings are unavailable")
     end)
 
-    test.test(profile .. " profile keeps settings across reload and isolates characters", function()
+    test.test(profile .. " profile keeps guild settings across reload and shares them only within the guild", function()
         local first = fixtures.newEnvironment(profile)
         fixtures.login(first)
         first.settings.bindings.AsgardsGuildTithe_Percentage.setValue(30)
@@ -138,12 +140,21 @@ local function registerProfileTests(profile)
             playerName = "Thrall",
         })
         fixtures.login(alt)
-        test.assertEqual(10, alt.settings.bindings.AsgardsGuildTithe_Percentage.getValue())
-        alt.settings.bindings.AsgardsGuildTithe_Percentage.setValue(5)
+        test.assertEqual(30, alt.settings.bindings.AsgardsGuildTithe_Percentage.getValue())
 
-        local database = alt.environment.AsgardsGuildTitheDB
-        test.assertEqual(30, database.characters["jaina-camelot"].percentage)
-        test.assertEqual(5, database.characters["thrall-camelot"].percentage)
+        local otherGuild = fixtures.newEnvironment(profile, {
+            database = alt.environment.AsgardsGuildTitheDB,
+            guildName = "Horde Lords",
+            playerName = "Rexxar",
+        })
+        fixtures.login(otherGuild)
+        test.assertEqual(10, otherGuild.settings.bindings.AsgardsGuildTithe_Percentage.getValue())
+        otherGuild.settings.bindings.AsgardsGuildTithe_Percentage.setValue(5)
+
+        local database = otherGuild.environment.AsgardsGuildTitheDB
+        test.assertEqual(30, database.guilds["knights of camelot-camelot"].percentage)
+        test.assertEqual(5, database.guilds["horde lords-camelot"].percentage)
+        test.assertEqual(nil, database.characters["thrall-camelot"].percentage)
     end)
 
     test.test(profile .. " profile reads data saved by " .. otherProfile(profile) .. " without rewriting it", function()

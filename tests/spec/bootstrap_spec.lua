@@ -6,6 +6,7 @@ local MANIFEST_FILES = {
     "Adapters/WoW.lua",
     "Adapters/EventTrace.lua",
     "Core/Persistence.lua",
+    "Core/GuildSettings.lua",
     "Core/CharacterState.lua",
     "Core/Accounting.lua",
     "Core/TitheService.lua",
@@ -270,7 +271,7 @@ local function registerBootstrapTest(variant)
         frame.handler(frame, "PLAYER_LOGIN")
 
         local database = environment[variant.databaseName]
-        test.assertEqual(4, database.schemaVersion)
+        test.assertEqual(5, database.schemaVersion)
         test.assertEqual("table", type(database.characters["jaina-camelot"]))
         test.assertEqual(otherVariantDatabase, environment[variant.otherDatabaseName])
         test.assertEqual(legacyDatabase, environment.GuildTitheDB)

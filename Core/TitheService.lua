@@ -26,9 +26,14 @@ function Service:AccrueEligibleCopper(eligibleCopper)
         return nil, "current character state is unavailable"
     end
 
+    local settings = self.state:GetTitheSettings()
+    if type(settings) ~= "table" then
+        return nil, "guild tithe settings are unavailable"
+    end
+
     local result, calculateError = self.accounting.Calculate(
         eligibleCopper,
-        character.percentage,
+        settings.percentage,
         character.outstandingCopper,
         character.fractionalRemainder
     )

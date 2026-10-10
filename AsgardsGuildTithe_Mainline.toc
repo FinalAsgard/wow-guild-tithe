@@ -11,6 +11,7 @@ Adapters/ClientProfile.lua
 Adapters/WoW.lua
 Adapters/EventTrace.lua
 Core/Persistence.lua
+Core/GuildSettings.lua
 Core/CharacterState.lua
 Core/Accounting.lua
 Core/TitheService.lua
