@@ -110,7 +110,7 @@ Two-client re-check (PRD #14):
 2. Confirm `_retail_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Mainline.toc`, `Core`, and `Adapters` are directly inside it.
 3. Start or restart the Retail client so it rescans add-ons.
 4. At character selection, open **AddOns** and confirm **Asgard's Guild Tithe (Dev)** appears enabled and is not marked out of date. Disable the production variant if it is installed.
-5. Run `/dump (select(4, GetBuildInfo()))` and confirm it matches the `## Interface` value in both `_Mainline.toc` manifests. If it differs, run `tools/set-interface.sh retail <interface>` before continuing.
+5. Run `/dump (select(4, GetBuildInfo()))` and confirm the `RETAIL_INTERFACE` repository variable includes it (see [release packaging](packaging.md#game-versions)); update the variable if not. If the development install shows as out of date, check **Load out of date AddOns** or run `tools/set-interface.sh retail <interface>`.
 
 ### Verify
 

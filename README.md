@@ -4,20 +4,20 @@ A World of Warcraft add-on for configuring and accounting for a guild tithe. It 
 
 ## Supported clients
 
-| Client | Status | Production manifest | Interface |
-|---|---|---|---|
-| World of Warcraft: Forever | Supported | `AsgardsGuildTithe_Camelot.toc` | `16000`, `16001` |
-| World of Warcraft Retail (live) | Supported | `AsgardsGuildTithe_Mainline.toc` | `120100` |
-| WoW Classic Era, progression Classic, Anniversary, and seasonal Classic | Not supported | — | — |
-| Retail PTR, alpha, and beta | Not supported | — | — |
+| Client | Status | Production manifest |
+|---|---|---|
+| World of Warcraft: Forever | Supported | `AsgardsGuildTithe_Camelot.toc` |
+| World of Warcraft Retail (live) | Supported | `AsgardsGuildTithe_Mainline.toc` |
+| WoW Classic Era, progression Classic, Anniversary, and seasonal Classic | Not supported | — |
+| Retail PTR, alpha, and beta | Not supported | — |
 
 Both supported clients get the same add-on name, commands, settings, and saved-data format from one source tree and one version. Each game installation keeps its own SavedVariables, and nothing is synchronized between Forever and Retail. Each client loads only its own manifest. Retail uses `_Mainline`, the suffix the WoW packager and CurseForge tag as Retail. Forever also accepts `_Mainline`, but it always prefers its own `_Camelot` manifest, so the two manifests must always ship together. On an unsupported client the add-on reports that once and leaves saved data untouched.
 
-Interface numbers are release metadata, not permanent constants. Confirm them from each running client with `/dump (select(4, GetBuildInfo()))` after every game patch and before each release, and update that client's manifests with one command, which also updates the tests and the table above:
+The game versions (interface numbers) a release supports are set per release by the `FOREVER_INTERFACE` and `RETAIL_INTERFACE` repository variables, not in code. See [release packaging](docs/packaging.md#game-versions). Confirm them from each running client with `/dump (select(4, GetBuildInfo()))` after every game patch. The manifests in the repository only serve the development install and CI; to bring them up to date, run:
 
 ```sh
 tools/set-interface.sh retail 120200          # one interface
-tools/set-interface.sh forever 16001 16002    # several, when a client accepts more than one
+tools/set-interface.sh forever 16001 16002    # several, while a patch rolls out
 ```
 
 ## Current foundation
