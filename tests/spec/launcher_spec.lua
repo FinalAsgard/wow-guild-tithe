@@ -37,6 +37,11 @@ local function minimap(world)
     return world.messages[#world.messages]
 end
 
+-- The broker entry display bars read, as other add-ons see it.
+local function broker(world)
+    return world.environment.LibStub("LibDataBroker-1.1"):GetDataObjectByName("AsgardsGuildTithe")
+end
+
 local function registerProfileTests(profile)
     test.test(profile .. " a fresh install shows the gold-coin icon on the minimap", function()
         local world, addon = login(profile)
@@ -196,6 +201,50 @@ local function registerProfileTests(profile)
         test.assertFalse(world.settings.controls[CHECKBOX]:IsEnabled())
         test.assertFalse(world.settings.bindings[CHECKBOX].setValue(false) == true)
         test.assertFalse(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+    end)
+
+    test.test(profile .. " display bars show the balance as text that follows every change", function()
+        local world, addon = login(profile, { money = 100000 })
+        local format = addon.MoneyFormatter.Format
+        local entry = broker(world)
+
+        test.assertEqual("data source", entry.type)
+        test.assertEqual("Asgard's Guild Tithe", entry.label)
+        test.assertEqual("Tithe: " .. format(0), entry.text)
+
+        -- Income: 10% of a 1g gain.
+        fixtures.setMoney(world, 110000)
+        test.assertEqual("Tithe: " .. format(1000), entry.text)
+
+        -- A guild-bank deposit, confirmed by the carried gold dropping.
+        world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"].autoDeposit = true
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        fixtures.advance(world, 1)
+        test.assertEqual(1000, world.deposits[1])
+        fixtures.setMoney(world, 109000)
+        test.assertEqual("Tithe: " .. format(0), entry.text)
+        fixtures.fire(world, "GUILDBANKFRAME_CLOSED")
+        -- Money just after closing the bank counts as a withdrawal; wait.
+        fixtures.advance(world, 5)
+
+        fixtures.setMoney(world, 129000)
+        test.assertEqual("Tithe: " .. format(2000), entry.text)
+        world.environment.SlashCmdList.AGT("clear")
+        test.assertEqual("Tithe: " .. format(0), entry.text)
+    end)
+
+    test.test(profile .. " a guildless character's display-bar text still shows its balance", function()
+        local world, addon = login(profile, { inGuild = false })
+        addon.state:SetFinancialState(4321, 0)
+        test.assertEqual("Tithe: " .. addon.MoneyFormatter.Format(4321), broker(world).text)
+    end)
+
+    test.test(profile .. " the tooltip shows changed percentage and sources the next time it opens", function()
+        local world = login(profile)
+        test.assertEqual("Tithing |cffffffff10%|r to |cffffffffKnights of Camelot|r", hover(world)[3])
+
+        world.settings.bindings.AsgardsGuildTithe_Percentage.setValue(7)
+        test.assertEqual("Tithing |cffffffff7%|r to |cffffffffKnights of Camelot|r", hover(world)[3])
     end)
 end
 

@@ -30,9 +30,14 @@ function Launcher.Create(client, state, formatter, actions)
     }, Controller)
 end
 
-function Controller:BalanceText()
+-- This character's balance in coins, or nil before state is ready.
+function Controller:Balance()
     local character = self.state:GetCurrentCharacter()
-    local balance = character and self.formatter.Format(character.outstandingCopper)
+    return character and self.formatter.Format(character.outstandingCopper)
+end
+
+function Controller:BalanceText()
+    local balance = self:Balance()
     if balance == nil then
         return "Balance unavailable"
     end
@@ -49,6 +54,19 @@ function Controller:GuildText()
     end
     return "Tithing " .. WHITE .. settings.percentage .. "%|r to " ..
         WHITE .. settings.guild.name .. "|r"
+end
+
+-- The display-bar text, e.g. "Tithe: 1g 20s" (with coin icons).
+function Controller:Text()
+    return "Tithe: " .. (self:Balance() or "-")
+end
+
+-- Shows the current balance in display bars.
+function Controller:RefreshText()
+    if not self:IsAvailable() then
+        return false
+    end
+    return self.client:SetMinimapLauncherText(addon.Identity.addonName, self:Text())
 end
 
 -- The tooltip shown while hovering the icon, one string per line.
@@ -93,6 +111,7 @@ function Controller:Start()
         label = addon.Identity.displayName,
         icon = Launcher.ICON,
         iconState = iconState,
+        text = self:Text(),
         onClick = function(button)
             self:Click(button)
         end,
@@ -100,6 +119,13 @@ function Controller:Start()
             return self:TooltipLines()
         end,
     })
+    -- The tooltip is built each time it opens, so only the display-bar text
+    -- has to follow the balance: income, deposits, and /agt clear.
+    if self.started and type(self.state.OnFinancialChange) == "function" then
+        self.state:OnFinancialChange(function()
+            self:RefreshText()
+        end)
+    end
     return self.started
 end
 

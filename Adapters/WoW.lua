@@ -1437,10 +1437,13 @@ local function getLibrary(libStub, major)
     return nil
 end
 
--- Adds the add-on's minimap icon through LibDataBroker and LibDBIcon.
--- `options`: name (unique per add-on), label, icon (texture), iconState
--- (the saved table LibDBIcon reads `hide` from and saves the position to),
--- onClick(button), and tooltipLines() returning one string per line.
+-- Adds the add-on's minimap icon through LibDataBroker and LibDBIcon. The
+-- broker entry is a data source, so display bars (Titan Panel, ElvUI, and
+-- others) show its text as well as its icon.
+-- `options`: name (unique per add-on), label, icon (texture), text (the
+-- display-bar text), iconState (the saved table LibDBIcon reads `hide`
+-- from and saves the position to), onClick(button), and tooltipLines()
+-- returning one string per line.
 -- Returns false, changing nothing, when LibStub or either library is
 -- unavailable.
 function Client:RegisterMinimapLauncher(options)
@@ -1455,9 +1458,10 @@ function Client:RegisterMinimapLauncher(options)
     end
 
     local created, dataObject = pcall(broker.NewDataObject, broker, options.name, {
-        type = "launcher",
+        type = "data source",
         label = options.label,
         icon = options.icon,
+        text = options.text,
         OnClick = function(_, button)
             callFunction(options.onClick, button)
         end,
@@ -1480,7 +1484,21 @@ function Client:RegisterMinimapLauncher(options)
         return false, "the minimap icon could not be created"
     end
     self.minimapIcons = icons
+    self.minimapLaunchers = self.minimapLaunchers or {}
+    self.minimapLaunchers[options.name] = dataObject
     return true
+end
+
+-- Changes the display-bar text of a launcher added by
+-- RegisterMinimapLauncher; LibDataBroker tells the display bars.
+function Client:SetMinimapLauncherText(name, text)
+    local dataObject = self.minimapLaunchers and self.minimapLaunchers[name]
+    if dataObject == nil or type(text) ~= "string" then
+        return false
+    end
+    return pcall(function()
+        dataObject.text = text
+    end)
 end
 
 -- Shows or hides a minimap icon added by RegisterMinimapLauncher.

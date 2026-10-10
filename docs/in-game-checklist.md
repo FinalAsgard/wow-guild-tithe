@@ -90,7 +90,8 @@ Run these on both clients.
 7. Type `/agtdev minimap`. Confirm the icon hides and chat says `Minimap icon hidden. Use /agtdev minimap to show it again.` With the settings page open, confirm **Show minimap icon** is now unchecked (if it only updates after reopening the page, note it). Log in to another character and confirm the icon is hidden there too, then type `/agtdev minimap` again and confirm `Minimap icon shown.` and the icon returns. Confirm `/agtdev help` lists `minimap`.
 
 **When convenient**
-8. With another add-on that also bundles LibDBIcon installed (most minimap-icon add-ons do), confirm both icons appear and no Lua error mentions LibStub, LibDataBroker, or LibDBIcon.
+8. With a display-bar add-on (Titan Panel, ElvUI DataTexts, Bazooka, or ChocolateBar), add the **Asgard's Guild Tithe (Dev)** entry. Confirm it shows `Tithe: <balance>` with coin icons, that the text changes right away when you earn tithed income, give at the guild bank, and run `/agtdev clear`, and that hovering and left/right-clicking it work like the minimap icon.
+9. With another add-on that also bundles LibDBIcon installed (most minimap-icon add-ons do), confirm both icons appear and no Lua error mentions LibStub, LibDataBroker, or LibDBIcon.
 
 ## WoW Forever
 
