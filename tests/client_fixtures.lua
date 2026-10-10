@@ -405,10 +405,13 @@ function Fixtures.setMoney(world, copper, settle)
 end
 
 -- Installs a fake inbox. Each mail is { money = copper, invoiceType = "seller"
--- or nil, returned = true or nil }. Collecting a mail through the hooked
--- TakeInboxMoney/AutoLootMailItem clears its money first, as the client can.
+-- or nil, returned = true or nil, sender, subject }. Collecting a mail through
+-- the hooked TakeInboxMoney/AutoLootMailItem clears its money first, as the
+-- client can; with `options.removeCollected` it removes the letter instead,
+-- so later letters move up one position, as during Open All.
 -- Must be called before the add-on loads.
-function Fixtures.installMailbox(world, mails)
+function Fixtures.installMailbox(world, mails, options)
+    options = options or {}
     local environment = world.environment
     world.inbox = mails
     environment.GetInboxNumItems = function()
@@ -419,8 +422,8 @@ function Fixtures.installMailbox(world, mails)
         if mail == nil then
             return nil
         end
-        return nil, nil, "Sender", "Subject", mail.money, 0, 30, false, false,
-            mail.returned and 1 or nil, false, true, false
+        return nil, nil, mail.sender or "Sender", mail.subject or "Subject", mail.money, 0, 30,
+            false, false, mail.returned and 1 or nil, false, true, false
     end
     environment.GetInboxInvoiceInfo = function(index)
         local mail = world.inbox[index]
@@ -429,7 +432,11 @@ function Fixtures.installMailbox(world, mails)
     local function collect(index)
         local mail = world.inbox[index]
         if mail ~= nil then
-            mail.money = 0
+            if options.removeCollected then
+                table.remove(world.inbox, index)
+            else
+                mail.money = 0
+            end
         end
     end
     environment.TakeInboxMoney = collect

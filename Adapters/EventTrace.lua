@@ -203,6 +203,33 @@ function Trace:HookMailCalls()
             end)
         end
     end
+
+    -- What the add-on concluded about each collect call: the letter it
+    -- resolved to, the amount noted, and the source, so a captured bulk open
+    -- shows every match and miss.
+    if type(self.client.OnMailCollected) == "function" then
+        self.client:OnMailCollected(function(callName, mailIndex, letter, source, how)
+            if not self.active then
+                return
+            end
+            local resolved
+            if letter ~= nil then
+                resolved = {
+                    invoiceType = sanitize(letter.invoiceType),
+                    money = sanitize(letter.money),
+                    returned = letter.returned == true,
+                    sender = sanitize(letter.sender),
+                    subject = sanitize(letter.subject),
+                }
+            end
+            self:Record("mail", callName, pack(mailIndex), {
+                amount = letter and sanitize(letter.money) or nil,
+                how = sanitize(how),
+                letter = resolved,
+                source = source and sanitize(source) or nil,
+            })
+        end)
+    end
 end
 
 function Trace:Start()

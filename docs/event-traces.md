@@ -13,7 +13,14 @@ The development build (`AsgardsGuildTitheDev`) can record the raw client events 
 
 Each entry stores a timestamp, the event or function name, its arguments (tables and functions are replaced with placeholders, and long strings are cut to 255 characters), your carried copper at that moment, and whether you were in combat. The trace header stores the client (`WoW Forever` or `WoW Retail`), the `GetBuildInfo()` values, and which events the client did not recognize. Only the newest 2,000 entries are kept.
 
-Traces can contain character, realm, and player names from chat and trade events. They are cleaned before being committed as fixtures.
+Mail collection is a function call rather than an event, so each `TakeInboxMoney` or `AutoLootMailItem` call adds two entries:
+
+- A `call` entry with the requested position and the raw header and invoice values the client reported for it right after the call.
+- A `mail` entry with what the add-on concluded. `args[1]` is the requested position. `extra.letter` is the letter it resolved to (`sender`, `subject`, `money`, `invoiceType`, `returned`), or absent when it could not tell which letter was collected. `extra.amount` is the copper it noted and `extra.source` the source (`auctions`, `mailbox`, or `returnedMail`). `extra.how` says how it was resolved: `in place`, `removed after collection` (the letter was gone and the rest had moved up), `live`, or why nothing was noted (for example `inbox no longer matches the last snapshot`).
+
+A gain the `mail` entries do not explain, while the mailbox is open, is still counted as mailbox income.
+
+Traces can contain character, realm, and player names from chat, trade, and mail events. They are cleaned before being committed as fixtures.
 
 ## What to capture
 
@@ -25,10 +32,11 @@ On each client, use a guilded character. Run `/agtdev trace clear` and then `/ag
 4. Sell several items to a vendor quickly, one after another.
 5. Collect money from an auction-sale mail.
 6. Collect money from an ordinary (non-auction) mail.
-7. Complete a trade where the other player gives you money.
-8. Start a trade with money offered, then cancel it.
-9. Withdraw money from the guild bank, if you have permission.
-10. Buy an item and sell it back for a refund, if the client offers one.
+7. With several auction-sale and ordinary gold mails waiting, collect them all at once with the mailbox's **Open All** button (and, if you use one, a mail add-on such as Postal or TSM).
+8. Complete a trade where the other player gives you money.
+9. Start a trade with money offered, then cancel it.
+10. Withdraw money from the guild bank, if you have permission.
+11. Buy an item and sell it back for a refund, if the client offers one.
 
 Then run `/agtdev trace stop` and `/reload` (or log out) so the game writes the trace to disk.
 
@@ -43,7 +51,7 @@ The trace is the `AsgardsGuildTitheDevTraceDB` table in that file. Attach the fi
 
 ## Replaying traces as tests
 
-`tests/trace_replay.lua` replays a captured trace through the real add-on under the matching client profile. The fake clock follows the captured timestamps, carried money follows each entry, and every captured event is fired with its arguments. Hooked function-call entries, such as mail collection, are not replayed. A trace that outgrew the 2,000-entry limit records `baselineMoney`, the balance before its first kept entry, and replay starts from it. `tests/spec/trace_replay_spec.lua` asserts the exact tithe results for event-based replay. Add a new capture by saving only its `AsgardsGuildTitheDevTraceDB` table (with no character data) under `tests/fixtures/traces/<client>/` and adding a replay test.
+`tests/trace_replay.lua` replays a captured trace through the real add-on under the matching client profile. The fake clock follows the captured timestamps, carried money follows each entry, and every captured event is fired with its arguments. Hooked function-call entries and the add-on's `mail` conclusions are not replayed. A trace that outgrew the 2,000-entry limit records `baselineMoney`, the balance before its first kept entry, and replay starts from it. `tests/spec/trace_replay_spec.lua` asserts the exact tithe results for event-based replay. Add a new capture by saving only its `AsgardsGuildTitheDevTraceDB` table (with no character data) under `tests/fixtures/traces/<client>/` and adding a replay test.
 
 ## Observed timings
 

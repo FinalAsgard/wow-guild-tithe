@@ -380,10 +380,11 @@ function Client:ObserveTransferCalls(onContext)
     return hooked
 end
 
--- Reads what the client says about inbox mail `index`: its attached money,
--- whether it was returned to sender, and its auction invoice type.
+-- Reads what the client says about inbox mail `index`: its sender, subject,
+-- attached money, whether it was returned to sender, and its auction invoice
+-- type.
 function Client:ReadInboxMail(index)
-    local headerOk, _, _, _, _, money, _, _, _, _, wasReturned =
+    local headerOk, _, _, sender, subject, money, _, _, _, _, wasReturned =
         callFunction(self.environment.GetInboxHeaderInfo, index)
     if not headerOk or copperAmount(money) == nil then
         return nil
@@ -394,26 +395,143 @@ function Client:ReadInboxMail(index)
         invoiceType = invoiceOk and invoiceType or nil,
         money = money,
         returned = wasReturned ~= nil and wasReturned ~= false and wasReturned ~= 0,
+        sender = type(sender) == "string" and sender or nil,
+        subject = type(subject) == "string" and subject or nil,
     }
 end
 
-function Client:SnapshotInbox()
+function Client:ReadInbox()
     local ok, count = callFunction(self.environment.GetInboxNumItems)
-    local snapshot = {}
+    local inbox = {}
     if ok and type(count) == "number" then
         local index
         for index = 1, count do
-            snapshot[index] = self:ReadInboxMail(index)
+            inbox[index] = self:ReadInboxMail(index)
         end
     end
+    return inbox
+end
+
+function Client:SnapshotInbox()
+    self.inboxSnapshot = self:ReadInbox()
+end
+
+-- Letters are told apart by their contents, not their position: positions
+-- shift as earlier letters are removed during a bulk open. Money is left
+-- out because collecting clears it.
+local function sameLetter(first, second)
+    return first ~= nil and second ~= nil
+        and first.sender == second.sender
+        and first.subject == second.subject
+        and first.invoiceType == second.invoiceType
+        and first.returned == second.returned
+end
+
+-- A plain copy of a letter without its snapshot bookkeeping.
+local function copyLetter(letter)
+    return {
+        invoiceType = letter.invoiceType,
+        money = letter.money,
+        returned = letter.returned,
+        sender = letter.sender,
+        subject = letter.subject,
+    }
+end
+
+-- True when `inbox` is exactly `snapshot` with the letter at `index` taken
+-- out: the only sign that a collected letter was removed, rather than the
+-- inbox having changed some other way since the last snapshot.
+local function isSnapshotWithout(snapshot, index, inbox)
+    if #inbox ~= #snapshot - 1 then
+        return false
+    end
+    local position
+    for position = 1, #inbox do
+        local expected = snapshot[position < index and position or position + 1]
+        if not sameLetter(expected, inbox[position]) then
+            return false
+        end
+    end
+    return true
+end
+
+-- Works out which letter a collect call at `index` took money from. Returns
+-- the letter (with the money it held) and how it was found, or nil and why
+-- not. The snapshot is the inbox as last seen, so it still holds a letter
+-- the client has already emptied or removed; it is kept in step with each
+-- collection so a later call in the same bulk open lines up even before the
+-- client reports the inbox changed. When the letter cannot be identified
+-- with certainty, no letter is returned: an exact note with a wrong amount
+-- is never better than none.
+function Client:ResolveCollectedMail(index)
+    local snapshot = self.inboxSnapshot or {}
     self.inboxSnapshot = snapshot
+    local live = self:ReadInboxMail(index)
+
+    -- A letter already collected that is no longer at this position was
+    -- removed by the client; the letters after it moved up one place.
+    local snap = snapshot[index]
+    while snap ~= nil and snap.collected and not sameLetter(snap, live) do
+        table.remove(snapshot, index)
+        snap = snapshot[index]
+    end
+
+    if snap ~= nil and sameLetter(snap, live) then
+        if snap.collected then
+            return nil, "letter already collected"
+        end
+        local money = live.money > 0 and live.money or snap.money
+        if money <= 0 then
+            return nil, "letter holds no money"
+        end
+        snap.collected = true
+        local letter = copyLetter(snap)
+        letter.money = money
+        return letter, "in place"
+    end
+
+    if snap ~= nil and snap.money > 0 then
+        -- The letter here changed. It was collected and removed only if the
+        -- rest of the inbox is otherwise exactly as last seen.
+        if isSnapshotWithout(snapshot, index, self:ReadInbox()) then
+            table.remove(snapshot, index)
+            return copyLetter(snap), "removed after collection"
+        end
+        return nil, "inbox no longer matches the last snapshot"
+    end
+
+    if snap == nil and live ~= nil and live.money > 0 then
+        return live, "live"
+    end
+    return nil, "letter holds no money"
+end
+
+local function mailSource(letter)
+    if letter.returned then
+        return "returnedMail"
+    elseif letter.invoiceType == "seller" then
+        return "auctions"
+    end
+    return "mailbox"
+end
+
+-- Calls listener(callName, index, letter, source, how) after each hooked
+-- mail-collect call: the requested position, the letter it resolved to (nil
+-- when none), the source noted, and how it was resolved. Used by the Dev
+-- trace to capture bulk opens.
+function Client:OnMailCollected(listener)
+    if type(listener) == "function" then
+        self.mailListeners = self.mailListeners or {}
+        table.insert(self.mailListeners, listener)
+    end
 end
 
 -- Collecting mail money is a function call rather than an event, so the
 -- collect calls are hooked. The inbox is snapshotted whenever it updates,
--- because the client may clear a mail's money as soon as it is collected.
--- Money from returned mail is reported as a return, auction sale proceeds
--- (a "seller" invoice) as auctions, and anything else as ordinary mail.
+-- because the client may clear a mail's money, or remove the letter, as soon
+-- as it is collected. Money from returned mail is reported as a return,
+-- auction sale proceeds (a "seller" invoice) as auctions, and anything else
+-- as ordinary mail.
 local MAIL_COLLECT_CALLS = { "TakeInboxMoney", "AutoLootMailItem" }
 
 function Client:ObserveMailCollection(onContext)
@@ -440,23 +558,16 @@ function Client:ObserveMailCollection(onContext)
         local callName = MAIL_COLLECT_CALLS[index]
         if type(self.environment[callName]) == "function" then
             hooked = pcall(hook, callName, function(mailIndex)
-                -- Prefer the live mail; fall back to the snapshot if the
-                -- client already cleared its money. A stale snapshot entry
-                -- carries the wrong amount, so it cannot match the gain.
-                local mail = self:ReadInboxMail(mailIndex)
-                if (mail == nil or mail.money <= 0) and self.inboxSnapshot ~= nil then
-                    mail = self.inboxSnapshot[mailIndex]
+                local letter, how = self:ResolveCollectedMail(mailIndex)
+                local source = letter and mailSource(letter) or nil
+                if letter ~= nil then
+                    onContext(source, "note", letter.money)
                 end
-                if mail == nil or mail.money <= 0 then
-                    return
+                local listeners = self.mailListeners or {}
+                local listenerIndex
+                for listenerIndex = 1, #listeners do
+                    pcall(listeners[listenerIndex], callName, mailIndex, letter, source, how)
                 end
-                local source = "mailbox"
-                if mail.returned then
-                    source = "returnedMail"
-                elseif mail.invoiceType == "seller" then
-                    source = "auctions"
-                end
-                onContext(source, "note", mail.money)
             end) or hooked
         end
     end
