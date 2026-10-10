@@ -82,7 +82,9 @@ AsgardsGuildTitheDB = {
     },
     -- Account-wide display state, the same on every character.
     ui = {
-        minimap = { hide = false },
+        -- LibDBIcon's state: `hide`, and `minimapPos` (degrees around the
+        -- minimap) once the icon has been dragged.
+        minimap = { hide = false, minimapPos = 225 },
     },
     -- Account-wide, append-only record of completed donations.
     donations = {
@@ -146,7 +148,9 @@ and the rest of the saved data still loads. A quarantined guild's settings are
 unavailable, so gains in that guild stay unresolved rather than tithed by
 guessed rules. A `guilds` value that is not a table is quarantined whole and
 replaced with an empty table, and an unreadable `ui` table is replaced with the
-defaults.
+defaults. A minimap `hide` value that is not a boolean is reset to `false`
+(shown), and a `minimapPos` that is not a number is removed, so the icon
+returns to its default position.
 
 Payment state is repaired the same way. An unreadable `pendingPayment` is
 dropped, an invalid `resolvedPayments` list is emptied, and an invalid

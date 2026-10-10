@@ -76,12 +76,26 @@ Run these on a guilded character, on both clients. **Required** steps can be don
 6. Give to a second guild. Confirm separate guild totals.
 7. With more than 12 donations, scroll with the mouse wheel and the **Newer**/**Older** buttons.
 
+## Minimap icon steps
+
+Run these on both clients.
+
+**Required**
+1. On a fresh install (or with no saved icon state), confirm a gold-coin **Asgard's Guild Tithe (Dev)** icon is on the edge of the minimap, and no Lua error appears.
+2. Hover the icon on a guilded character. Confirm the tooltip shows the add-on name, `Balance owed:` with your balance in coin icons (matching `/agtdev`), `Tithing <percentage>% to <your guild>`, and the left-click and right-click hints.
+3. Left-click the icon and confirm the settings page opens. Right-click it and confirm **Donation History** opens.
+4. Drag the icon to another spot around the minimap, `/reload`, and confirm it stays there. Log in to another character and confirm the icon is in the same spot.
+5. On a guildless character, hover the icon and confirm the tooltip shows the balance and `Not in a guild`, with no guild name or percentage.
+
+**When convenient**
+6. With another add-on that also bundles LibDBIcon installed (most minimap-icon add-ons do), confirm both icons appear and no Lua error mentions LibStub, LibDataBroker, or LibDBIcon.
+
 ## WoW Forever
 
 ### Install
 
 1. From the checkout at `~/Projects/wow-guild-tithe`, run `./tools/Install-Dev.ps1` in PowerShell. Pass `-WowRoot` if the Forever client is not in its default location.
-2. Confirm `_classic_beta_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Camelot.toc`, `Core`, and `Adapters` are directly inside it.
+2. Confirm `_classic_beta_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Camelot.toc`, `Core`, `Adapters`, and `Libs` are directly inside it.
 3. Start or restart the client so it rescans add-ons.
 4. At character selection, open **AddOns** and confirm **Asgard's Guild Tithe (Dev)** appears enabled and is not marked out of date. Disable the production variant if it is installed. The Forever manifests target interfaces `16000` and `16001`.
 
@@ -110,7 +124,7 @@ Two-client re-check (PRD #14):
 ### Install
 
 1. From the checkout, run `./tools/Install-Dev.ps1 -Client Retail` in PowerShell. Add `-WowInstallRoot` or `-WowRoot` if Retail is not in its default location (see [the development install](development-install.md)).
-2. Confirm `_retail_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Mainline.toc`, `Core`, and `Adapters` are directly inside it.
+2. Confirm `_retail_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Mainline.toc`, `Core`, `Adapters`, and `Libs` are directly inside it.
 3. Start or restart the Retail client so it rescans add-ons.
 4. At character selection, open **AddOns** and confirm **Asgard's Guild Tithe (Dev)** appears enabled and is not marked out of date. Disable the production variant if it is installed.
 5. Run `/dump (select(4, GetBuildInfo()))` and confirm the `RETAIL_INTERFACE` repository variable includes it (see [release packaging](packaging.md#game-versions)); update the variable if not. If the development install shows as out of date, check **Load out of date AddOns** or run `tools/set-interface.sh retail <interface>`.

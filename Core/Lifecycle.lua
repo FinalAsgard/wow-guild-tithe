@@ -6,10 +6,13 @@ addon.Lifecycle = Lifecycle
 local Controller = {}
 Controller.__index = Controller
 
-function Lifecycle.Create(client, router, state, settingsController, incomeObserver, tithePayment)
+function Lifecycle.Create(client, router, state, settingsController, incomeObserver, tithePayment,
+    launcher)
     return setmetatable({
         addonName = addon.Identity.addonName,
         client = client,
+        launcher = launcher,
+        launcherReady = false,
         incomeObserver = incomeObserver,
         incomeReady = false,
         paymentReady = false,
@@ -94,6 +97,13 @@ function Controller:InitializeState()
     if self.stateReady and self.tithePayment ~= nil then
         local ok, started = pcall(self.tithePayment.Start, self.tithePayment)
         self.paymentReady = ok and started == true
+    end
+
+    -- The minimap icon keeps its account-wide state in saved data. Without
+    -- the icon libraries the add-on simply has no icon.
+    if self.stateReady and self.launcher ~= nil then
+        local ok, started = pcall(self.launcher.Start, self.launcher)
+        self.launcherReady = ok and started == true
     end
 
     return self.stateReady

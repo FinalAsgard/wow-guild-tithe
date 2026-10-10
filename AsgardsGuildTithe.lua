@@ -12,7 +12,7 @@ router:Register("help", "show available commands", function()
 end)
 
 local state, titheService, settingsController, incomeObserver, tithePayment, donationLedger
-local historyController
+local historyController, launcher
 if clientProfile.supported then
     state = addon.CharacterState.Create(client)
     donationLedger = addon.DonationLedger.Create(function()
@@ -39,6 +39,14 @@ if clientProfile.supported then
     )
     incomeObserver = addon.IncomeObserver.Create(client, incomeCoordinator)
     tithePayment = addon.TithePayment.Create(client, state, addon.MoneyFormatter)
+    launcher = addon.Launcher.Create(client, state, addon.MoneyFormatter, {
+        LeftButton = function()
+            settingsController:Open()
+        end,
+        RightButton = function()
+            historyController:Open()
+        end,
+    })
     -- Only confirmed payments reach the ledger; nothing else can append.
     tithePayment:OnDonation(function(donation)
         donationLedger:Append(donation)
@@ -96,7 +104,8 @@ local lifecycle = addon.Lifecycle.Create(
     state,
     settingsController,
     incomeObserver,
-    tithePayment
+    tithePayment,
+    launcher
 )
 
 addon.client = client
@@ -105,6 +114,7 @@ addon.donationLedger = donationLedger
 addon.historyController = historyController
 addon.eventTrace = eventTrace
 addon.incomeObserver = incomeObserver
+addon.launcher = launcher
 addon.lifecycle = lifecycle
 addon.router = router
 addon.settingsController = settingsController

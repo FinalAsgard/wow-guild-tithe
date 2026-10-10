@@ -46,6 +46,10 @@ Gold you deposit yourself through the guild bank's own money window also counts:
 
 Every donation confirmed at the guild bank is recorded in an account-wide history shared by all your characters. Open it with `/agt history`, or pick **Donation History** under the add-on's entry in the game's AddOns settings. The tab shows your lifetime total, a total for each guild you have given to, and a newest-first list with the date, guild, character, amount, and how it was given: **Guild Tithe** for deposits the add-on made (automatic or the Give Tithe button) and **Manual** for deposits you made through the guild bank's own window. Scroll with the mouse wheel or the **Newer** and **Older** buttons. It updates as soon as a donation is confirmed. Before your first donation it says there are none yet. History cannot be edited or deleted. On a client whose settings cannot host the tab, `/agt history` opens the same view in its own window.
 
+## Minimap icon
+
+A gold-coin icon on the minimap gives quick access to the add-on. Hovering it shows this character's balance and the guild it tithes to with that guild's percentage, or `Not in a guild`. Left-click opens settings and right-click opens donation history. Drag it around the minimap edge to move it; its position is shared by all your characters. The icon uses the bundled LibDataBroker and LibDBIcon libraries; if they cannot load, the add-on works the same without an icon.
+
 ## Verify the scaffold
 
 Run the automated suite with Lua 5.1:

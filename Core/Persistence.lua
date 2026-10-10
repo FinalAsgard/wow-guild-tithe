@@ -671,9 +671,20 @@ local function validateUi(database, report)
         table.insert(report.repairedFields, { field = "ui" })
         return
     end
-    if type(database.ui.minimap) ~= "table" then
+    local minimap = database.ui.minimap
+    if type(minimap) ~= "table" then
         database.ui.minimap = defaultUi().minimap
         table.insert(report.repairedFields, { field = "ui.minimap" })
+        return
+    end
+    if type(minimap.hide) ~= "boolean" then
+        minimap.hide = false
+        table.insert(report.repairedFields, { field = "ui.minimap.hide" })
+    end
+    -- LibDBIcon saves the icon's angle around the minimap here once dragged.
+    if minimap.minimapPos ~= nil and type(minimap.minimapPos) ~= "number" then
+        minimap.minimapPos = nil
+        table.insert(report.repairedFields, { field = "ui.minimap.minimapPos" })
     end
 end
 
@@ -804,6 +815,15 @@ function Store:GetDonations()
         return nil
     end
     return self.database.donations
+end
+
+-- The live account-wide minimap icon state, or nil before Load. The icon
+-- library reads `hide` and writes the dragged position into it directly.
+function Store:GetMinimapState()
+    if self.database == nil then
+        return nil
+    end
+    return self.database.ui.minimap
 end
 
 function Store:IsGuildQuarantined(guildKey)

@@ -165,6 +165,11 @@ function State:GetGuildIdentity()
     return self.client:GetGuildIdentity()
 end
 
+-- Whether the client reports a guild, even before it can name it.
+function State:IsInGuild()
+    return type(self.client.IsInGuild) == "function" and self.client:IsInGuild() == true
+end
+
 -- The tithe settings in effect, shared by the account's characters in the
 -- current guild: { guild, guildKey, percentage, sources }, or nil while
 -- guildless or when the guild is unknown or its record is quarantined.
@@ -371,4 +376,14 @@ function State:GetDonationRecords()
         return nil
     end
     return self.persistence:GetDonations()
+end
+
+-- The account-wide minimap icon state ({ hide, minimapPos }), shared by
+-- every character, or nil before state is ready. It is live: the icon
+-- library saves the dragged position straight into it.
+function State:GetMinimapState()
+    if not self.initialized or type(self.persistence.GetMinimapState) ~= "function" then
+        return nil
+    end
+    return self.persistence:GetMinimapState()
 end

@@ -6,6 +6,10 @@
 ## SavedVariables: AsgardsGuildTitheDevDB, AsgardsGuildTitheDevTraceDB
 ## X-Client: Forever
 
+Libs/LibStub/LibStub.lua
+Libs/CallbackHandler-1.0/CallbackHandler-1.0.lua
+Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
+Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua
 Core/Identity.lua
 Adapters/ClientProfile.lua
 Adapters/WoW.lua
@@ -25,5 +29,6 @@ Core/IncomeObserver.lua
 Core/TithePayment.lua
 Core/DonationLedger.lua
 Core/HistoryController.lua
+Core/Launcher.lua
 Core/Lifecycle.lua
 AsgardsGuildTithe.lua

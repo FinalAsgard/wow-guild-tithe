@@ -824,3 +824,26 @@ test.test("a guild collection or UI table that cannot be read is replaced withou
     test.assertEqual("corrupted", database.quarantinedGuilds["__invalid_guild_key_1"][1].record)
     test.assertEqual(1, #report.quarantinedGuilds)
 end)
+
+test.test("minimap icon state keeps a valid position and repairs invalid fields", function()
+    local addon = loadPersistenceModules()
+    local environment = newEnvironment("Jaina", "Camelot", versionFiveDatabase({},
+        { minimap = { hide = true, minimapPos = 135.5 } }))
+
+    local store = createStore(addon, environment)
+    local database, report = store:Load()
+
+    assertDeepEqual({ hide = true, minimapPos = 135.5 }, database.ui.minimap)
+    test.assertEqual(0, #report.repairedFields)
+    -- The live table: the icon library saves the dragged position into it.
+    test.assertEqual(database.ui.minimap, store:GetMinimapState())
+
+    environment = newEnvironment("Jaina", "Camelot", versionFiveDatabase({},
+        { minimap = { hide = "yes", minimapPos = "left", lock = true } }))
+    database, report = createStore(addon, environment):Load()
+
+    assertDeepEqual({ hide = false, lock = true }, database.ui.minimap)
+    test.assertEqual("ui.minimap.hide", report.repairedFields[1].field)
+    test.assertEqual("ui.minimap.minimapPos", report.repairedFields[2].field)
+end)
+

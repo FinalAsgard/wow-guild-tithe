@@ -1427,3 +1427,57 @@ function Client:OpenHistoryPage(page)
     end
     return self:OpenSettingsCategory(page.category)
 end
+
+-- Finds a library through LibStub without erroring when it is missing.
+local function getLibrary(libStub, major)
+    local ok, library = pcall(libStub.GetLibrary, libStub, major, true)
+    if ok and type(library) == "table" then
+        return library
+    end
+    return nil
+end
+
+-- Adds the add-on's minimap icon through LibDataBroker and LibDBIcon.
+-- `options`: name (unique per add-on), label, icon (texture), iconState
+-- (the saved table LibDBIcon reads `hide` from and saves the position to),
+-- onClick(button), and tooltipLines() returning one string per line.
+-- Returns false, changing nothing, when LibStub or either library is
+-- unavailable.
+function Client:RegisterMinimapLauncher(options)
+    local libStub = self.environment.LibStub
+    if type(libStub) ~= "table" or type(options) ~= "table" then
+        return false, "LibStub is unavailable"
+    end
+    local broker = getLibrary(libStub, "LibDataBroker-1.1")
+    local icons = getLibrary(libStub, "LibDBIcon-1.0")
+    if broker == nil or icons == nil then
+        return false, "the minimap icon libraries are unavailable"
+    end
+
+    local created, dataObject = pcall(broker.NewDataObject, broker, options.name, {
+        type = "launcher",
+        label = options.label,
+        icon = options.icon,
+        OnClick = function(_, button)
+            callFunction(options.onClick, button)
+        end,
+        OnTooltipShow = function(tooltip)
+            local ok, lines = callFunction(options.tooltipLines)
+            if not ok or type(lines) ~= "table" then
+                return
+            end
+            local index
+            for index = 1, #lines do
+                tooltip:AddLine(lines[index])
+            end
+        end,
+    })
+    if not created or dataObject == nil then
+        return false, "the minimap launcher could not be created"
+    end
+
+    if not pcall(icons.Register, icons, options.name, dataObject, options.iconState) then
+        return false, "the minimap icon could not be created"
+    end
+    return true
+end
