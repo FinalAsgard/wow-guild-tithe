@@ -114,6 +114,20 @@ local function currentSource(state, definition)
     return settings.sources[definition.key]
 end
 
+local function hasGuildSettings(state)
+    return currentTitheSettings(state) ~= nil
+end
+
+-- The header above the guild-shared controls: whose settings they change,
+-- or why they cannot be changed.
+local function guildHeaderText(state)
+    local settings = currentTitheSettings(state)
+    if settings == nil or type(settings.guild) ~= "table" or type(settings.guild.name) ~= "string" then
+        return "Join a guild to set its tithe"
+    end
+    return "Shared by your characters in " .. settings.guild.name
+end
+
 local function currentChatFeedback(state)
     local character = currentCharacter(state)
     if character == nil then
@@ -149,6 +163,9 @@ local function buildSourceCheckboxes(state)
             defaultValue = definition.defaultValue,
             getValue = function()
                 return currentSource(state, definition)
+            end,
+            isEnabled = function()
+                return hasGuildSettings(state)
             end,
             setValue = function(value)
                 return state:SetSourceEnabled(source, value)
@@ -209,6 +226,7 @@ function Controller:Register()
     local category = self.client:RegisterSettingsCategory({
         categoryName = addon.Identity.displayName,
         balanceText = balanceText,
+        guildHeaderText = guildHeaderText(self.state),
         percentage = {
             variable = addon.Identity.settingsPrefix .. "_Percentage",
             label = "Tithe percentage",
@@ -222,6 +240,9 @@ function Controller:Register()
             end,
             setValue = function(value)
                 return self.state:SetPercentage(value)
+            end,
+            isEnabled = function()
+                return hasGuildSettings(self.state)
             end,
         },
         checkboxSections = {
@@ -250,6 +271,13 @@ function Controller:Register()
     if type(self.state.OnFinancialChange) == "function" then
         self.state:OnFinancialChange(function()
             self:RefreshBalance()
+        end)
+    end
+    -- Joining, leaving, or switching guilds changes whose settings the page
+    -- shows and whether they can be changed.
+    if type(self.state.OnGuildSettingsChange) == "function" then
+        self.state:OnGuildSettingsChange(function()
+            self:RefreshGuild()
         end)
     end
     local index
@@ -282,8 +310,16 @@ function Controller:RefreshBalance()
     return self.client:RefreshSettingsBalance(self.category, balanceText)
 end
 
+function Controller:RefreshGuild()
+    if self.category == nil or type(self.client.RefreshSettingsGuild) ~= "function" then
+        return false
+    end
+    return self.client:RefreshSettingsGuild(self.category, guildHeaderText(self.state))
+end
+
 function Controller:Open()
     self:RefreshBalance()
+    self:RefreshGuild()
 
     if self.category ~= nil and self.client:OpenSettingsCategory(self.category) then
         return true

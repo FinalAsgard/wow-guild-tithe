@@ -118,9 +118,39 @@ local function newSettingsAPI()
         bindingOrder = {},
         category = category,
         checkboxes = 0,
+        -- Control initializers by variable; `predicates` decide if enabled.
+        controls = {},
         layout = layout,
+        -- Times each variable was asked to re-read its value and state.
+        notified = {},
         sliders = 0,
     }
+
+    local function newControl(setting)
+        local control = { predicates = {} }
+        function control:AddModifyPredicate(predicate)
+            table.insert(self.predicates, predicate)
+        end
+        function control:IsEnabled()
+            local index
+            for index = 1, #self.predicates do
+                if not self.predicates[index]() then
+                    return false
+                end
+            end
+            return true
+        end
+        for variable, binding in pairs(api.bindings) do
+            if binding == setting then
+                api.controls[variable] = control
+            end
+        end
+        return control
+    end
+
+    function api.NotifyUpdate(variable)
+        api.notified[variable] = (api.notified[variable] or 0) + 1
+    end
 
     function api.RegisterVerticalLayoutCategory(name)
         api.categoryName = name
@@ -149,14 +179,14 @@ local function newSettingsAPI()
         return options
     end
 
-    function api.CreateSlider()
+    function api.CreateSlider(_, setting)
         api.sliders = api.sliders + 1
-        return {}
+        return newControl(setting)
     end
 
-    function api.CreateCheckbox()
+    function api.CreateCheckbox(_, setting)
         api.checkboxes = api.checkboxes + 1
-        return {}
+        return newControl(setting)
     end
 
     function api.RegisterAddOnCategory(registeredCategory)
@@ -197,6 +227,11 @@ end
 -- The text currently shown by the read-only balance header.
 function Fixtures.balanceText(world)
     return world.settings.layout.initializers[1]:GetData().name
+end
+
+-- The text of the header above the guild-shared settings.
+function Fixtures.guildHeaderText(world)
+    return world.settings.layout.initializers[2]:GetData().name
 end
 
 local function metadataReader(declaredClient)

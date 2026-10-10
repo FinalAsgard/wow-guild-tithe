@@ -10,16 +10,18 @@ Both checklists run these steps after installing. Replace `<AddOns>` with the cl
 
 1. Log in to a character and confirm no Asgard's Guild Tithe Lua error appears during loading.
 2. Enter `/agtdev` and confirm the native Settings window opens to **AddOns > Asgard's Guild Tithe (Dev)**. If the client does not expose the supported Settings API, confirm chat instead reports that settings are unavailable and suggests `/agtdev help`.
-3. When settings are available, confirm the page has visually distinct **Tithe**, **Income Sources**, and **Feedback** sections. Confirm **Tithe percentage** starts at `10`, shows its value as a whole-number percentage, accepts whole numbers from `0` through `100`, and does not allow values outside that range.
+3. When settings are available, confirm the page has visually distinct **Tithe**, **Income Sources**, and **Feedback** sections. On a guilded character, confirm a header just above **Tithe percentage** reads `Shared by your characters in <your guild>`. Confirm **Tithe percentage** starts at `10`, shows its value as a whole-number percentage, accepts whole numbers from `0` through `100`, and does not allow values outside that range.
 4. Confirm **Current balance** displays `0g 00s 00c` for a fresh character and has no editable control or fractional-remainder display.
 5. Under **Income Sources**, confirm **Loot income**, **Quest income**, **Vendor sales**, **Player trades**, and **Miscellaneous/system income** start enabled, while **Auction income** and **Mailbox income** start disabled. Under **Feedback**, confirm **Print tithe updates** starts enabled.
 6. Change the percentage and each checkbox, close and reopen settings with `/agtdev`, and confirm every new value appears immediately. Changing settings never changes the balance.
 7. Run `/reload`, reopen settings, and confirm the chosen percentage and checkbox values remain.
 8. Fully exit and restart the client, reopen settings, and confirm those values remain after a complete SavedVariables round trip.
-9. Log in to another character, confirm it receives the defaults, choose different values, then return to the first character and confirm each character stayed isolated.
-10. Enter `/agtdev help` and confirm both the `help` and `settings` commands appear once, followed by a line naming the running client.
-11. Enter `/agtdev unknown` and confirm the add-on reports an unknown command and suggests `/agtdev help` without raising an error.
-12. If the production add-on is also installed, enable it on its own and confirm `/agt` and `/asgardstithe` open **Asgard's Guild Tithe** settings with values independent of the development variant.
+9. Log in to a second character **in the same guild**. Confirm its percentage and income sources already match the values you chose on the first character, and that its balance, **Print tithe updates**, and **Deposit tithe automatically** are its own. Change the percentage there, return to the first character, and confirm it shows the new percentage too.
+10. Log in to a character **in a different guild** (or have one join another guild). Confirm the header names that guild, the percentage starts at `10` with the default sources if none of your characters has tithed to it before, and changing it leaves the first guild's settings unchanged.
+11. On a guildless character, confirm the header reads `Join a guild to set its tithe`, the percentage and income-source controls are greyed out and cannot be changed, and **Print tithe updates**, **Deposit tithe automatically**, and **Current balance** still work. If you can, join a guild with the settings page open and confirm the header and controls update without a `/reload` (leaving a guild should grey them out again).
+12. Enter `/agtdev help` and confirm both the `help` and `settings` commands appear once, followed by a line naming the running client.
+13. Enter `/agtdev unknown` and confirm the add-on reports an unknown command and suggests `/agtdev help` without raising an error.
+14. If the production add-on is also installed, enable it on its own and confirm `/agt` and `/asgardstithe` open **Asgard's Guild Tithe** settings with values independent of the development variant.
 
 ## Income tracking steps
 
@@ -85,7 +87,7 @@ Run these on a guilded character, on both clients. **Required** steps can be don
 
 ### Verify
 
-Run the shared verification steps. In step 10, the client line reads `client - WoW Forever.`
+Run the shared verification steps. In step 12, the client line reads `client - WoW Forever.`
 
 ### Sign-off
 
@@ -115,7 +117,7 @@ Two-client re-check (PRD #14):
 
 ### Verify
 
-Run the shared verification steps. In step 10, the client line reads `client - WoW Retail.`
+Run the shared verification steps. In step 12, the client line reads `client - WoW Retail.`
 
 ### Sign-off
 

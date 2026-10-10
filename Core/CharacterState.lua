@@ -64,6 +64,7 @@ function CharacterState.Create(client, persistence)
     return setmetatable({
         client = client,
         financialListeners = {},
+        guildListeners = {},
         guildSettings = addon.GuildSettings.Create(persistence),
         initialized = false,
         persistence = persistence,
@@ -103,9 +104,53 @@ function State:Initialize()
     self.character = character
     self.characterKey = characterKey
     self.initialized = true
-    -- Seeds or adopts the current guild's shared settings at login.
-    self:GetTitheSettings()
+    -- Seeds or adopts the current guild's shared settings at login, then
+    -- follows guild membership for the rest of the session.
+    self.guildKey = self:CurrentGuildKey()
+    if type(self.client.ObserveGuildChanges) == "function" then
+        self.client:ObserveGuildChanges(function()
+            self:RefreshGuild()
+        end)
+    end
     return true
+end
+
+local function notify(listeners)
+    local index
+    for index = 1, #listeners do
+        -- A failing listener must not block state changes.
+        pcall(listeners[index])
+    end
+end
+
+-- The current guild's settings key, or false while guildless or unknown.
+-- Resolving it seeds or adopts the guild's shared settings.
+function State:CurrentGuildKey()
+    local settings = self:GetTitheSettings()
+    return settings and settings.guildKey or false
+end
+
+-- Re-reads guild membership, e.g. after joining, leaving, or switching
+-- guilds, and tells listeners when the guild in effect changed.
+function State:RefreshGuild()
+    if not self.initialized then
+        return false
+    end
+    local guildKey = self:CurrentGuildKey()
+    if guildKey == self.guildKey then
+        return false
+    end
+    self.guildKey = guildKey
+    notify(self.guildListeners)
+    return true
+end
+
+-- Calls listener() whenever the guild in effect or its shared settings
+-- change, so pages showing them can refresh.
+function State:OnGuildSettingsChange(listener)
+    if type(listener) == "function" then
+        table.insert(self.guildListeners, listener)
+    end
 end
 
 -- The current guild as { name, realm, id }, or nil when guildless or when
@@ -173,8 +218,11 @@ function State:SetPercentage(percentage)
     end
 
     local settings = self:GetTitheSettings()
-    return settings ~= nil
-        and self.guildSettings:SetPercentage(settings.guildKey, percentage)
+    if settings == nil or not self.guildSettings:SetPercentage(settings.guildKey, percentage) then
+        return false
+    end
+    notify(self.guildListeners)
+    return true
 end
 
 function State:SetChatFeedback(enabled)
@@ -203,8 +251,13 @@ function State:SetSourceEnabled(source, enabled)
     end
 
     local settings = self:GetTitheSettings()
-    return settings ~= nil
-        and self.guildSettings:SetSourceEnabled(settings.guildKey, source, enabled)
+    if settings == nil
+        or not self.guildSettings:SetSourceEnabled(settings.guildKey, source, enabled)
+    then
+        return false
+    end
+    notify(self.guildListeners)
+    return true
 end
 
 function State:SetFinancialState(outstandingCopper, fractionalRemainder)

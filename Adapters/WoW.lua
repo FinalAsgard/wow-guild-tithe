@@ -605,6 +605,29 @@ function Client:GetGuildIdentity()
     return identity
 end
 
+-- Calls onChange() when the client reports that guild membership or guild
+-- details may have changed: joining, leaving, or switching guilds, and the
+-- guild name becoming known shortly after login.
+function Client:ObserveGuildChanges(onChange)
+    if type(onChange) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function()
+            onChange()
+        end)
+    then
+        return false
+    end
+
+    local registered = self:RegisterEvent(frame, "PLAYER_GUILD_UPDATE")
+    registered = self:RegisterEvent(frame, "GUILD_ROSTER_UPDATE") or registered
+    self.guildFrame = frame
+    return registered
+end
+
 -- Calls onOpen() / onClose() when the guild bank window opens or closes.
 -- Newer clients report it through the interaction manager (GuildBanker = 10).
 local GUILD_BANK_INTERACTION = 10
@@ -954,7 +977,22 @@ function Client:RegisterSettingsCategory(options)
         end
     end
 
-    local ok, category, balanceInitializer = pcall(function()
+    -- Controls marked with isEnabled are greyed out while it returns false.
+    -- Their variables are remembered so a guild change can repaint them.
+    local guildVariables = {}
+    local function addEnabledPredicate(initializer, binding)
+        if type(binding.isEnabled) ~= "function" then
+            return
+        end
+        table.insert(guildVariables, binding.variable)
+        if type(initializer) == "table" and type(initializer.AddModifyPredicate) == "function" then
+            initializer:AddModifyPredicate(function()
+                return binding.isEnabled() == true
+            end)
+        end
+    end
+
+    local ok, category, balanceInitializer, guildInitializer = pcall(function()
         local percentage = options.percentage
         local registeredCategory, layout = settings.RegisterVerticalLayoutCategory(
             options.categoryName
@@ -972,6 +1010,16 @@ function Client:RegisterSettingsCategory(options)
             error("balance display was not created")
         end
         layout:AddInitializer(balanceInitializer)
+
+        -- Names whose settings the controls below change, or why they can't.
+        local guildInitializer
+        if type(options.guildHeaderText) == "string" then
+            guildInitializer = createSectionHeader(options.guildHeaderText)
+            if guildInitializer == nil then
+                error("guild header was not created")
+            end
+            layout:AddInitializer(guildInitializer)
+        end
 
         local setting = settings.RegisterProxySetting(
             registeredCategory,
@@ -1019,6 +1067,7 @@ function Client:RegisterSettingsCategory(options)
         if slider == nil then
             error("percentage slider was not created")
         end
+        addEnabledPredicate(slider, percentage)
 
         for sectionIndex = 1, #options.checkboxSections do
             local section = options.checkboxSections[sectionIndex]
@@ -1051,11 +1100,12 @@ function Client:RegisterSettingsCategory(options)
                 if checkboxControl == nil then
                     error("checkbox control was not created")
                 end
+                addEnabledPredicate(checkboxControl, checkbox)
             end
         end
 
         settings.RegisterAddOnCategory(registeredCategory)
-        return registeredCategory, balanceInitializer
+        return registeredCategory, balanceInitializer, guildInitializer
     end)
 
     if not ok then
@@ -1064,7 +1114,26 @@ function Client:RegisterSettingsCategory(options)
 
     self.balanceInitializers = self.balanceInitializers or {}
     self.balanceInitializers[category] = balanceInitializer
+    self.guildInitializers = self.guildInitializers or {}
+    self.guildInitializers[category] = guildInitializer
+    self.guildVariables = self.guildVariables or {}
+    self.guildVariables[category] = guildVariables
     return category
+end
+
+-- Shows the new guild header text and asks the guild-scoped controls to
+-- re-read their values and whether they are enabled.
+function Client:RefreshSettingsGuild(category, headerText)
+    local refreshed = self:RefreshSettingsHeader(self.guildInitializers, category, headerText)
+    local settings = self.environment.Settings
+    local variables = self.guildVariables and self.guildVariables[category] or {}
+    if type(settings) == "table" and type(settings.NotifyUpdate) == "function" then
+        local index
+        for index = 1, #variables do
+            pcall(settings.NotifyUpdate, variables[index])
+        end
+    end
+    return refreshed
 end
 
 -- Updates a settings header's text and repaints it if it is on screen.
