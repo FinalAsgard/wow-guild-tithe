@@ -1,6 +1,6 @@
 local test = require("tests.test_helper")
 
-test.test("empty slash input prints concise help", function()
+test.test("empty slash input prints help with one command per line", function()
     local messages = {}
     local addon = test.newAddon("Core/CommandRouter.lua")
     local router = addon.CommandRouter.Create(function(message)
@@ -11,12 +11,16 @@ test.test("empty slash input prints concise help", function()
         router:PrintHelp()
     end)
 
+    router:Register("clear", "clear the current tithe balance", function() end)
+
     test.assertTrue(router:Execute(""))
-    test.assertEqual(1, #messages)
+    test.assertEqual(3, #messages)
     test.assertEqual(
-        "|cffd4af37[Guild Tithe]|r Commands: /agt help - show available commands",
+        "|cffd4af37[Guild Tithe]|r Commands:",
         messages[1]
     )
+    test.assertEqual("  /agt help - show available commands", messages[2])
+    test.assertEqual("  /agt clear - clear the current tithe balance", messages[3])
 end)
 
 test.test("commands receive arguments and can be extended", function()

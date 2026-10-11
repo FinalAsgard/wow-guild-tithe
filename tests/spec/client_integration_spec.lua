@@ -283,13 +283,31 @@ local function registerClearTests(profile)
         test.assertEqual(0, #world.deposits)
     end)
 
-    test.test(profile .. " /agt help lists the clear command", function()
+    test.test(profile .. " /agt help prints each command on its own line", function()
         local world = fixtures.newEnvironment(profile)
         fixtures.login(world)
 
         world.environment.SlashCmdList.AGT("help")
 
-        test.assertContains(world.messages[1], "/agt clear - clear the current tithe balance")
+        test.assertEqual("|cffd4af37[Guild Tithe]|r Commands:", world.messages[1])
+        local expected = {
+            "  /agt help - show available commands",
+            "  /agt minimap - show or hide the minimap icon",
+            "  /agt clear - clear the current tithe balance",
+            "  /agt settings - open settings",
+            "  /agt history - open donation history",
+        }
+        local index
+        for index = 1, #expected do
+            local found = false
+            local line
+            for line = 2, #world.messages - 1 do
+                found = found or world.messages[line] == expected[index]
+            end
+            test.assertTrue(found, expected[index])
+        end
+        test.assertEqual(#expected + 2, #world.messages)
+        test.assertContains(world.messages[#world.messages], "Client:")
     end)
 end
 
