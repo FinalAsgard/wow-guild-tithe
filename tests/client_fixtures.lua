@@ -12,16 +12,62 @@ local MANIFESTS = {
     Retail = "AsgardsGuildTithe_Mainline.toc",
 }
 
-local function manifestFiles(profile)
+-- With `withoutLibraries`, the bundled third-party libraries are left out,
+-- as when another add-on's broken copy or a stripped install lacks them.
+local function manifestFiles(profile, withoutLibraries)
     local files = {}
     local line
     for line in io.lines(MANIFESTS[profile]) do
         line = line:gsub("%s+$", "")
-        if string.sub(line, 1, 2) ~= "##" and string.match(line, "%.lua$") then
+        if string.sub(line, 1, 2) ~= "##" and string.match(line, "%.lua$")
+            and not (withoutLibraries and string.sub(line, 1, 5) == "Libs/")
+        then
             table.insert(files, line)
         end
     end
     return files
+end
+
+local function noop() end
+
+-- The texture and animation widgets LibDBIcon builds its button from.
+local function newTexture(parent)
+    local texture = {}
+    function texture:GetParent()
+        return parent
+    end
+    function texture:SetTexture(path)
+        self.path = path
+    end
+    function texture:GetVertexColor()
+        return 1, 1, 1
+    end
+    texture.SetVertexColor = noop
+    texture.SetTexCoord = noop
+    texture.SetSize = noop
+    texture.SetPoint = noop
+    texture.ClearAllPoints = noop
+    texture.Show = noop
+    texture.Hide = noop
+    return texture
+end
+
+local function newAnimationGroup()
+    local animation = {
+        SetOrder = noop,
+        SetDuration = noop,
+        SetFromAlpha = noop,
+        SetToAlpha = noop,
+        SetStartDelay = noop,
+    }
+    return {
+        CreateAnimation = function()
+            return animation
+        end,
+        SetToFinalAlpha = noop,
+        Play = noop,
+        Stop = noop,
+    }
 end
 
 local function newFrame(world)
@@ -89,14 +135,50 @@ local function newFrame(world)
     function frame:CreateFontString()
         return newFrame(world)
     end
+    -- What the minimap icon library uses: button setup, a fixed size for
+    -- the minimap, and the tooltip it fills on hover.
+    frame.SetFixedFrameStrata = noop
+    frame.SetFrameLevel = noop
+    frame.SetFixedFrameLevel = noop
+    frame.RegisterForClicks = noop
+    frame.RegisterForDrag = noop
+    frame.SetHighlightTexture = noop
+    frame.LockHighlight = noop
+    frame.UnlockHighlight = noop
+    frame.SetAlpha = noop
+    frame.HookScript = noop
+    function frame:GetWidth()
+        return 140
+    end
+    function frame:GetHeight()
+        return 140
+    end
+    function frame:GetCenter()
+        return nil
+    end
+    function frame:CreateTexture()
+        return newTexture(self)
+    end
+    function frame:CreateAnimationGroup()
+        return newAnimationGroup()
+    end
+    function frame:SetOwner(owner)
+        self.owner = owner
+        self.lines = {}
+    end
+    function frame:AddLine(text)
+        self.lines = self.lines or {}
+        table.insert(self.lines, text)
+    end
     return frame
 end
 
--- Clicks a button created by the add-on.
-function Fixtures.click(button)
+-- Clicks a button created by the add-on, optionally with a given mouse
+-- button ("LeftButton", "RightButton").
+function Fixtures.click(button, mouseButton)
     local onClick = button.scripts.OnClick
     if onClick ~= nil then
-        onClick(button)
+        onClick(button, mouseButton)
     end
 end
 
@@ -118,9 +200,39 @@ local function newSettingsAPI()
         bindingOrder = {},
         category = category,
         checkboxes = 0,
+        -- Control initializers by variable; `predicates` decide if enabled.
+        controls = {},
         layout = layout,
+        -- Times each variable was asked to re-read its value and state.
+        notified = {},
         sliders = 0,
     }
+
+    local function newControl(setting)
+        local control = { predicates = {} }
+        function control:AddModifyPredicate(predicate)
+            table.insert(self.predicates, predicate)
+        end
+        function control:IsEnabled()
+            local index
+            for index = 1, #self.predicates do
+                if not self.predicates[index]() then
+                    return false
+                end
+            end
+            return true
+        end
+        for variable, binding in pairs(api.bindings) do
+            if binding == setting then
+                api.controls[variable] = control
+            end
+        end
+        return control
+    end
+
+    function api.NotifyUpdate(variable)
+        api.notified[variable] = (api.notified[variable] or 0) + 1
+    end
 
     function api.RegisterVerticalLayoutCategory(name)
         api.categoryName = name
@@ -149,14 +261,14 @@ local function newSettingsAPI()
         return options
     end
 
-    function api.CreateSlider()
+    function api.CreateSlider(_, setting)
         api.sliders = api.sliders + 1
-        return {}
+        return newControl(setting)
     end
 
-    function api.CreateCheckbox()
+    function api.CreateCheckbox(_, setting)
         api.checkboxes = api.checkboxes + 1
-        return {}
+        return newControl(setting)
     end
 
     function api.RegisterAddOnCategory(registeredCategory)
@@ -199,6 +311,11 @@ function Fixtures.balanceText(world)
     return world.settings.layout.initializers[1]:GetData().name
 end
 
+-- The text of the header above the guild-shared settings.
+function Fixtures.guildHeaderText(world)
+    return world.settings.layout.initializers[2]:GetData().name
+end
+
 local function metadataReader(declaredClient)
     return function(_, field)
         if field == "X-Client" then
@@ -235,7 +352,9 @@ local PROFILE_APIS = {
 -- seeds the production SavedVariables, `options.playerName` sets the
 -- character reported once the player is ready, `options.money` sets carried
 -- copper (false omits the money API), and `options.inGuild` sets guild
--- membership (false = guildless; `options.guildApi = false` omits the API).
+-- membership (false = guildless; `options.guildApi = false` omits the API),
+-- and `options.libraries = false` loads the add-on without its bundled
+-- libraries.
 function Fixtures.newEnvironment(profile, options)
     options = options or {}
     local world = {
@@ -249,10 +368,28 @@ function Fixtures.newEnvironment(profile, options)
         timers = {},
     }
 
-    local environment = {
-        CreateFrame = function()
-            return newFrame(world)
+    local environment
+    environment = {
+        -- A named frame is also a global, as in the client.
+        CreateFrame = function(frameType, name)
+            local frame = newFrame(world)
+            frame.frameType = frameType
+            if name ~= nil then
+                environment[name] = frame
+            end
+            return frame
         end,
+        -- `world.cursor` = { x, y } relative to the minimap's center.
+        GetCursorPosition = function()
+            local cursor = world.cursor or { 0, 0 }
+            return cursor[1], cursor[2]
+        end,
+        -- The client's protected call wrapper, used by CallbackHandler.
+        securecallfunction = function(callback, ...)
+            return callback(...)
+        end,
+        -- The client's short alias, used by LibStub.
+        strmatch = string.match,
         DEFAULT_CHAT_FRAME = {
             AddMessage = function(_, message)
                 table.insert(world.messages, message)
@@ -290,6 +427,14 @@ function Fixtures.newEnvironment(profile, options)
     }
     setmetatable(environment, { __index = _G })
     environment._G = environment
+    environment.Minimap = newFrame(world)
+    function environment.Minimap:GetCenter()
+        return 0, 0
+    end
+    function environment.Minimap:GetEffectiveScale()
+        return 1
+    end
+    environment.UIParent = newFrame(world)
     environment.AsgardsGuildTitheDB = options.database
     if options.money ~= false then
         environment.GetMoney = function()
@@ -336,6 +481,7 @@ function Fixtures.newEnvironment(profile, options)
 
     world.environment = environment
     world.profile = profile
+    world.withoutLibraries = options.libraries == false
     return world
 end
 
@@ -343,7 +489,7 @@ end
 -- production add-on by default or as `addonName` (e.g. the dev variant).
 function Fixtures.loadAddon(world, addonName)
     local addon = {}
-    local files = manifestFiles(world.profile)
+    local files = manifestFiles(world.profile, world.withoutLibraries)
     local index
     for index = 1, #files do
         test.loadAddonFileInEnvironment(files[index], addon, world.environment, addonName)
@@ -405,10 +551,13 @@ function Fixtures.setMoney(world, copper, settle)
 end
 
 -- Installs a fake inbox. Each mail is { money = copper, invoiceType = "seller"
--- or nil, returned = true or nil }. Collecting a mail through the hooked
--- TakeInboxMoney/AutoLootMailItem clears its money first, as the client can.
+-- or nil, returned = true or nil, sender, subject }. Collecting a mail through
+-- the hooked TakeInboxMoney/AutoLootMailItem clears its money first, as the
+-- client can; with `options.removeCollected` it removes the letter instead,
+-- so later letters move up one position, as during Open All.
 -- Must be called before the add-on loads.
-function Fixtures.installMailbox(world, mails)
+function Fixtures.installMailbox(world, mails, options)
+    options = options or {}
     local environment = world.environment
     world.inbox = mails
     environment.GetInboxNumItems = function()
@@ -419,8 +568,8 @@ function Fixtures.installMailbox(world, mails)
         if mail == nil then
             return nil
         end
-        return nil, nil, "Sender", "Subject", mail.money, 0, 30, false, false,
-            mail.returned and 1 or nil, false, true, false
+        return nil, nil, mail.sender or "Sender", mail.subject or "Subject", mail.money, 0, 30,
+            false, false, mail.returned and 1 or nil, false, true, false
     end
     environment.GetInboxInvoiceInfo = function(index)
         local mail = world.inbox[index]
@@ -429,7 +578,11 @@ function Fixtures.installMailbox(world, mails)
     local function collect(index)
         local mail = world.inbox[index]
         if mail ~= nil then
-            mail.money = 0
+            if options.removeCollected then
+                table.remove(world.inbox, index)
+            else
+                mail.money = 0
+            end
         end
     end
     environment.TakeInboxMoney = collect

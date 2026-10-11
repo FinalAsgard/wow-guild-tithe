@@ -7,13 +7,13 @@ only through `Adapters/WoW.lua`. `Core/Persistence.lua` is the single loading,
 migration, and validation boundary used by character state. Settings and
 accounting receive state only after that boundary succeeds.
 
-## Current schema: version 4
+## Current schema: version 5
 
 The persisted shape is:
 
 ```lua
 AsgardsGuildTitheDB = {
-    schemaVersion = 4,
+    schemaVersion = 5,
     characters = {
         ["normalizedname-normalizedrealm"] = {
             identity = {
@@ -21,19 +21,15 @@ AsgardsGuildTitheDB = {
                 displayRealm = "Realm",
                 stableId = "optional-client-identifier",
             },
-            percentage = 10,
             outstandingCopper = 0,
             fractionalRemainder = 0,
             chatFeedback = true,
-            sources = {
-                auctions = false,
-                loot = true,
-                mailbox = false,
-                miscellaneous = true,
-                playerTrades = true,
-                quests = true,
-                vendorSales = true,
-            },
+            autoDeposit = true,
+            -- Only on characters that have not logged in to a guild since
+            -- upgrading: their own percentage and sources from schema 4,
+            -- kept to seed their first guild (see "Shared guild settings").
+            -- percentage = 10,
+            -- sources = { ... },
             -- At most one guild-bank payment waiting for confirmation.
             pendingPayment = {
                 operationId = "jaina-camelot:1790001000:1",
@@ -54,9 +50,41 @@ AsgardsGuildTitheDB = {
             {
                 reason = "diagnostic text",
                 record = {}, -- preserved original record
-                schemaVersion = 4,
+                schemaVersion = 5,
             },
         },
+    },
+    -- Tithe settings shared by the account's characters in each guild.
+    guilds = {
+        ["normalized guild name-normalizedrealm"] = {
+            identity = {
+                displayName = "Guild",
+                displayRealm = "Realm",
+                id = "42",                  -- optional, information only
+            },
+            percentage = 10,
+            sources = {
+                auctions = false,
+                loot = true,
+                mailbox = false,
+                miscellaneous = true,
+                playerTrades = true,
+                quests = true,
+                vendorSales = true,
+            },
+        },
+    },
+    -- Guild records that could not be read, kept intact like characters.
+    quarantinedGuilds = {
+        ["normalized guild name-normalizedrealm"] = {
+            { reason = "diagnostic text", record = {}, schemaVersion = 5 },
+        },
+    },
+    -- Account-wide display state, the same on every character.
+    ui = {
+        -- LibDBIcon's state: `hide`, and `minimapPos` (degrees around the
+        -- minimap) once the icon has been dragged.
+        minimap = { hide = false, minimapPos = 225 },
     },
     -- Account-wide, append-only record of completed donations.
     donations = {
@@ -72,7 +100,7 @@ AsgardsGuildTitheDB = {
     },
     -- Ledger entries that could not be read, kept intact.
     quarantinedDonations = {
-        { reason = "diagnostic text", record = {}, schemaVersion = 4 },
+        { reason = "diagnostic text", record = {}, schemaVersion = 5 },
     },
 }
 ```
@@ -93,17 +121,39 @@ The copy is written back only after migration and full validation succeed.
   after the upgrade.
 - Version 3 to version 4 adds an empty account-wide `donations` ledger and an
   empty `quarantinedDonations` list when absent.
-- Version 4 is validated and repaired without a schema change.
+- Version 4 to version 5 adds an empty `guilds` table, an empty
+  `quarantinedGuilds` list, and a default `ui` table. Nothing else moves:
+  characters keep their own percentage and sources until they log in to a
+  guild, and balances, payments, and the donation ledger are unchanged.
+- Version 5 is validated and repaired without a schema change.
 
 Loading the result again performs no migration and makes no further structural
 or value changes.
 
 ## Validation and recovery
 
-Configuration is repaired at field granularity. An invalid percentage,
-chat-feedback value, individual source flag, or optional identity value receives
-only its own default or safe current-character metadata. Valid sibling fields,
-financial state, display metadata, and unrelated character records are retained.
+Configuration is repaired at field granularity. An invalid chat-feedback or
+auto-deposit value, or optional identity value, receives only its own default
+or safe current-character metadata. A character's leftover percentage and
+sources are optional; when either is present, an invalid percentage or source
+flag is repaired to its default. Valid sibling fields, financial state, display
+metadata, and unrelated character records are retained.
+
+Guild records are repaired the same way: an invalid percentage or source flag
+takes its default, and an invalid optional identity value is removed, each
+reported with its `guildKey`. A guild record that is not a table, or whose key
+is not normalized, is moved intact to `quarantinedGuilds` (a malformed key
+under a generated `__invalid_guild_key_N` entry that keeps the original key),
+and the rest of the saved data still loads. A quarantined guild's settings are
+unavailable, so gains in that guild stay unresolved rather than tithed by
+guessed rules. A `guilds` value that is not a table is quarantined whole and
+replaced with an empty table, and an unreadable `ui` table is replaced with the
+defaults. A minimap `hide` value that is not a boolean is reset to `false`
+(shown), and a `minimapPos` that is not a number is removed, so the icon
+returns to its default position. A `quarantinedGuilds` value, or an entry in
+it, that is not a table cannot safely hold more quarantined records, so the
+saved data is refused with an error and left untouched, as for the character
+quarantine.
 
 Payment state is repaired the same way. An unreadable `pendingPayment` is
 dropped, an invalid `resolvedPayments` list is emptied, and an invalid
@@ -123,9 +173,30 @@ record, so it cannot shadow or block valid characters. Cyclic saved tables are
 rejected before migration or writeback because they cannot be safely represented
 as SavedVariables.
 
-A schema version newer than 4 is incompatible. It is returned as an error before
+A schema version newer than 5 is incompatible. It is returned as an error before
 copying, migration, validation, or writeback, leaving the SavedVariables table
 and all nested values untouched for a newer add-on version to handle.
+
+## Shared guild settings
+
+The tithe percentage and the seven income-source flags belong to the guild and
+are shared by every character on the account in that guild. The balance,
+fractional remainder, payments, chat feedback, and auto-deposit stay per
+character, so each character owes and deposits only its own tithe.
+
+A guild is keyed by its name (lowercased, trimmed) and its own realm
+(lowercased, whitespace removed), joined like character keys. The same name on
+two realms is two guilds, and characters from connected realms in one guild
+share it. The stable guild id is stored as information only: a renamed guild
+starts again at the defaults.
+
+When a character is in a guild with no record yet, the record is created from
+that character's leftover schema-4 percentage and sources, or from the defaults
+(10% with the default sources) when it has none. Once the character's guild has
+a record, whether it created it or found it, the character's leftover fields
+are removed. A guildless character keeps them until it first joins a guild.
+Settings are read when they are needed, so changing guilds mid-session applies
+the new guild's settings to the next gain.
 
 ## Guild-bank payments
 
@@ -188,18 +259,21 @@ donations.
 
 **Which version.** Guild Tithe is optional, so it may not be installed and
 `AsgardsGuildTitheDB` may not exist. First check that it is a table, then that
-its `schemaVersion` is 4 and its `donations` is a table. Treat anything else as
-unavailable rather than guessing:
+its `schemaVersion` is 4 or 5 and its `donations` is a table. Treat anything
+else as unavailable rather than guessing:
 
 ```lua
 local db = AsgardsGuildTitheDB
-if type(db) ~= "table" or db.schemaVersion ~= 4 or type(db.donations) ~= "table" then
+local version = type(db) == "table" and db.schemaVersion
+if (version ~= 4 and version ~= 5) or type(db.donations) ~= "table" then
     return nil -- Guild Tithe data is unavailable
 end
 ```
 
-Guild Tithe raises `schemaVersion` whenever the donation format changes, and
-this section documents the current one.
+The donation format is the same in schema 4 and schema 5: version 5 only added
+the shared guild settings and UI state. Guild Tithe raises `schemaVersion`
+whenever the donation format changes, and this section documents the current
+one and lists every version it applies to.
 
 **What each entry means.** Each entry in `donations` has these fields (see
 "Current schema" above):

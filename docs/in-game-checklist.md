@@ -10,16 +10,18 @@ Both checklists run these steps after installing. Replace `<AddOns>` with the cl
 
 1. Log in to a character and confirm no Asgard's Guild Tithe Lua error appears during loading.
 2. Enter `/agtdev` and confirm the native Settings window opens to **AddOns > Asgard's Guild Tithe (Dev)**. If the client does not expose the supported Settings API, confirm chat instead reports that settings are unavailable and suggests `/agtdev help`.
-3. When settings are available, confirm the page has visually distinct **Tithe**, **Income Sources**, and **Feedback** sections. Confirm **Tithe percentage** starts at `10`, shows its value as a whole-number percentage, accepts whole numbers from `0` through `100`, and does not allow values outside that range.
+3. When settings are available, confirm the page has visually distinct **Tithe**, **Income Sources**, **Feedback**, **Guild Bank**, and **Minimap** sections. On a guilded character, confirm a header just above **Tithe percentage** reads `Shared by your characters in <your guild>`. Confirm **Tithe percentage** starts at `10`, shows its value as a whole-number percentage, accepts whole numbers from `0` through `100`, and does not allow values outside that range.
 4. Confirm **Current balance** displays `0g 00s 00c` for a fresh character and has no editable control or fractional-remainder display.
 5. Under **Income Sources**, confirm **Loot income**, **Quest income**, **Vendor sales**, **Player trades**, and **Miscellaneous/system income** start enabled, while **Auction income** and **Mailbox income** start disabled. Under **Feedback**, confirm **Print tithe updates** starts enabled.
 6. Change the percentage and each checkbox, close and reopen settings with `/agtdev`, and confirm every new value appears immediately. Changing settings never changes the balance.
 7. Run `/reload`, reopen settings, and confirm the chosen percentage and checkbox values remain.
 8. Fully exit and restart the client, reopen settings, and confirm those values remain after a complete SavedVariables round trip.
-9. Log in to another character, confirm it receives the defaults, choose different values, then return to the first character and confirm each character stayed isolated.
-10. Enter `/agtdev help` and confirm both the `help` and `settings` commands appear once, followed by a line naming the running client.
-11. Enter `/agtdev unknown` and confirm the add-on reports an unknown command and suggests `/agtdev help` without raising an error.
-12. If the production add-on is also installed, enable it on its own and confirm `/agt` and `/asgardstithe` open **Asgard's Guild Tithe** settings with values independent of the development variant.
+9. Log in to a second character **in the same guild**. Confirm its percentage and income sources already match the values you chose on the first character, and that its balance, **Print tithe updates**, and **Deposit tithe automatically** are its own. Change the percentage there, return to the first character, and confirm it shows the new percentage too.
+10. Log in to a character **in a different guild** (or have one join another guild). Confirm the header names that guild, the percentage starts at `10` with the default sources if none of your characters has tithed to it before, and changing it leaves the first guild's settings unchanged.
+11. On a guildless character, confirm the header reads `Join a guild to set its tithe`, the percentage and income-source controls are greyed out and cannot be changed, and **Print tithe updates**, **Deposit tithe automatically**, and **Current balance** still work. If you can, join a guild with the settings page open and confirm the header and controls update without a `/reload` (leaving a guild should grey them out again).
+12. Enter `/agtdev help` and confirm a `Commands:` line, then `help`, `settings`, `clear`, `history`, and `minimap` each once on its own line (the Dev build also lists `trace`), followed by a line naming the running client.
+13. Enter `/agtdev unknown` and confirm the add-on reports an unknown command and suggests `/agtdev help` without raising an error.
+14. If the production add-on is also installed, enable it on its own and confirm `/agt` and `/asgardstithe` open **Asgard's Guild Tithe** settings with values independent of the development variant.
 
 ## Income tracking steps
 
@@ -32,18 +34,19 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 5. Turn off **Miscellaneous/system income**, earn money, and confirm the balance does not change. Turn it back on.
 6. Turn off **Print tithe updates**, earn money, and confirm the balance still increases with no chat message. Turn it back on.
 7. On a guildless character, earn money and confirm the balance does not change. After joining a guild, confirm new gains are tracked again.
-8. Kill a creature alone and loot its coin. Confirm the message says `from loot income`.
-9. In a group, loot coin that is shared with the party. Confirm your share is reported `from loot income`.
+8. Kill a creature alone and loot its coin. Confirm the message says `from loot`.
+9. In a group, loot coin that is shared with the party. Confirm your share is reported `from loot`.
 10. Loot coin, wait a few seconds, then sell an item. Confirm the sale is reported as a vendor sale, not loot.
 11. Turn off **Loot income**, loot coin, and confirm the balance does not change and no message appears. Turn it back on.
 12. Sell several items to a vendor quickly, one after another. Confirm one grouped message appears about a second after the last sale, with the combined amount reserved from vendor sale income and the correct total owed. Gains from a different source always get their own message.
-13. Turn in a quest that rewards money. Confirm it is reported `from quest income`. A quest that rewards only items adds nothing.
+13. Turn in a quest that rewards money. Confirm it is reported `from quests`. A quest that rewards only items adds nothing.
 14. Turn off **Quest income** and **Vendor sales** one at a time, and confirm each stops only its own source. Turn them back on.
-15. Turn on **Mailbox income**, mail gold from one of your characters to another, collect it, and confirm it is reported `from mailbox income`. Turn **Mailbox income** off again and confirm the next mailed gold changes nothing.
-16. When convenient: collect auction-sale money with **Auction income** on and **Mailbox income** off, and confirm it is reported `from auction income`. Then try the reverse and confirm the auction money is ignored.
-17. When convenient: receive gold in a completed trade and confirm it is reported `from player trade income`. Cancel a trade that offered gold and confirm nothing happens.
-18. When convenient: withdraw gold from the guild bank and confirm the balance does not change and no message appears.
-19. When convenient: buy an item from a vendor and sell it back for a refund. Confirm the refund is not tithed.
+15. Turn on **Mailbox income**, mail gold from one of your characters to another, collect it, and confirm it is reported `from mail`. Turn **Mailbox income** off again and confirm the next mailed gold changes nothing.
+16. When convenient: collect auction-sale money with **Auction income** on and **Mailbox income** off, and confirm it is reported `from auctions`. Then try the reverse and confirm the auction money is ignored.
+17. Open All (especially on Camelot): with **Auction income** and **Mailbox income** both off, collect several auction-sale mails at once with the mailbox's **Open All** button (or a mail add-on such as Postal or TSM). Confirm the balance does not change and no `from other income` message appears. Then turn **Mailbox income** on, collect several ordinary gold mails with Open All, and confirm they are reported `from mail`, never `from other income`.
+18. When convenient: receive gold in a completed trade and confirm it is reported `from a trade`. Cancel a trade that offered gold and confirm nothing happens.
+19. When convenient: withdraw gold from the guild bank and confirm the balance does not change and no message appears.
+20. When convenient: buy an item from a vendor and sell it back for a refund. Confirm the refund is not tithed.
 
 ## Guild-bank payment steps
 
@@ -73,18 +76,35 @@ Run these on a guilded character, on both clients. **Required** steps can be don
 6. Give to a second guild. Confirm separate guild totals.
 7. With more than 12 donations, scroll with the mouse wheel and the **Newer**/**Older** buttons.
 
+## Minimap icon steps
+
+Run these on both clients.
+
+**Required**
+1. On a fresh install (or with no saved icon state), confirm a gold-coin **Asgard's Guild Tithe (Dev)** icon is on the edge of the minimap, and no Lua error appears.
+2. Hover the icon on a guilded character. Confirm the tooltip shows the add-on name, `Balance owed:` with your balance in coin icons (matching `/agtdev`), `Tithing <percentage>% to <your guild>`, and the left-click and right-click hints.
+3. Left-click the icon and confirm the settings page opens. Right-click it and confirm **Donation History** opens.
+4. Drag the icon to another spot around the minimap, `/reload`, and confirm it stays there. Log in to another character and confirm the icon is in the same spot.
+5. On a guildless character, hover the icon and confirm the tooltip shows the balance and `Not in a guild`, with no guild name or percentage.
+6. In `/agtdev`, confirm a **Minimap** section with **Show minimap icon** checked. Uncheck it and confirm the icon disappears at once; check it and confirm it returns.
+7. Type `/agtdev minimap`. Confirm the icon hides and chat says `Minimap icon hidden. Use /agtdev minimap to show it again.` With the settings page open, confirm **Show minimap icon** is now unchecked (if it only updates after reopening the page, note it). Log in to another character and confirm the icon is hidden there too, then type `/agtdev minimap` again and confirm `Minimap icon shown.` and the icon returns. Confirm `/agtdev help` lists `minimap`.
+
+**When convenient**
+8. With a display-bar add-on (Titan Panel, ElvUI DataTexts, Bazooka, or ChocolateBar), add the **Asgard's Guild Tithe (Dev)** entry. Confirm it shows `Tithe: <balance>` with coin icons, that the text changes right away when you earn tithed income, give at the guild bank, and run `/agtdev clear`, and that hovering and left/right-clicking it work like the minimap icon.
+9. With another add-on that also bundles LibDBIcon installed (most minimap-icon add-ons do), confirm both icons appear and no Lua error mentions LibStub, LibDataBroker, or LibDBIcon.
+
 ## WoW Forever
 
 ### Install
 
 1. From the checkout at `~/Projects/wow-guild-tithe`, run `./tools/Install-Dev.ps1` in PowerShell. Pass `-WowRoot` if the Forever client is not in its default location.
-2. Confirm `_classic_beta_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Camelot.toc`, `Core`, and `Adapters` are directly inside it.
+2. Confirm `_classic_beta_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Camelot.toc`, `Core`, `Adapters`, and `Libs` are directly inside it.
 3. Start or restart the client so it rescans add-ons.
 4. At character selection, open **AddOns** and confirm **Asgard's Guild Tithe (Dev)** appears enabled and is not marked out of date. Disable the production variant if it is installed. The Forever manifests target interfaces `16000` and `16001`.
 
 ### Verify
 
-Run the shared verification steps. In step 10, the client line reads `client - WoW Forever.`
+Run the shared verification steps. In step 12, the client line reads `client - WoW Forever.`
 
 ### Sign-off
 
@@ -107,14 +127,14 @@ Two-client re-check (PRD #14):
 ### Install
 
 1. From the checkout, run `./tools/Install-Dev.ps1 -Client Retail` in PowerShell. Add `-WowInstallRoot` or `-WowRoot` if Retail is not in its default location (see [the development install](development-install.md)).
-2. Confirm `_retail_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Mainline.toc`, `Core`, and `Adapters` are directly inside it.
+2. Confirm `_retail_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Mainline.toc`, `Core`, `Adapters`, and `Libs` are directly inside it.
 3. Start or restart the Retail client so it rescans add-ons.
 4. At character selection, open **AddOns** and confirm **Asgard's Guild Tithe (Dev)** appears enabled and is not marked out of date. Disable the production variant if it is installed.
 5. Run `/dump (select(4, GetBuildInfo()))` and confirm the `RETAIL_INTERFACE` repository variable includes it (see [release packaging](packaging.md#game-versions)); update the variable if not. If the development install shows as out of date, check **Load out of date AddOns** or run `tools/set-interface.sh retail <interface>`.
 
 ### Verify
 
-Run the shared verification steps. In step 10, the client line reads `client - WoW Retail.`
+Run the shared verification steps. In step 12, the client line reads `client - WoW Retail.`
 
 ### Sign-off
 
@@ -147,3 +167,8 @@ Run the shared verification steps. In step 10, the client line reads `client - W
 - **Forever:** interface `16001`, build 1.60.1 (70058). The build was not re-reported and is assumed unchanged from the PRD #4 sign-off.
 - **Retail:** interface `120100`, build 12.1.0 (69933). The build was not re-reported and is assumed unchanged from the PRD #4 sign-off.
 - **Signed off by:** Jon Zenor
+
+## Shared guild settings, mail fix, and minimap sign-off (PRD #50)
+
+- **Status:** Pending. Tracked in #58.
+- **Covers:** shared verification steps 9 to 11 (per-guild settings), income tracking step 17 (Open All on Camelot), and the minimap icon steps, on both clients.

@@ -1,11 +1,16 @@
 local test = require("tests.test_helper")
 
 local MANIFEST_FILES = {
+    "Libs/LibStub/LibStub.lua",
+    "Libs/CallbackHandler-1.0/CallbackHandler-1.0.lua",
+    "Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua",
+    "Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua",
     "Core/Identity.lua",
     "Adapters/ClientProfile.lua",
     "Adapters/WoW.lua",
     "Adapters/EventTrace.lua",
     "Core/Persistence.lua",
+    "Core/GuildSettings.lua",
     "Core/CharacterState.lua",
     "Core/Accounting.lua",
     "Core/TitheService.lua",
@@ -19,6 +24,7 @@ local MANIFEST_FILES = {
     "Core/TithePayment.lua",
     "Core/DonationLedger.lua",
     "Core/HistoryController.lua",
+    "Core/Launcher.lua",
     "Core/Lifecycle.lua",
     "AsgardsGuildTithe.lua",
 }
@@ -241,12 +247,17 @@ local function registerBootstrapTest(variant)
         local files = tocFiles(variant.toc)
         local index
         for index = 1, #files do
-            test.loadAddonFileInEnvironment(
-                files[index],
-                addon,
-                environment,
-                variant.addonName
-            )
+            -- The bundled libraries need the client's widgets; the client
+            -- fixtures load them. Without them the add-on has no minimap
+            -- icon but otherwise starts the same.
+            if string.sub(files[index], 1, 5) ~= "Libs/" then
+                test.loadAddonFileInEnvironment(
+                    files[index],
+                    addon,
+                    environment,
+                    variant.addonName
+                )
+            end
         end
 
         -- The lifecycle frame is created at load; income observation adds
@@ -270,7 +281,7 @@ local function registerBootstrapTest(variant)
         frame.handler(frame, "PLAYER_LOGIN")
 
         local database = environment[variant.databaseName]
-        test.assertEqual(4, database.schemaVersion)
+        test.assertEqual(5, database.schemaVersion)
         test.assertEqual("table", type(database.characters["jaina-camelot"]))
         test.assertEqual(otherVariantDatabase, environment[variant.otherDatabaseName])
         test.assertEqual(legacyDatabase, environment.GuildTitheDB)

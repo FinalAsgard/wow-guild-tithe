@@ -152,6 +152,31 @@ local function registerProfileTests(profile)
 
         test.assertEqual("Tithe - Current balance: 1|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 23|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t", fixtures.balanceText(world))
     end)
+
+    test.test(profile .. " income follows the current guild's shared settings across a guild change", function()
+        local world = newWorld(profile)
+        local bindings = world.settings.bindings
+        bindings.AsgardsGuildTithe_Percentage.setValue(20)
+        bindings.AsgardsGuildTithe_Source_Miscellaneous.setValue(false)
+
+        fixtures.setMoney(world, STARTING_MONEY + 1000)
+        test.assertEqual(0, character(world).outstandingCopper)
+
+        -- A guild none of the account's characters has tithed to starts at
+        -- the defaults: 10% with miscellaneous income on.
+        world.guildName = "Horde Lords"
+        fixtures.setMoney(world, STARTING_MONEY + 2000)
+        test.assertEqual(100, character(world).outstandingCopper)
+
+        world.guildName = "Knights of Camelot"
+        bindings.AsgardsGuildTithe_Source_Miscellaneous.setValue(true)
+        fixtures.setMoney(world, STARTING_MONEY + 3000)
+        test.assertEqual(300, character(world).outstandingCopper)
+
+        local guilds = world.environment.AsgardsGuildTitheDB.guilds
+        test.assertEqual(20, guilds["knights of camelot-camelot"].percentage)
+        test.assertEqual(10, guilds["horde lords-camelot"].percentage)
+    end)
 end
 
 local profileIndex
@@ -193,6 +218,9 @@ local function newCoordinator(overrides)
     local snapshot = {
         chatFeedback = true,
         outstandingCopper = 0,
+    }
+    local settings = {
+        percentage = 10,
         sources = { miscellaneous = true },
     }
     local client = {
@@ -202,7 +230,13 @@ local function newCoordinator(overrides)
     }
     local state = {
         GetCurrentCharacter = function()
-            return overrides.character ~= nil and overrides.character or snapshot
+            return snapshot
+        end,
+        GetTitheSettings = function()
+            if overrides.noSettings then
+                return nil
+            end
+            return overrides.settings ~= nil and overrides.settings or settings
         end,
     }
     local titheService = {
@@ -248,13 +282,12 @@ end)
 
 test.test("coordinator reads settings at finalization, not when the gain began", function()
     local current = {
-        chatFeedback = true,
-        outstandingCopper = 0,
+        percentage = 10,
         sources = { miscellaneous = true },
     }
     local coordinator, _, calls = newCoordinator({
         accrual = { accruedCopper = 100, outstandingCopper = 100 },
-        character = current,
+        settings = current,
         inGuild = true,
     })
 
@@ -263,4 +296,15 @@ test.test("coordinator reads settings at finalization, not when the gain began",
 
     test.assertEqual("disabled", result.status)
     test.assertEqual(0, calls())
+end)
+
+test.test("coordinator leaves a gain unresolved when the guild's settings are unavailable", function()
+    local coordinator, messages, calls = newCoordinator({ inGuild = true, noSettings = true })
+
+    local result = coordinator:Finalize(OBSERVATION)
+
+    test.assertEqual("unresolved", result.status)
+    test.assertEqual("guild tithe settings are unavailable", result.reason)
+    test.assertEqual(0, calls())
+    test.assertEqual(0, #messages)
 end)

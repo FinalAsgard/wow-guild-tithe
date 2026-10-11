@@ -24,7 +24,7 @@ If `lua` on your system is Lua 5.1-compatible, `lua tests/run.lua` works as well
 - Use table-driven cases when the same behavior must be checked across several inputs.
 - Build controlled WoW API fakes as ordinary Lua tables and pass them to `Compatibility.Create`. Do not install test globals.
 - Add each spec module to `tests/run.lua` so the zero-dependency runner executes it.
-- Keep the bootstrap spec loading every Lua file in manifest order so dependency and composition errors fail before in-game testing.
+- Keep the bootstrap spec loading every Lua file in manifest order so dependency and composition errors fail before in-game testing. It skips the bundled libraries in `Libs/`, which need the client's widgets; the client fixtures load the full manifest, libraries included, with small widget and minimap fakes, and `options.libraries = false` loads it without them.
 
 ## Client profiles
 

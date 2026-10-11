@@ -21,6 +21,16 @@ CI configuration. The package keeps the production manifests, every runtime
 module they load, `README.md`, and `LICENSE`, and the packager adds a
 generated `CHANGELOG.md`.
 
+The minimap icon's libraries are bundled in `Libs/`: LibStub,
+CallbackHandler-1.0, LibDataBroker-1.1, and LibDBIcon-1.0, taken from the
+LibDBIcon-1.0 repository (`https://repos.wowace.com/wow/libdbicon-1-0/trunk`).
+They are committed to the repository rather than fetched by the packager, so
+the release, the development install, and the tests load the same files. Every
+manifest lists them before the add-on's own modules, so the package check
+above also verifies they ship. LibStub versioning lets them share the newest
+copy with other add-ons that bundle the same libraries. To update them,
+replace the four files with the newer ones from that repository.
+
 ## Build and inspect locally
 
 ```sh

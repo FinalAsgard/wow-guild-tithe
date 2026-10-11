@@ -82,22 +82,50 @@ local function currentCharacter(state)
     return character
 end
 
-local function currentPercentage(state)
-    local character = currentCharacter(state)
-    if character == nil then
+-- The percentage and sources shown are the current guild's shared settings.
+-- While there are none (guildless), the defaults are shown and changes are
+-- refused.
+local function currentTitheSettings(state)
+    local settings = state:GetTitheSettings()
+    if type(settings) ~= "table" then
         return nil
     end
 
-    return character.percentage
+    return settings
 end
 
-local function currentSource(state, source)
-    local character = currentCharacter(state)
-    if character == nil or type(character.sources) ~= "table" then
-        return nil
+local DEFAULT_PERCENTAGE = 10
+
+local function currentPercentage(state)
+    local settings = currentTitheSettings(state)
+    if settings == nil then
+        return DEFAULT_PERCENTAGE
     end
 
-    return character.sources[source]
+    return settings.percentage
+end
+
+local function currentSource(state, definition)
+    local settings = currentTitheSettings(state)
+    if settings == nil or type(settings.sources) ~= "table" then
+        return definition.defaultValue
+    end
+
+    return settings.sources[definition.key]
+end
+
+local function hasGuildSettings(state)
+    return currentTitheSettings(state) ~= nil
+end
+
+-- The header above the guild-shared controls: whose settings they change,
+-- or why they cannot be changed.
+local function guildHeaderText(state)
+    local settings = currentTitheSettings(state)
+    if settings == nil or type(settings.guild) ~= "table" or type(settings.guild.name) ~= "string" then
+        return "Join a guild to set its tithe"
+    end
+    return "Shared by your characters in " .. settings.guild.name
 end
 
 local function currentChatFeedback(state)
@@ -134,7 +162,10 @@ local function buildSourceCheckboxes(state)
             tooltip = definition.tooltip,
             defaultValue = definition.defaultValue,
             getValue = function()
-                return currentSource(state, source)
+                return currentSource(state, definition)
+            end,
+            isEnabled = function()
+                return hasGuildSettings(state)
             end,
             setValue = function(value)
                 return state:SetSourceEnabled(source, value)
@@ -178,31 +209,83 @@ local function buildAutoDepositCheckbox(state)
     }
 end
 
-function SettingsController.Create(client, state, formatter)
+local MINIMAP_SETTING = {
+    variableSuffix = "MinimapIcon",
+    label = "Show minimap icon",
+    tooltip = "Show the Guild Tithe icon on the minimap on all your characters. " ..
+        "You can also type " .. addon.Identity.slashCommand .. " minimap.",
+    defaultValue = true,
+}
+
+local function minimapVariable()
+    return addon.Identity.settingsPrefix .. "_" .. MINIMAP_SETTING.variableSuffix
+end
+
+local function buildMinimapCheckbox(launcher)
+    return {
+        variable = minimapVariable(),
+        label = MINIMAP_SETTING.label,
+        tooltip = MINIMAP_SETTING.tooltip,
+        defaultValue = MINIMAP_SETTING.defaultValue,
+        getValue = function()
+            return launcher:IsShown()
+        end,
+        setValue = function(value)
+            return launcher:SetShown(value)
+        end,
+        -- Greyed out when this client cannot show the icon.
+        isEnabled = function()
+            return launcher:IsAvailable()
+        end,
+    }
+end
+
+-- `launcher`, when given, adds the Minimap section.
+function SettingsController.Create(client, state, formatter, launcher)
     return setmetatable({
         client = client,
         formatter = formatter or addon.MoneyFormatter,
+        launcher = launcher,
         state = state,
     }, Controller)
 end
 
 function Controller:Register()
     local balanceText = currentBalance(self.state, self.formatter)
-    if self.category ~= nil
-        or currentPercentage(self.state) == nil
-        or balanceText == nil
-    then
+    if self.category ~= nil or balanceText == nil then
         return self.category ~= nil
+    end
+
+    local checkboxSections = {
+        {
+            heading = "Income Sources",
+            checkboxes = buildSourceCheckboxes(self.state),
+        },
+        {
+            heading = "Feedback",
+            checkboxes = { buildChatFeedbackCheckbox(self.state) },
+        },
+        {
+            heading = "Guild Bank",
+            checkboxes = { buildAutoDepositCheckbox(self.state) },
+        },
+    }
+    if self.launcher ~= nil then
+        table.insert(checkboxSections, {
+            heading = "Minimap",
+            checkboxes = { buildMinimapCheckbox(self.launcher) },
+        })
     end
 
     local category = self.client:RegisterSettingsCategory({
         categoryName = addon.Identity.displayName,
         balanceText = balanceText,
+        guildHeaderText = guildHeaderText(self.state),
         percentage = {
             variable = addon.Identity.settingsPrefix .. "_Percentage",
             label = "Tithe percentage",
             tooltip = "Percentage of eligible income reserved for your guild tithe.",
-            defaultValue = 10,
+            defaultValue = DEFAULT_PERCENTAGE,
             minimum = 0,
             maximum = 100,
             step = 1,
@@ -212,21 +295,11 @@ function Controller:Register()
             setValue = function(value)
                 return self.state:SetPercentage(value)
             end,
+            isEnabled = function()
+                return hasGuildSettings(self.state)
+            end,
         },
-        checkboxSections = {
-            {
-                heading = "Income Sources",
-                checkboxes = buildSourceCheckboxes(self.state),
-            },
-            {
-                heading = "Feedback",
-                checkboxes = { buildChatFeedbackCheckbox(self.state) },
-            },
-            {
-                heading = "Guild Bank",
-                checkboxes = { buildAutoDepositCheckbox(self.state) },
-            },
-        },
+        checkboxSections = checkboxSections,
     })
 
     if category == nil then
@@ -239,6 +312,19 @@ function Controller:Register()
     if type(self.state.OnFinancialChange) == "function" then
         self.state:OnFinancialChange(function()
             self:RefreshBalance()
+        end)
+    end
+    -- Joining, leaving, or switching guilds changes whose settings the page
+    -- shows and whether they can be changed.
+    if type(self.state.OnGuildSettingsChange) == "function" then
+        self.state:OnGuildSettingsChange(function()
+            self:RefreshGuild()
+        end)
+    end
+    -- /agt minimap changes the checkbox's value behind the open page.
+    if self.launcher ~= nil and type(self.client.RefreshSettingValue) == "function" then
+        self.launcher:OnVisibilityChange(function()
+            self.client:RefreshSettingValue(minimapVariable())
         end)
     end
     local index
@@ -271,8 +357,16 @@ function Controller:RefreshBalance()
     return self.client:RefreshSettingsBalance(self.category, balanceText)
 end
 
+function Controller:RefreshGuild()
+    if self.category == nil or type(self.client.RefreshSettingsGuild) ~= "function" then
+        return false
+    end
+    return self.client:RefreshSettingsGuild(self.category, guildHeaderText(self.state))
+end
+
 function Controller:Open()
     self:RefreshBalance()
+    self:RefreshGuild()
 
     if self.category ~= nil and self.client:OpenSettingsCategory(self.category) then
         return true

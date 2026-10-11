@@ -135,11 +135,213 @@ local function registerProfileTests(profile)
         test.assertContains(lastMessage(world), "from mail")
     end)
 
-    test.test(profile .. " a gain that does not match the collected mail is not mail income", function()
+    test.test(profile .. " a gain the collected mail does not explain is mailbox income", function()
         local world = newWorld(profile, { { money = 10000 } }, { mailbox = true })
 
         fixtures.collectMail(world, 1, "TakeInboxMoney", 999)
 
+        test.assertContains(lastMessage(world), "from mail")
+        test.assertEqual(99, character(world).outstandingCopper)
+    end)
+
+    -- The reported bug (#48): bulk-collected auction mail whose exact match
+    -- misses must not fall through to miscellaneous and be tithed.
+    test.test(profile .. " unmatched auction mail is not tithed when auction and mailbox income are off", function()
+        local world = newWorld(profile, {
+            { money = 20000, invoiceType = "seller" },
+            { money = 30000, invoiceType = "seller" },
+        }, {})
+        local before = fixtures.snapshot(character(world))
+
+        fixtures.fire(world, "MAIL_SHOW")
+        fixtures.fire(world, "MAIL_INBOX_UPDATE")
+        -- Open All without the hook: money arrives with no collect call.
+        fixtures.setMoney(world, STARTING_MONEY + 20000)
+        -- Letter positions shifted: the collect call names a letter whose
+        -- amount does not match the money that arrives.
+        world.environment.TakeInboxMoney(1)
+        fixtures.advance(world, 0.1)
+        fixtures.setMoney(world, STARTING_MONEY + 50000)
+
+        fixtures.assertSameData(before, character(world))
+        test.assertEqual(0, #world.messages)
+    end)
+
+    test.test(profile .. " a gain only the open mailbox explains is never auction income", function()
+        local world = newWorld(profile, { { money = 20000, invoiceType = "seller" } }, {
+            auctions = true,
+            mailbox = true,
+        })
+
+        fixtures.fire(world, "MAIL_SHOW")
+        fixtures.setMoney(world, STARTING_MONEY + 20000)
+
+        test.assertContains(lastMessage(world), "from mail")
+        test.assertEqual(1, #world.messages)
+    end)
+
+    test.test(profile .. " exact auction and returned-mail matches still win while the mailbox is open", function()
+        local world = newWorld(profile, {
+            { money = 20000, invoiceType = "seller" },
+            { money = 15000, returned = true },
+        }, { auctions = true, mailbox = true })
+
+        fixtures.collectMail(world, 1)
+        test.assertContains(lastMessage(world), "from auctions")
+        test.assertEqual(2000, character(world).outstandingCopper)
+
+        fixtures.collectMail(world, 2)
+        test.assertEqual(1, #world.messages)
+        test.assertEqual(2000, character(world).outstandingCopper)
+    end)
+
+    test.test(profile .. " a gain after the mailbox closes and the grace passes is classified normally", function()
+        local world = newWorld(profile, {}, { mailbox = true })
+
+        fixtures.fire(world, "MAIL_SHOW")
+        fixtures.fire(world, "MAIL_CLOSED")
+        fixtures.advance(world, 2)
+        fixtures.setMoney(world, STARTING_MONEY + 5000)
+
+        test.assertContains(lastMessage(world), "from other income")
+    end)
+
+    -- A bulk open (Open All, Postal, TSM) where each collected letter is
+    -- removed and the rest move up, with no inbox update in between.
+    local function bulkWorld(sources)
+        local world = fixtures.newEnvironment(profile, { money = STARTING_MONEY })
+        fixtures.installMailbox(world, {
+            { money = 20000, invoiceType = "seller", sender = "Auction House", subject = "Auction successful: Cloth" },
+            { money = 10000, sender = "Thrall", subject = "Gold for you" },
+            { money = 15000, returned = true, sender = "Jaina", subject = "Returned: Gold" },
+            { money = 7000, invoiceType = "seller", sender = "Auction House", subject = "Auction successful: Ore" },
+        }, { removeCollected = true })
+        fixtures.login(world)
+        local bindings = world.settings.bindings
+        bindings.AsgardsGuildTithe_Source_Auctions.setValue(sources.auctions == true)
+        bindings.AsgardsGuildTithe_Source_Mailbox.setValue(sources.mailbox == true)
+        fixtures.fire(world, "MAIL_SHOW")
+        fixtures.fire(world, "MAIL_INBOX_UPDATE")
+        return world
+    end
+
+    local function collectFirst(world, copper)
+        world.environment.TakeInboxMoney(1)
+        fixtures.advance(world, 0.1)
+        fixtures.setMoney(world, world.money + copper)
+    end
+
+    test.test(profile .. " letters collected as positions shift each note their own amount and source", function()
+        local world = bulkWorld({ auctions = true, mailbox = true })
+
+        collectFirst(world, 20000)
+        test.assertContains(lastMessage(world), "+20|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from auctions")
+        collectFirst(world, 10000)
+        test.assertContains(lastMessage(world), "+10|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from mail")
+        collectFirst(world, 15000)
+        test.assertEqual(2, #world.messages)
+        collectFirst(world, 7000)
+        test.assertContains(lastMessage(world), "+7|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t tithe from auctions")
+
+        -- 10% of 20000 + 10000 + 7000; the returned 15000 is excluded.
+        test.assertEqual(3700, character(world).outstandingCopper)
+        test.assertEqual(0, #world.inbox)
+    end)
+
+    test.test(profile .. " bulk-collected auction money with only auction income on is auction income", function()
+        local world = bulkWorld({ auctions = true })
+
+        collectFirst(world, 20000)
+        collectFirst(world, 10000)
+        collectFirst(world, 15000)
+        collectFirst(world, 7000)
+
+        test.assertEqual(2700, character(world).outstandingCopper)
+        local index
+        for index = 1, #world.messages do
+            test.assertContains(world.messages[index], "from auctions")
+        end
+    end)
+
+    test.test(profile .. " an inbox update between bulk collections keeps notes matched", function()
+        local world = bulkWorld({ auctions = true, mailbox = true })
+
+        local amounts = { 20000, 10000, 15000, 7000 }
+        local index
+        for index = 1, #amounts do
+            world.environment.TakeInboxMoney(1)
+            fixtures.fire(world, "MAIL_INBOX_UPDATE")
+            fixtures.advance(world, 0.1)
+            fixtures.setMoney(world, world.money + amounts[index])
+        end
+
+        test.assertEqual(3700, character(world).outstandingCopper)
+        test.assertEqual(3, #world.messages)
+    end)
+
+    test.test(profile .. " a stale snapshot never notes a letter's amount for a different letter", function()
+        local world = fixtures.newEnvironment(profile, { money = STARTING_MONEY })
+        fixtures.installMailbox(world, {
+            { money = 20000, invoiceType = "seller", sender = "Auction House", subject = "Auction successful: Cloth" },
+        })
+        fixtures.login(world)
+        world.settings.bindings.AsgardsGuildTithe_Source_Auctions.setValue(true)
+        world.settings.bindings.AsgardsGuildTithe_Source_Mailbox.setValue(true)
+        local notes = {}
+        world.addon.client:OnMailCollected(function(_, _, letter, source, how)
+            table.insert(notes, { letter = letter, source = source, how = how })
+        end)
+        fixtures.fire(world, "MAIL_SHOW")
+        fixtures.fire(world, "MAIL_INBOX_UPDATE")
+
+        -- The inbox changes with no update event: the snapshot is stale.
+        world.inbox[1] = { money = 5000, sender = "Thrall", subject = "Gold for you" }
+        world.environment.TakeInboxMoney(1)
+        fixtures.advance(world, 0.1)
+        fixtures.setMoney(world, world.money + 5000)
+
+        test.assertEqual(1, #notes)
+        test.assertEqual(nil, notes[1].letter)
+        test.assertContains(notes[1].how, "no longer matches")
+        -- No exact note, so the open mailbox explains it as mail income.
+        test.assertContains(lastMessage(world), "from mail")
+        test.assertEqual(500, character(world).outstandingCopper)
+    end)
+
+    test.test(profile .. " a repeated collect call for the same letter notes it once", function()
+        local world = newWorld(profile, {
+            { money = 20000, invoiceType = "seller", sender = "Auction House", subject = "Auction successful: Cloth" },
+        }, { auctions = true, mailbox = true })
+        -- Money still shows until the server confirms, so the letter stays.
+        world.environment.GetInboxHeaderInfo = function()
+            return nil, nil, "Auction House", "Auction successful: Cloth", 20000, 0, 30,
+                false, false, nil, false, true, false
+        end
+        local notes = 0
+        world.addon.client:OnMailCollected(function(_, _, letter)
+            if letter ~= nil then
+                notes = notes + 1
+            end
+        end)
+        fixtures.fire(world, "MAIL_SHOW")
+        fixtures.fire(world, "MAIL_INBOX_UPDATE")
+
+        world.environment.TakeInboxMoney(1)
+        world.environment.TakeInboxMoney(1)
+
+        test.assertEqual(1, notes)
+    end)
+
+    test.test(profile .. " the interaction manager opens and closes the mailbox session", function()
+        local world = newWorld(profile, {}, { mailbox = true })
+
+        fixtures.fire(world, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 17)
+        fixtures.setMoney(world, STARTING_MONEY + 5000)
+        test.assertContains(lastMessage(world), "from mail")
+
+        fixtures.fire(world, "PLAYER_INTERACTION_MANAGER_FRAME_HIDE", 17)
+        fixtures.advance(world, 2)
+        fixtures.setMoney(world, STARTING_MONEY + 8000)
         test.assertContains(lastMessage(world), "from other income")
     end)
 end
@@ -149,15 +351,16 @@ for profileIndex = 1, #fixtures.PROFILES do
     registerProfileTests(fixtures.PROFILES[profileIndex])
 end
 
-test.test("mail money is miscellaneous when the client cannot hook mail collection", function()
+test.test("mail money is mailbox income when the client cannot hook mail collection", function()
     local world = fixtures.newEnvironment("Retail", { money = STARTING_MONEY })
-    fixtures.installMailbox(world, { { money = 10000 } })
+    fixtures.installMailbox(world, { { money = 10000, invoiceType = "seller" } })
     world.environment.hooksecurefunc = nil
     fixtures.login(world)
+    world.settings.bindings.AsgardsGuildTithe_Source_Mailbox.setValue(true)
 
     fixtures.collectMail(world, 1)
 
-    test.assertContains(lastMessage(world), "from other income")
+    test.assertContains(lastMessage(world), "from mail")
 end)
 
 test.test("correlator: an exclusion reports its reason and a used amount note is consumed", function()

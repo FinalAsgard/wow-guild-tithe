@@ -62,9 +62,10 @@ test.test("lifecycle registers slash handling at add-on load and state at player
 
     environment.SlashCmdList.AGT("")
     test.assertEqual(
-        "|cffd4af37[Guild Tithe]|r Commands: /agt help - show available commands",
+        "|cffd4af37[Guild Tithe]|r Commands:",
         messages[1]
     )
+    test.assertEqual("  /agt help - show available commands", messages[2])
 end)
 
 test.test("lifecycle registers slash handling once when duplicate load events arrive", function()

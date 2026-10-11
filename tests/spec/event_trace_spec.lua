@@ -208,6 +208,48 @@ test.test("dev trace records mail money collection with invoice details", functi
     test.assertEqual(4725, last.extra.header[6])
 end)
 
+test.test("dev trace records how each mail-collect call resolved", function()
+    local world = fixtures.newEnvironment("Forever", { money = 1000 })
+    fixtures.installMailbox(world, {
+        { money = 20000, invoiceType = "seller", sender = "Auction House", subject = "Auction successful: Cloth" },
+        { money = 10000, sender = "Thrall", subject = "Gold for you" },
+    }, { removeCollected = true })
+    fixtures.loadAddon(world, DEV)
+    fixtures.fire(world, "ADDON_LOADED", DEV)
+    world.playerReady = true
+    fixtures.fire(world, "PLAYER_LOGIN")
+    trace(world, "start")
+    fixtures.fire(world, "MAIL_SHOW")
+    fixtures.fire(world, "MAIL_INBOX_UPDATE")
+
+    world.environment.TakeInboxMoney(1)
+    world.environment.TakeInboxMoney(1)
+    world.environment.TakeInboxMoney(1)
+
+    local mails = {}
+    local index
+    for index = 1, #entries(world) do
+        if entries(world)[index].kind == "mail" then
+            table.insert(mails, entries(world)[index])
+        end
+    end
+    test.assertEqual(3, #mails)
+    test.assertEqual("TakeInboxMoney", mails[1].name)
+    test.assertEqual(1, mails[1].args[1])
+    test.assertEqual(20000, mails[1].extra.amount)
+    test.assertEqual("auctions", mails[1].extra.source)
+    test.assertEqual("Auction successful: Cloth", mails[1].extra.letter.subject)
+    test.assertEqual("seller", mails[1].extra.letter.invoiceType)
+    test.assertContains(mails[1].extra.how, "removed")
+    test.assertEqual(10000, mails[2].extra.amount)
+    test.assertEqual("mailbox", mails[2].extra.source)
+    test.assertEqual("Thrall", mails[2].extra.letter.sender)
+    -- An empty inbox resolves to nothing, and says so.
+    test.assertEqual(nil, mails[3].extra.letter)
+    test.assertEqual(nil, mails[3].extra.source)
+    test.assertEqual("string", type(mails[3].extra.how))
+end)
+
 test.test("dev trace stores only plain values and clears on request", function()
     local world = loginDev("Forever")
     trace(world, "start")

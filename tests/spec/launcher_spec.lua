@@ -1,0 +1,268 @@
+local test = require("tests.test_helper")
+local fixtures = require("tests.client_fixtures")
+
+local BUTTON = "LibDBIcon10_AsgardsGuildTithe"
+
+local function login(profile, options)
+    local world = fixtures.newEnvironment(profile, options)
+    local addon = fixtures.login(world)
+    return world, addon
+end
+
+local function icon(world)
+    return world.environment[BUTTON]
+end
+
+-- Hovers the minimap icon and returns the tooltip's lines.
+local function hover(world)
+    local button = icon(world)
+    button.scripts.OnEnter(button)
+    return world.environment.LibDBIconTooltip.lines
+end
+
+local function hasLine(lines, text)
+    local index
+    for index = 1, #lines do
+        if string.find(lines[index], text, 1, true) ~= nil then
+            return true
+        end
+    end
+    return false
+end
+
+local CHECKBOX = "AsgardsGuildTithe_MinimapIcon"
+
+local function minimap(world)
+    world.environment.SlashCmdList.AGT("minimap")
+    return world.messages[#world.messages]
+end
+
+-- The broker entry display bars read, as other add-ons see it.
+local function broker(world)
+    return world.environment.LibStub("LibDataBroker-1.1"):GetDataObjectByName("AsgardsGuildTithe")
+end
+
+local function registerProfileTests(profile)
+    test.test(profile .. " a fresh install shows the gold-coin icon on the minimap", function()
+        local world, addon = login(profile)
+
+        local button = icon(world)
+        test.assertEqual("table", type(button), "minimap button")
+        test.assertTrue(button.shown)
+        test.assertEqual("Interface\\Icons\\INV_Misc_Coin_01", button.icon.path)
+        test.assertTrue(addon.lifecycle.launcherReady)
+        test.assertFalse(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+    end)
+
+    test.test(profile .. " the tooltip shows the balance, guild, percentage, and click hints", function()
+        local world, addon = login(profile)
+        test.assertTrue(addon.state:SetFinancialState(12345, 0))
+        test.assertTrue(addon.state:SetPercentage(15))
+
+        local lines = hover(world)
+
+        test.assertContains(lines[1], "Asgard's Guild Tithe")
+        test.assertEqual("Balance owed: |cffffffff" .. addon.MoneyFormatter.Format(12345) .. "|r",
+            lines[2])
+        test.assertEqual("Tithing |cffffffff15%|r to |cffffffffKnights of Camelot|r", lines[3])
+        test.assertTrue(hasLine(lines, "Left-click:|r open settings"))
+        test.assertTrue(hasLine(lines, "Right-click:|r open donation history"))
+    end)
+
+    test.test(profile .. " a guildless character's tooltip shows its balance and no guild", function()
+        local world, addon = login(profile, { inGuild = false })
+        test.assertTrue(addon.state:SetFinancialState(500, 0))
+
+        local lines = hover(world)
+
+        test.assertEqual("Balance owed: |cffffffff" .. addon.MoneyFormatter.Format(500) .. "|r",
+            lines[2])
+        test.assertEqual("Not in a guild", lines[3])
+        test.assertFalse(hasLine(lines, "Tithing"))
+        test.assertFalse(hasLine(lines, "%"))
+    end)
+
+    test.test(profile .. " the tooltip follows a guild change without a reload", function()
+        local world = login(profile)
+        world.inGuild = false
+        fixtures.fire(world, "PLAYER_GUILD_UPDATE")
+        test.assertEqual("Not in a guild", hover(world)[3])
+
+        world.inGuild = true
+        world.guildName = "Order of the Lion"
+        fixtures.fire(world, "PLAYER_GUILD_UPDATE")
+        test.assertEqual("Tithing |cffffffff10%|r to |cffffffffOrder of the Lion|r", hover(world)[3])
+    end)
+
+    test.test(profile .. " left-click opens settings and right-click opens donation history", function()
+        local world = login(profile)
+        local button = icon(world)
+
+        fixtures.click(button, "RightButton")
+        test.assertEqual(74, world.settings.openedCategoryID)
+
+        fixtures.click(button, "LeftButton")
+        test.assertEqual(73, world.settings.openedCategoryID)
+    end)
+
+    test.test(profile .. " the icon's position and visibility are shared by every character", function()
+        local world = login(profile)
+        local button = icon(world)
+
+        -- Drag the icon to the top of the minimap.
+        button.scripts.OnDragStart(button)
+        world.cursor = { 0, 50 }
+        button.scripts.OnUpdate(button)
+        button.scripts.OnDragStop(button)
+
+        local saved = world.environment.AsgardsGuildTitheDB
+        test.assertEqual(90, math.floor(saved.ui.minimap.minimapPos + 0.5))
+        saved.ui.minimap.hide = true
+
+        local alt = login(profile, { database = saved, playerName = "Thrall" })
+        local altSaved = alt.environment.AsgardsGuildTitheDB
+        test.assertEqual("table", type(altSaved.characters["thrall-camelot"]))
+        test.assertEqual(90, math.floor(altSaved.ui.minimap.minimapPos + 0.5))
+        test.assertFalse(icon(alt).shown, "hidden on the other character too")
+    end)
+
+    test.test(profile .. " without the icon libraries the add-on loads and works without an icon", function()
+        local world, addon = login(profile, { libraries = false })
+
+        test.assertEqual(nil, world.environment.LibStub)
+        test.assertEqual(nil, icon(world))
+        test.assertFalse(addon.lifecycle.launcherReady)
+        test.assertTrue(addon.lifecycle.stateReady)
+        test.assertTrue(addon.lifecycle.incomeReady)
+        test.assertEqual(0, #world.messages)
+
+        world.environment.SlashCmdList.AGT("")
+        test.assertEqual(73, world.settings.openedCategoryID)
+        fixtures.setMoney(world, 20000)
+        test.assertEqual(2000,
+            world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"].outstandingCopper)
+    end)
+
+    test.test(profile .. " the Show minimap icon checkbox hides and shows the icon at once", function()
+        local world = login(profile)
+        local checkbox = world.settings.bindings[CHECKBOX]
+
+        test.assertTrue(checkbox.getValue())
+        test.assertTrue(world.settings.controls[CHECKBOX]:IsEnabled())
+
+        checkbox.setValue(false)
+        test.assertFalse(icon(world).shown)
+        test.assertTrue(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+        test.assertFalse(checkbox.getValue())
+
+        checkbox.setValue(true)
+        test.assertTrue(icon(world).shown)
+        test.assertFalse(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+    end)
+
+    test.test(profile .. " /agt minimap toggles the icon, reports it, and updates the checkbox", function()
+        local world = login(profile)
+        local checkbox = world.settings.bindings[CHECKBOX]
+
+        test.assertContains(minimap(world), "Minimap icon hidden. Use /agt minimap to show it again.")
+        test.assertFalse(icon(world).shown)
+        test.assertFalse(checkbox.getValue())
+        test.assertEqual(1, world.settings.notified[CHECKBOX])
+
+        test.assertContains(minimap(world), "Minimap icon shown.")
+        test.assertTrue(icon(world).shown)
+        test.assertTrue(checkbox.getValue())
+        test.assertEqual(2, world.settings.notified[CHECKBOX])
+
+        world.environment.SlashCmdList.AGT("help")
+        test.assertContains(table.concat(world.messages, "\n"), "minimap")
+    end)
+
+    test.test(profile .. " a hidden icon stays hidden after a reload and on other characters", function()
+        local world = login(profile)
+        minimap(world)
+
+        local alt = login(profile, {
+            database = world.environment.AsgardsGuildTitheDB,
+            playerName = "Thrall",
+        })
+        test.assertFalse(icon(alt).shown)
+        test.assertFalse(alt.settings.bindings[CHECKBOX].getValue())
+
+        test.assertContains(minimap(alt), "Minimap icon shown.")
+        test.assertFalse(alt.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+    end)
+
+    test.test(profile .. " without the icon libraries /agt minimap reports the icon is unavailable", function()
+        local world = login(profile, { libraries = false })
+
+        test.assertContains(minimap(world), "The minimap icon is unavailable on this client.")
+        test.assertFalse(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+        test.assertFalse(world.settings.controls[CHECKBOX]:IsEnabled())
+        test.assertFalse(world.settings.bindings[CHECKBOX].setValue(false) == true)
+        test.assertFalse(world.environment.AsgardsGuildTitheDB.ui.minimap.hide)
+    end)
+
+    test.test(profile .. " display bars show the balance as text that follows every change", function()
+        local world, addon = login(profile, { money = 100000 })
+        local format = addon.MoneyFormatter.Format
+        local entry = broker(world)
+
+        test.assertEqual("data source", entry.type)
+        test.assertEqual("Asgard's Guild Tithe", entry.label)
+        test.assertEqual("Tithe: " .. format(0), entry.text)
+
+        -- Income: 10% of a 1g gain.
+        fixtures.setMoney(world, 110000)
+        test.assertEqual("Tithe: " .. format(1000), entry.text)
+
+        -- A guild-bank deposit, confirmed by the carried gold dropping.
+        world.environment.AsgardsGuildTitheDB.characters["jaina-camelot"].autoDeposit = true
+        fixtures.fire(world, "GUILDBANKFRAME_OPENED")
+        fixtures.advance(world, 1)
+        test.assertEqual(1000, world.deposits[1])
+        fixtures.setMoney(world, 109000)
+        test.assertEqual("Tithe: " .. format(0), entry.text)
+        fixtures.fire(world, "GUILDBANKFRAME_CLOSED")
+        -- Money just after closing the bank counts as a withdrawal; wait.
+        fixtures.advance(world, 5)
+
+        fixtures.setMoney(world, 129000)
+        test.assertEqual("Tithe: " .. format(2000), entry.text)
+        world.environment.SlashCmdList.AGT("clear")
+        test.assertEqual("Tithe: " .. format(0), entry.text)
+    end)
+
+    test.test(profile .. " a guildless character's display-bar text still shows its balance", function()
+        local world, addon = login(profile, { inGuild = false })
+        addon.state:SetFinancialState(4321, 0)
+        test.assertEqual("Tithe: " .. addon.MoneyFormatter.Format(4321), broker(world).text)
+    end)
+
+    test.test(profile .. " the tooltip shows changed percentage and sources the next time it opens", function()
+        local world = login(profile)
+        test.assertEqual("Tithing |cffffffff10%|r to |cffffffffKnights of Camelot|r", hover(world)[3])
+
+        world.settings.bindings.AsgardsGuildTithe_Percentage.setValue(7)
+        test.assertEqual("Tithing |cffffffff7%|r to |cffffffffKnights of Camelot|r", hover(world)[3])
+    end)
+end
+
+local index
+for index = 1, #fixtures.PROFILES do
+    registerProfileTests(fixtures.PROFILES[index])
+end
+
+test.test("the icon is skipped when another copy of the library lacks a dependency", function()
+    local world = fixtures.newEnvironment("Retail")
+    local addon = fixtures.loadAddon(world)
+    -- Simulates a broken shared copy: LibStub is present, LibDBIcon is not.
+    world.environment.LibStub.libs["LibDBIcon-1.0"] = nil
+    fixtures.fire(world, "ADDON_LOADED", "AsgardsGuildTithe")
+    world.playerReady = true
+    fixtures.fire(world, "PLAYER_LOGIN")
+
+    test.assertTrue(addon.lifecycle.stateReady)
+    test.assertFalse(addon.lifecycle.launcherReady)
+    test.assertEqual(nil, world.environment[BUTTON])
+end)

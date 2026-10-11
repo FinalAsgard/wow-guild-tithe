@@ -48,7 +48,13 @@ function Coordinator:Finalize(observation)
         return terminal(observation, "guildless", "character is not in a guild")
     end
 
-    if type(character.sources) ~= "table" or character.sources[observation.source] ~= true then
+    -- The percentage and sources are shared by the account's characters in
+    -- the current guild.
+    local settings = self.state:GetTitheSettings()
+    if type(settings) ~= "table" then
+        return terminal(observation, "unresolved", "guild tithe settings are unavailable")
+    end
+    if type(settings.sources) ~= "table" or settings.sources[observation.source] ~= true then
         return terminal(observation, "disabled", observation.source .. " income is disabled")
     end
 

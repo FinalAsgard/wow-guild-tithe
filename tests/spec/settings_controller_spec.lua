@@ -4,6 +4,7 @@ local function loadSettingsModules()
     return test.newAddon(
         "Adapters/WoW.lua",
         "Core/Persistence.lua",
+        "Core/GuildSettings.lua",
         "Core/CharacterState.lua",
         "Core/CommandRouter.lua",
         "Core/MoneyFormatter.lua",
@@ -11,9 +12,22 @@ local function loadSettingsModules()
     )
 end
 
-local function newEnvironment(name, realm, database, settings)
+-- `guildName` false makes the character guildless.
+local function newEnvironment(name, realm, database, settings, guildName)
+    if guildName == nil then
+        guildName = "Knights of Camelot"
+    end
     local environment = {
         AsgardsGuildTitheDB = database,
+        IsInGuild = function()
+            return guildName ~= false
+        end,
+        GetGuildInfo = function()
+            if guildName == false then
+                return nil
+            end
+            return guildName, "Member", 3, nil
+        end,
         MinimalSliderWithSteppersMixin = {
             Label = { Right = "right" },
         },
@@ -193,12 +207,13 @@ local PREFERENCE_CASES = {
     },
 }
 
-local function preferenceValue(character, preference)
+-- Sources are the guild's shared settings; the rest belong to the character.
+local function preferenceValue(state, preference)
     if preference.source ~= nil then
-        return character.sources[preference.source]
+        return state:GetTitheSettings().sources[preference.source]
     end
 
-    return character[preference.field]
+    return state:GetCurrentCharacter()[preference.field]
 end
 
 local function createController(addon, environment)
@@ -232,7 +247,7 @@ test.test("native percentage setting binds immediately without changing financia
 
     test.assertTrue(api.binding.setValue(37))
     local character = state:GetCurrentCharacter()
-    test.assertEqual(37, character.percentage)
+    test.assertEqual(37, state:GetTitheSettings().percentage)
     test.assertEqual(98765, character.outstandingCopper)
     test.assertEqual(42, character.fractionalRemainder)
 end)
@@ -252,7 +267,7 @@ test.test("settings display the formatted balance read-only and hide the remaind
         "Tithe - Current balance: 12|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 34|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t 56|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
         api.balanceHeading
     )
-    test.assertEqual(4, #api.layout.initializers)
+    test.assertEqual(5, #api.layout.initializers)
     test.assertEqual(nil, api.bindings.AsgardsGuildTithe_Balance)
     test.assertFalse(string.find(api.balanceHeading, "78", 1, true) ~= nil)
 end)
@@ -286,17 +301,21 @@ test.test("settings expose all source and chat preferences with fresh-character 
 
     test.assertTrue(controller:Register())
     test.assertEqual(9, #api.checkboxes)
-    test.assertEqual(4, #api.sectionHeadings)
+    test.assertEqual(5, #api.sectionHeadings)
     test.assertContains(api.sectionHeadings[1], "Tithe")
-    test.assertEqual("Income Sources", api.sectionHeadings[2])
-    test.assertEqual("Feedback", api.sectionHeadings[3])
-    test.assertContains(api.events[3], "Income Sources")
-    test.assertContains(api.events[4], "Source_Loot")
-    test.assertContains(api.events[11], "Feedback")
-    test.assertContains(api.events[12], "ChatFeedback")
-    test.assertEqual("Guild Bank", api.sectionHeadings[4])
-    test.assertContains(api.events[13], "Guild Bank")
-    test.assertContains(api.events[14], "AutoDeposit")
+    test.assertEqual("Shared by your characters in Knights of Camelot", api.sectionHeadings[2])
+    test.assertEqual("Income Sources", api.sectionHeadings[3])
+    test.assertEqual("Feedback", api.sectionHeadings[4])
+    -- The guild header sits directly above the percentage it describes.
+    test.assertContains(api.events[2], "Shared by your characters")
+    test.assertContains(api.events[3], "slider:AsgardsGuildTithe_Percentage")
+    test.assertContains(api.events[4], "Income Sources")
+    test.assertContains(api.events[5], "Source_Loot")
+    test.assertContains(api.events[12], "Feedback")
+    test.assertContains(api.events[13], "ChatFeedback")
+    test.assertEqual("Guild Bank", api.sectionHeadings[5])
+    test.assertContains(api.events[14], "Guild Bank")
+    test.assertContains(api.events[15], "AutoDeposit")
     local autoDeposit = api.checkboxes[9]
     test.assertEqual("AsgardsGuildTithe_AutoDeposit", autoDeposit.setting.variable)
     test.assertContains(autoDeposit.tooltip, "open the guild bank")
@@ -327,14 +346,14 @@ test.test("every preference updates only itself and preserves financial state", 
 
         local preference = PREFERENCE_CASES[index]
         local binding = api.bindings[preference.variable]
-        local before = state:GetCurrentCharacter()
+        local before = state:GetTitheSettings()
         local changedValue = not preference.defaultValue
 
         test.assertTrue(binding.setValue(changedValue), preference.variable)
         test.assertEqual(changedValue, binding.getValue(), preference.variable)
 
         local after = state:GetCurrentCharacter()
-        test.assertEqual(before.percentage, after.percentage, preference.variable)
+        test.assertEqual(before.percentage, state:GetTitheSettings().percentage, preference.variable)
         test.assertEqual(654321, after.outstandingCopper, preference.variable)
         test.assertEqual(87, after.fractionalRemainder, preference.variable)
 
@@ -345,7 +364,7 @@ test.test("every preference updates only itself and preserves financial state", 
             if otherIndex == index then
                 expected = changedValue
             end
-            test.assertEqual(expected, preferenceValue(after, other),
+            test.assertEqual(expected, preferenceValue(state, other),
                 preference.variable .. " changed " .. other.variable)
         end
     end
@@ -365,7 +384,7 @@ test.test("preference bindings reject non-boolean values without changing state"
         local preference = PREFERENCE_CASES[index]
         test.assertFalse(api.bindings[preference.variable].setValue("yes"), preference.variable)
         test.assertEqual(preference.defaultValue,
-            preferenceValue(state:GetCurrentCharacter(), preference), preference.variable)
+            preferenceValue(state, preference), preference.variable)
     end
 end)
 
@@ -382,11 +401,11 @@ test.test("percentage binding rejects malformed values without corrupting state"
     local index
     for index = 1, #invalidValues do
         test.assertFalse(api.binding.setValue(invalidValues[index]))
-        test.assertEqual(10, state:GetCurrentCharacter().percentage)
+        test.assertEqual(10, state:GetTitheSettings().percentage)
     end
 end)
 
-test.test("settings changes survive reload and remain isolated by character", function()
+test.test("settings changes survive reload and same-name guilds on two realms stay separate", function()
     local addon = loadSettingsModules()
     local firstAPI = newSettingsAPI()
     local firstEnvironment = newEnvironment("Valeera", "Realm One", nil, firstAPI)
@@ -418,7 +437,7 @@ test.test("settings changes survive reload and remain isolated by character", fu
     test.assertEqual(55, secondAPI.binding.getValue())
 end)
 
-test.test("all preferences survive reload and remain isolated by character", function()
+test.test("all preferences survive reload and stay separate between realms", function()
     local addon = loadSettingsModules()
     local firstAPI = newSettingsAPI()
     local firstEnvironment = newEnvironment("Valeera", "Realm One", nil, firstAPI)
@@ -497,7 +516,7 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     test.assertFalse(controller:Register())
     test.assertTrue(router:Execute(""))
     test.assertEqual(database, environment.AsgardsGuildTitheDB)
-    test.assertEqual(10, state:GetCurrentCharacter().percentage)
+    test.assertEqual(10, state:GetTitheSettings().percentage)
     test.assertContains(messages[1], "Settings are unavailable")
     test.assertContains(messages[1], "/agt help")
 
@@ -508,14 +527,14 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     environment.Settings = incompatibleAPI
     test.assertFalse(controller:Register())
     test.assertEqual(database, environment.AsgardsGuildTitheDB)
-    test.assertEqual(10, state:GetCurrentCharacter().percentage)
+    test.assertEqual(10, state:GetTitheSettings().percentage)
 
     local missingCheckboxAPI = newSettingsAPI()
     missingCheckboxAPI.CreateCheckbox = nil
     environment.Settings = missingCheckboxAPI
     test.assertFalse(controller:Register())
     test.assertEqual(database, environment.AsgardsGuildTitheDB)
-    test.assertTrue(state:GetCurrentCharacter().sources.loot)
+    test.assertTrue(state:GetTitheSettings().sources.loot)
 
     local failedCheckboxAPI = newSettingsAPI()
     failedCheckboxAPI.CreateCheckbox = function()
@@ -524,14 +543,14 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     environment.Settings = failedCheckboxAPI
     test.assertFalse(controller:Register())
     test.assertEqual(database, environment.AsgardsGuildTitheDB)
-    test.assertTrue(state:GetCurrentCharacter().sources.loot)
+    test.assertTrue(state:GetTitheSettings().sources.loot)
 
     local missingBalanceDisplayAPI = newSettingsAPI()
     environment.Settings = missingBalanceDisplayAPI
     environment.CreateSettingsListSectionHeaderInitializer = nil
     test.assertFalse(controller:Register())
     test.assertEqual(database, environment.AsgardsGuildTitheDB)
-    test.assertEqual(10, state:GetCurrentCharacter().percentage)
+    test.assertEqual(10, state:GetTitheSettings().percentage)
 
     local missingSliderFormatterAPI = newSettingsAPI()
     missingSliderFormatterAPI.CreateSliderOptions = function()
@@ -543,5 +562,23 @@ test.test("missing or incompatible settings APIs preserve data and explain slash
     end
     test.assertFalse(controller:Register())
     test.assertEqual(database, environment.AsgardsGuildTitheDB)
-    test.assertEqual(10, state:GetCurrentCharacter().percentage)
+    test.assertEqual(10, state:GetTitheSettings().percentage)
+end)
+
+test.test("a guildless character sees default settings it cannot change", function()
+    local addon = loadSettingsModules()
+    local api = newSettingsAPI()
+    local controller, state = createController(
+        addon,
+        newEnvironment("Garrosh", "Camelot", nil, api, false)
+    )
+
+    test.assertTrue(controller:Register())
+    test.assertEqual(10, api.binding.getValue())
+    test.assertTrue(api.bindings.AsgardsGuildTithe_Source_Loot.getValue())
+    test.assertFalse(api.bindings.AsgardsGuildTithe_Source_Auctions.getValue())
+    test.assertFalse(api.binding.setValue(30))
+    test.assertFalse(api.bindings.AsgardsGuildTithe_Source_Loot.setValue(false))
+    test.assertTrue(api.bindings.AsgardsGuildTithe_ChatFeedback.setValue(false))
+    test.assertEqual(nil, state:GetTitheSettings())
 end)

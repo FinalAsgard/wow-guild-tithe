@@ -115,7 +115,6 @@ end)
 test.test("tithe service persists through state only after successful calculation", function()
     local addon = loadAccountingModules()
     local character = {
-        percentage = 10,
         outstandingCopper = 12,
         fractionalRemainder = 50,
     }
@@ -123,10 +122,12 @@ test.test("tithe service persists through state only after successful calculatio
     local state = {
         GetCurrentCharacter = function()
             return {
-                percentage = character.percentage,
                 outstandingCopper = character.outstandingCopper,
                 fractionalRemainder = character.fractionalRemainder,
             }
+        end,
+        GetTitheSettings = function()
+            return { percentage = 10 }
         end,
         SetFinancialState = function(_, outstandingCopper, fractionalRemainder)
             writes = writes + 1
@@ -154,10 +155,12 @@ test.test("tithe service reports rejected state writes without returning success
     local state = {
         GetCurrentCharacter = function()
             return {
-                percentage = 10,
                 outstandingCopper = 0,
                 fractionalRemainder = 0,
             }
+        end,
+        GetTitheSettings = function()
+            return { percentage = 10 }
         end,
         SetFinancialState = function()
             return false
@@ -168,4 +171,27 @@ test.test("tithe service reports rejected state writes without returning success
     local result, accrueError = service:AccrueEligibleCopper(10)
     test.assertEqual(nil, result)
     test.assertEqual("updated financial state was rejected", accrueError)
+end)
+
+test.test("tithe service accrues nothing without guild tithe settings", function()
+    local addon = loadAccountingModules()
+    local writes = 0
+    local state = {
+        GetCurrentCharacter = function()
+            return { outstandingCopper = 0, fractionalRemainder = 0 }
+        end,
+        GetTitheSettings = function()
+            return nil
+        end,
+        SetFinancialState = function()
+            writes = writes + 1
+            return true
+        end,
+    }
+    local service = addon.TitheService.Create(state, addon.Accounting)
+
+    local result, accrueError = service:AccrueEligibleCopper(10)
+    test.assertEqual(nil, result)
+    test.assertEqual("guild tithe settings are unavailable", accrueError)
+    test.assertEqual(0, writes)
 end)

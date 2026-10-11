@@ -1,10 +1,11 @@
 local _, addon = ...
 
 local Persistence = {
-    LATEST_SCHEMA_VERSION = 4,
+    LATEST_SCHEMA_VERSION = 5,
     -- Resolved payment operation ids kept to refuse a replayed confirmation.
     MAX_RESOLVED_PAYMENTS = 20,
     MAX_SAFE_INTEGER = 9007199254740991,
+    DEFAULT_PERCENTAGE = 10,
 }
 addon.Persistence = Persistence
 
@@ -78,6 +79,7 @@ local function newReport(schemaVersion)
         repairedFields = {},
         quarantinedCharacters = {},
         quarantinedDonations = {},
+        quarantinedGuilds = {},
     }
 end
 
@@ -88,10 +90,24 @@ local function recordRepair(report, characterKey, field)
     })
 end
 
+local function recordGuildRepair(report, guildKey, field)
+    table.insert(report.repairedFields, {
+        field = field,
+        guildKey = guildKey,
+    })
+end
+
 local function defaultSources()
     return copyValue(SOURCE_DEFAULTS)
 end
 
+-- True when `source` names a known income source.
+function Persistence.IsSource(source)
+    return SOURCE_DEFAULTS[source] ~= nil
+end
+
+-- Percentage and sources belong to the guild record (schema 5), so a new
+-- character has none of its own.
 local function newCharacter(identity)
     return {
         identity = {
@@ -99,15 +115,17 @@ local function newCharacter(identity)
             displayRealm = identity.realm,
             stableId = identity.stableId,
         },
-        percentage = 10,
         outstandingCopper = 0,
         fractionalRemainder = 0,
         chatFeedback = true,
         autoDeposit = true,
-        sources = defaultSources(),
         resolvedPayments = {},
         paymentSequence = 0,
     }
+end
+
+local function defaultUi()
+    return { minimap = { hide = false } }
 end
 
 local function migrateVersion1To2(database)
@@ -148,10 +166,28 @@ local function migrateVersion3To4(database)
     database.schemaVersion = 4
 end
 
+-- Version 5 adds the account-wide per-guild tithe settings, their quarantine,
+-- and the account-wide UI state. Characters keep their old percentage and
+-- sources until they first log in to a guild, which then seeds or adopts
+-- that guild's record; nothing moves during the migration itself.
+local function migrateVersion4To5(database)
+    if database.guilds == nil then
+        database.guilds = {}
+    end
+    if database.quarantinedGuilds == nil then
+        database.quarantinedGuilds = {}
+    end
+    if database.ui == nil then
+        database.ui = defaultUi()
+    end
+    database.schemaVersion = 5
+end
+
 local MIGRATIONS = {
     [1] = migrateVersion1To2,
     [2] = migrateVersion2To3,
     [3] = migrateVersion3To4,
+    [4] = migrateVersion4To5,
 }
 
 local function validateQuarantine(database)
@@ -260,12 +296,30 @@ local function repairIdentity(character, characterKey, report, currentCharacter)
     end
 end
 
-local function repairConfiguration(character, characterKey, report)
-    if not isPercentage(character.percentage) then
-        character.percentage = 10
-        recordRepair(report, characterKey, "percentage")
+-- Repairs a percentage and sources table to their defaults field by field,
+-- calling repaired(field) for each change.
+local function repairTitheSettings(record, repaired)
+    if not isPercentage(record.percentage) then
+        record.percentage = Persistence.DEFAULT_PERCENTAGE
+        repaired("percentage")
     end
 
+    if type(record.sources) ~= "table" then
+        record.sources = defaultSources()
+        repaired("sources")
+        return
+    end
+
+    local source, defaultValue
+    for source, defaultValue in pairs(SOURCE_DEFAULTS) do
+        if type(record.sources[source]) ~= "boolean" then
+            record.sources[source] = defaultValue
+            repaired("sources." .. source)
+        end
+    end
+end
+
+local function repairConfiguration(character, characterKey, report)
     if type(character.chatFeedback) ~= "boolean" then
         character.chatFeedback = true
         recordRepair(report, characterKey, "chatFeedback")
@@ -276,18 +330,13 @@ local function repairConfiguration(character, characterKey, report)
         recordRepair(report, characterKey, "autoDeposit")
     end
 
-    if type(character.sources) ~= "table" then
-        character.sources = defaultSources()
-        recordRepair(report, characterKey, "sources")
-        return
-    end
-
-    local source, defaultValue
-    for source, defaultValue in pairs(SOURCE_DEFAULTS) do
-        if type(character.sources[source]) ~= "boolean" then
-            character.sources[source] = defaultValue
-            recordRepair(report, characterKey, "sources." .. source)
-        end
+    -- A character's own percentage and sources are left over from before
+    -- schema 5 and only seed its first guild, so they are optional; when
+    -- either is present both are kept valid.
+    if character.percentage ~= nil or character.sources ~= nil then
+        repairTitheSettings(character, function(field)
+            recordRepair(report, characterKey, field)
+        end)
     end
 end
 
@@ -481,6 +530,170 @@ local function validateCharacters(database, report, context)
     return true
 end
 
+local function trim(value)
+    return (value:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+-- The guilds-map key for a { name, realm } guild identity: the name
+-- lowercased and trimmed, the realm lowercased without whitespace, joined
+-- like character keys. The optional stable id is not part of the key.
+function Persistence.GuildKey(identity)
+    if type(identity) ~= "table"
+        or type(identity.name) ~= "string"
+        or type(identity.realm) ~= "string"
+    then
+        return nil
+    end
+
+    local name = string.lower(trim(identity.name))
+    local realm = string.lower(trim(identity.realm)):gsub("%s+", "")
+    if name == "" or realm == "" or string.find(name, "-", 1, true) ~= nil then
+        return nil
+    end
+    return name .. "-" .. realm
+end
+
+local function isGuildKey(value)
+    if type(value) ~= "string" or value ~= string.lower(value) then
+        return false
+    end
+
+    local name = string.match(value, "^([^-]+)%-%S+$")
+    return name ~= nil and name == trim(name)
+end
+
+local function quarantineGuild(database, report, sourceKey, quarantineKey, record, reason)
+    local entries = database.quarantinedGuilds[quarantineKey]
+    if entries == nil then
+        entries = {}
+        database.quarantinedGuilds[quarantineKey] = entries
+    end
+
+    local quarantined = {
+        reason = reason,
+        record = record,
+        schemaVersion = Persistence.LATEST_SCHEMA_VERSION,
+    }
+    if sourceKey ~= quarantineKey then
+        quarantined.originalGuildKey = sourceKey
+    end
+    table.insert(entries, quarantined)
+    database.guilds[sourceKey] = nil
+    table.insert(report.quarantinedGuilds, {
+        guildKey = tostring(sourceKey),
+        quarantineKey = quarantineKey,
+        reason = reason,
+    })
+end
+
+local function nextInvalidGuildKey(database)
+    local index = 1
+    local guildKey
+
+    repeat
+        guildKey = "__invalid_guild_key_" .. tostring(index)
+        index = index + 1
+    until database.guilds[guildKey] == nil
+        and database.quarantinedGuilds[guildKey] == nil
+
+    return guildKey
+end
+
+-- Guild records are repaired field by field like characters. A record that
+-- cannot be read at all is moved intact to `quarantinedGuilds`, never
+-- dropped, and the rest of the saved data still loads.
+local function validateGuilds(database, report)
+    if database.quarantinedGuilds == nil then
+        database.quarantinedGuilds = {}
+    end
+    if type(database.quarantinedGuilds) ~= "table" then
+        return false, "saved data guild quarantine is invalid"
+    end
+    local _, entries
+    for _, entries in pairs(database.quarantinedGuilds) do
+        if type(entries) ~= "table" then
+            return false, "saved data guild quarantine contains an invalid entry"
+        end
+    end
+
+    if type(database.guilds) ~= "table" then
+        local record = database.guilds
+        database.guilds = {}
+        quarantineGuild(database, report, "guilds", nextInvalidGuildKey(database), record,
+            "guild collection is not a table")
+        return true
+    end
+
+    local invalid = {}
+    local guildKey, guild
+    for guildKey, guild in pairs(database.guilds) do
+        if not isGuildKey(guildKey) then
+            table.insert(invalid, { guildKey = guildKey, guild = guild,
+                reason = "guild key is not normalized" })
+        elseif type(guild) ~= "table" then
+            table.insert(invalid, { guildKey = guildKey, guild = guild, quarantineKey = guildKey,
+                reason = "guild record is not a table" })
+        else
+            local key = guildKey
+            local function repaired(field)
+                recordGuildRepair(report, key, field)
+            end
+            if type(guild.identity) ~= "table" then
+                guild.identity = {}
+                repaired("identity")
+            end
+            local _, field
+            for _, field in ipairs({ "displayName", "displayRealm", "id" }) do
+                local value = guild.identity[field]
+                if value ~= nil and not isText(value) then
+                    guild.identity[field] = nil
+                    repaired("identity." .. field)
+                end
+            end
+            repairTitheSettings(guild, repaired)
+        end
+    end
+
+    local index
+    for index = 1, #invalid do
+        local entry = invalid[index]
+        quarantineGuild(
+            database,
+            report,
+            entry.guildKey,
+            entry.quarantineKey or nextInvalidGuildKey(database),
+            entry.guild,
+            entry.reason
+        )
+    end
+    return true
+end
+
+-- The UI table only holds display preferences, so an unreadable one is
+-- replaced with the defaults.
+local function validateUi(database, report)
+    if type(database.ui) ~= "table" then
+        database.ui = defaultUi()
+        table.insert(report.repairedFields, { field = "ui" })
+        return
+    end
+    local minimap = database.ui.minimap
+    if type(minimap) ~= "table" then
+        database.ui.minimap = defaultUi().minimap
+        table.insert(report.repairedFields, { field = "ui.minimap" })
+        return
+    end
+    if type(minimap.hide) ~= "boolean" then
+        minimap.hide = false
+        table.insert(report.repairedFields, { field = "ui.minimap.hide" })
+    end
+    -- LibDBIcon saves the icon's angle around the minimap here once dragged.
+    if minimap.minimapPos ~= nil and type(minimap.minimapPos) ~= "number" then
+        minimap.minimapPos = nil
+        table.insert(report.repairedFields, { field = "ui.minimap.minimapPos" })
+    end
+end
+
 function Persistence.Create(client)
     return setmetatable({ client = client }, Store)
 end
@@ -494,6 +707,9 @@ function Store:Load(context)
             quarantinedCharacters = {},
             donations = {},
             quarantinedDonations = {},
+            guilds = {},
+            quarantinedGuilds = {},
+            ui = defaultUi(),
         }
         if self.client:SetAccountDatabase(database) ~= true then
             return nil, "new saved data could not be stored"
@@ -556,6 +772,12 @@ function Store:Load(context)
         return nil, donationsError
     end
 
+    local guildsOk, guildsError = validateGuilds(database, report)
+    if not guildsOk then
+        return nil, guildsError
+    end
+    validateUi(database, report)
+
     if self.client:SetAccountDatabase(database) ~= true then
         return nil, "validated saved data could not be stored"
     end
@@ -599,4 +821,54 @@ function Store:GetDonations()
         return nil
     end
     return self.database.donations
+end
+
+-- The live account-wide minimap icon state, or nil before Load. The icon
+-- library reads `hide` and writes the dragged position into it directly.
+function Store:GetMinimapState()
+    if self.database == nil then
+        return nil
+    end
+    return self.database.ui.minimap
+end
+
+function Store:IsGuildQuarantined(guildKey)
+    return self.database ~= nil
+        and self.database.quarantinedGuilds[guildKey] ~= nil
+end
+
+-- The live tithe settings record for `guildKey`, or nil when there is none.
+function Store:GetGuild(guildKey)
+    if self.database == nil or type(guildKey) ~= "string" then
+        return nil
+    end
+    return self.database.guilds[guildKey]
+end
+
+-- Creates the settings record for a guild with no record yet. `seed` holds
+-- the starting percentage and sources; missing or invalid values take the
+-- defaults. Refused for an existing or quarantined guild key.
+function Store:CreateGuild(guildKey, identity, seed)
+    if self.database == nil
+        or type(guildKey) ~= "string"
+        or type(identity) ~= "table"
+        or self.database.guilds[guildKey] ~= nil
+        or self:IsGuildQuarantined(guildKey)
+    then
+        return nil
+    end
+
+    seed = type(seed) == "table" and seed or {}
+    local guild = {
+        identity = {
+            displayName = identity.name,
+            displayRealm = identity.realm,
+            id = identity.id,
+        },
+        percentage = seed.percentage,
+        sources = copyValue(seed.sources),
+    }
+    repairTitheSettings(guild, function() end)
+    self.database.guilds[guildKey] = guild
+    return guild
 end

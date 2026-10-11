@@ -8,16 +8,6 @@ addon.CharacterState = CharacterState
 local State = {}
 State.__index = State
 
-local SOURCE_DEFAULTS = {
-    auctions = false,
-    loot = true,
-    mailbox = false,
-    miscellaneous = true,
-    playerTrades = true,
-    quests = true,
-    vendorSales = true,
-}
-
 local function isInteger(value)
     return type(value) == "number"
         and value >= 0
@@ -70,11 +60,14 @@ local function buildCharacterKey(identity)
 end
 
 function CharacterState.Create(client, persistence)
+    persistence = persistence or addon.Persistence.Create(client)
     return setmetatable({
         client = client,
         financialListeners = {},
+        guildListeners = {},
+        guildSettings = addon.GuildSettings.Create(persistence),
         initialized = false,
-        persistence = persistence or addon.Persistence.Create(client),
+        persistence = persistence,
     }, State)
 end
 
@@ -111,7 +104,100 @@ function State:Initialize()
     self.character = character
     self.characterKey = characterKey
     self.initialized = true
+    -- Seeds or adopts the current guild's shared settings at login, then
+    -- follows guild membership for the rest of the session.
+    self.guildKey = self:CurrentGuildKey()
+    if type(self.client.ObserveGuildChanges) == "function" then
+        self.client:ObserveGuildChanges(function()
+            self:RefreshGuild()
+        end)
+    end
     return true
+end
+
+local function notify(listeners)
+    local index
+    for index = 1, #listeners do
+        -- A failing listener must not block state changes.
+        pcall(listeners[index])
+    end
+end
+
+-- The current guild's settings key, or false while guildless or unknown.
+-- Resolving it seeds or adopts the guild's shared settings.
+function State:CurrentGuildKey()
+    local settings = self:GetTitheSettings()
+    return settings and settings.guildKey or false
+end
+
+-- Re-reads guild membership, e.g. after joining, leaving, or switching
+-- guilds, and tells listeners when the guild in effect changed.
+function State:RefreshGuild()
+    if not self.initialized then
+        return false
+    end
+    local guildKey = self:CurrentGuildKey()
+    if guildKey == self.guildKey then
+        return false
+    end
+    self.guildKey = guildKey
+    notify(self.guildListeners)
+    return true
+end
+
+-- Calls listener() whenever the guild in effect or its shared settings
+-- change, so pages showing them can refresh.
+function State:OnGuildSettingsChange(listener)
+    if type(listener) == "function" then
+        table.insert(self.guildListeners, listener)
+    end
+end
+
+-- The current guild as { name, realm, id }, or nil when guildless or when
+-- the client cannot report it yet.
+function State:GetGuildIdentity()
+    if type(self.client.IsInGuild) ~= "function"
+        or type(self.client.GetGuildIdentity) ~= "function"
+        or self.client:IsInGuild() ~= true
+    then
+        return nil
+    end
+    return self.client:GetGuildIdentity()
+end
+
+-- Whether the client reports a guild, even before it can name it.
+function State:IsInGuild()
+    return type(self.client.IsInGuild) == "function" and self.client:IsInGuild() == true
+end
+
+-- The tithe settings in effect, shared by the account's characters in the
+-- current guild: { guild, guildKey, percentage, sources }, or nil while
+-- guildless or when the guild is unknown or its record is quarantined.
+-- A guild with no record yet is created from this character's settings
+-- left over from before schema 5, or the defaults; once the character's
+-- guild has a record, those leftover fields are removed.
+function State:GetTitheSettings()
+    if not self.initialized then
+        return nil
+    end
+
+    local guild = self:GetGuildIdentity()
+    if guild == nil then
+        return nil
+    end
+
+    local settings = self.guildSettings:Get(guild, {
+        percentage = self.character.percentage,
+        sources = self.character.sources,
+    })
+    if settings == nil then
+        return nil
+    end
+
+    self.character.percentage = nil
+    self.character.sources = nil
+    settings.guild = copyTable(guild)
+    return settings
 end
 
 function State:GetPersistenceReport()
@@ -130,15 +216,17 @@ function State:GetCurrentCharacter()
     return copyTable(self.character)
 end
 
+-- Changes the current guild's shared percentage; refused while guildless.
 function State:SetPercentage(percentage)
-    if not self.initialized
-        or not isInteger(percentage)
-        or percentage > 100
-    then
+    if not isInteger(percentage) or percentage > 100 then
         return false
     end
 
-    self.character.percentage = percentage
+    local settings = self:GetTitheSettings()
+    if settings == nil or not self.guildSettings:SetPercentage(settings.guildKey, percentage) then
+        return false
+    end
+    notify(self.guildListeners)
     return true
 end
 
@@ -160,15 +248,20 @@ function State:SetAutoDeposit(enabled)
     return true
 end
 
+-- Turns one of the current guild's shared sources on or off; refused while
+-- guildless.
 function State:SetSourceEnabled(source, enabled)
-    if not self.initialized
-        or SOURCE_DEFAULTS[source] == nil
-        or type(enabled) ~= "boolean"
-    then
+    if not addon.Persistence.IsSource(source) or type(enabled) ~= "boolean" then
         return false
     end
 
-    self.character.sources[source] = enabled
+    local settings = self:GetTitheSettings()
+    if settings == nil
+        or not self.guildSettings:SetSourceEnabled(settings.guildKey, source, enabled)
+    then
+        return false
+    end
+    notify(self.guildListeners)
     return true
 end
 
@@ -283,4 +376,24 @@ function State:GetDonationRecords()
         return nil
     end
     return self.persistence:GetDonations()
+end
+
+-- The account-wide minimap icon state ({ hide, minimapPos }), shared by
+-- every character, or nil before state is ready. It is live: the icon
+-- library saves the dragged position straight into it.
+function State:GetMinimapState()
+    if not self.initialized or type(self.persistence.GetMinimapState) ~= "function" then
+        return nil
+    end
+    return self.persistence:GetMinimapState()
+end
+
+-- Shows or hides the minimap icon on every character of the account.
+function State:SetMinimapIconShown(shown)
+    local iconState = self:GetMinimapState()
+    if type(iconState) ~= "table" or type(shown) ~= "boolean" then
+        return false
+    end
+    iconState.hide = not shown
+    return true
 end

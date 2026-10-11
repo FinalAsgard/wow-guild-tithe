@@ -259,12 +259,17 @@ local CONTEXT_EVENTS = {
     -- fire for guild funds changes that never touch the player's money.
     GUILDBANKFRAME_CLOSED = { source = "guildBankWithdrawal", action = "close" },
     GUILDBANKFRAME_OPENED = { source = "guildBankWithdrawal", action = "open" },
+    -- Money gained while the mailbox is open that no collected letter
+    -- explains (Open All, mail add-ons) is mail, never miscellaneous.
+    MAIL_CLOSED = { source = "mailbox", action = "close" },
+    MAIL_SHOW = { source = "mailbox", action = "open" },
 }
 
 -- Newer clients report interaction windows by Enum.PlayerInteractionType.
 local INTERACTION_TYPES = {
     [1] = "playerTrades", -- TradePartner
     [10] = "guildBankWithdrawal", -- GuildBanker
+    [17] = "mailbox", -- MailInfo
 }
 local INTERACTION_ACTIONS = {
     PLAYER_INTERACTION_MANAGER_FRAME_HIDE = "close",
@@ -375,10 +380,11 @@ function Client:ObserveTransferCalls(onContext)
     return hooked
 end
 
--- Reads what the client says about inbox mail `index`: its attached money,
--- whether it was returned to sender, and its auction invoice type.
+-- Reads what the client says about inbox mail `index`: its sender, subject,
+-- attached money, whether it was returned to sender, and its auction invoice
+-- type.
 function Client:ReadInboxMail(index)
-    local headerOk, _, _, _, _, money, _, _, _, _, wasReturned =
+    local headerOk, _, _, sender, subject, money, _, _, _, _, wasReturned =
         callFunction(self.environment.GetInboxHeaderInfo, index)
     if not headerOk or copperAmount(money) == nil then
         return nil
@@ -389,26 +395,143 @@ function Client:ReadInboxMail(index)
         invoiceType = invoiceOk and invoiceType or nil,
         money = money,
         returned = wasReturned ~= nil and wasReturned ~= false and wasReturned ~= 0,
+        sender = type(sender) == "string" and sender or nil,
+        subject = type(subject) == "string" and subject or nil,
     }
 end
 
-function Client:SnapshotInbox()
+function Client:ReadInbox()
     local ok, count = callFunction(self.environment.GetInboxNumItems)
-    local snapshot = {}
+    local inbox = {}
     if ok and type(count) == "number" then
         local index
         for index = 1, count do
-            snapshot[index] = self:ReadInboxMail(index)
+            inbox[index] = self:ReadInboxMail(index)
         end
     end
+    return inbox
+end
+
+function Client:SnapshotInbox()
+    self.inboxSnapshot = self:ReadInbox()
+end
+
+-- Letters are told apart by their contents, not their position: positions
+-- shift as earlier letters are removed during a bulk open. Money is left
+-- out because collecting clears it.
+local function sameLetter(first, second)
+    return first ~= nil and second ~= nil
+        and first.sender == second.sender
+        and first.subject == second.subject
+        and first.invoiceType == second.invoiceType
+        and first.returned == second.returned
+end
+
+-- A plain copy of a letter without its snapshot bookkeeping.
+local function copyLetter(letter)
+    return {
+        invoiceType = letter.invoiceType,
+        money = letter.money,
+        returned = letter.returned,
+        sender = letter.sender,
+        subject = letter.subject,
+    }
+end
+
+-- True when `inbox` is exactly `snapshot` with the letter at `index` taken
+-- out: the only sign that a collected letter was removed, rather than the
+-- inbox having changed some other way since the last snapshot.
+local function isSnapshotWithout(snapshot, index, inbox)
+    if #inbox ~= #snapshot - 1 then
+        return false
+    end
+    local position
+    for position = 1, #inbox do
+        local expected = snapshot[position < index and position or position + 1]
+        if not sameLetter(expected, inbox[position]) then
+            return false
+        end
+    end
+    return true
+end
+
+-- Works out which letter a collect call at `index` took money from. Returns
+-- the letter (with the money it held) and how it was found, or nil and why
+-- not. The snapshot is the inbox as last seen, so it still holds a letter
+-- the client has already emptied or removed; it is kept in step with each
+-- collection so a later call in the same bulk open lines up even before the
+-- client reports the inbox changed. When the letter cannot be identified
+-- with certainty, no letter is returned: an exact note with a wrong amount
+-- is never better than none.
+function Client:ResolveCollectedMail(index)
+    local snapshot = self.inboxSnapshot or {}
     self.inboxSnapshot = snapshot
+    local live = self:ReadInboxMail(index)
+
+    -- A letter already collected that is no longer at this position was
+    -- removed by the client; the letters after it moved up one place.
+    local snap = snapshot[index]
+    while snap ~= nil and snap.collected and not sameLetter(snap, live) do
+        table.remove(snapshot, index)
+        snap = snapshot[index]
+    end
+
+    if snap ~= nil and sameLetter(snap, live) then
+        if snap.collected then
+            return nil, "letter already collected"
+        end
+        local money = live.money > 0 and live.money or snap.money
+        if money <= 0 then
+            return nil, "letter holds no money"
+        end
+        snap.collected = true
+        local letter = copyLetter(snap)
+        letter.money = money
+        return letter, "in place"
+    end
+
+    if snap ~= nil and snap.money > 0 then
+        -- The letter here changed. It was collected and removed only if the
+        -- rest of the inbox is otherwise exactly as last seen.
+        if isSnapshotWithout(snapshot, index, self:ReadInbox()) then
+            table.remove(snapshot, index)
+            return copyLetter(snap), "removed after collection"
+        end
+        return nil, "inbox no longer matches the last snapshot"
+    end
+
+    if snap == nil and live ~= nil and live.money > 0 then
+        return live, "live"
+    end
+    return nil, "letter holds no money"
+end
+
+local function mailSource(letter)
+    if letter.returned then
+        return "returnedMail"
+    elseif letter.invoiceType == "seller" then
+        return "auctions"
+    end
+    return "mailbox"
+end
+
+-- Calls listener(callName, index, letter, source, how) after each hooked
+-- mail-collect call: the requested position, the letter it resolved to (nil
+-- when none), the source noted, and how it was resolved. Used by the Dev
+-- trace to capture bulk opens.
+function Client:OnMailCollected(listener)
+    if type(listener) == "function" then
+        self.mailListeners = self.mailListeners or {}
+        table.insert(self.mailListeners, listener)
+    end
 end
 
 -- Collecting mail money is a function call rather than an event, so the
 -- collect calls are hooked. The inbox is snapshotted whenever it updates,
--- because the client may clear a mail's money as soon as it is collected.
--- Money from returned mail is reported as a return, auction sale proceeds
--- (a "seller" invoice) as auctions, and anything else as ordinary mail.
+-- because the client may clear a mail's money, or remove the letter, as soon
+-- as it is collected. Money from returned mail is reported as a return,
+-- auction sale proceeds (a "seller" invoice) as auctions, and anything else
+-- as ordinary mail.
 local MAIL_COLLECT_CALLS = { "TakeInboxMoney", "AutoLootMailItem" }
 
 function Client:ObserveMailCollection(onContext)
@@ -435,23 +558,16 @@ function Client:ObserveMailCollection(onContext)
         local callName = MAIL_COLLECT_CALLS[index]
         if type(self.environment[callName]) == "function" then
             hooked = pcall(hook, callName, function(mailIndex)
-                -- Prefer the live mail; fall back to the snapshot if the
-                -- client already cleared its money. A stale snapshot entry
-                -- carries the wrong amount, so it cannot match the gain.
-                local mail = self:ReadInboxMail(mailIndex)
-                if (mail == nil or mail.money <= 0) and self.inboxSnapshot ~= nil then
-                    mail = self.inboxSnapshot[mailIndex]
+                local letter, how = self:ResolveCollectedMail(mailIndex)
+                local source = letter and mailSource(letter) or nil
+                if letter ~= nil then
+                    onContext(source, "note", letter.money)
                 end
-                if mail == nil or mail.money <= 0 then
-                    return
+                local listeners = self.mailListeners or {}
+                local listenerIndex
+                for listenerIndex = 1, #listeners do
+                    pcall(listeners[listenerIndex], callName, mailIndex, letter, source, how)
                 end
-                local source = "mailbox"
-                if mail.returned then
-                    source = "returnedMail"
-                elseif mail.invoiceType == "seller" then
-                    source = "auctions"
-                end
-                onContext(source, "note", mail.money)
             end) or hooked
         end
     end
@@ -487,6 +603,29 @@ function Client:GetGuildIdentity()
         end
     end
     return identity
+end
+
+-- Calls onChange() when the client reports that guild membership or guild
+-- details may have changed: joining, leaving, or switching guilds, and the
+-- guild name becoming known shortly after login.
+function Client:ObserveGuildChanges(onChange)
+    if type(onChange) ~= "function" then
+        return false
+    end
+
+    local frame = self:CreateEventFrame()
+    if frame == nil
+        or not self:SetEventHandler(frame, function()
+            onChange()
+        end)
+    then
+        return false
+    end
+
+    local registered = self:RegisterEvent(frame, "PLAYER_GUILD_UPDATE")
+    registered = self:RegisterEvent(frame, "GUILD_ROSTER_UPDATE") or registered
+    self.guildFrame = frame
+    return registered
 end
 
 -- Calls onOpen() / onClose() when the guild bank window opens or closes.
@@ -838,7 +977,22 @@ function Client:RegisterSettingsCategory(options)
         end
     end
 
-    local ok, category, balanceInitializer = pcall(function()
+    -- Controls marked with isEnabled are greyed out while it returns false.
+    -- Their variables are remembered so a guild change can repaint them.
+    local guildVariables = {}
+    local function addEnabledPredicate(initializer, binding)
+        if type(binding.isEnabled) ~= "function" then
+            return
+        end
+        table.insert(guildVariables, binding.variable)
+        if type(initializer) == "table" and type(initializer.AddModifyPredicate) == "function" then
+            initializer:AddModifyPredicate(function()
+                return binding.isEnabled() == true
+            end)
+        end
+    end
+
+    local ok, category, balanceInitializer, guildInitializer = pcall(function()
         local percentage = options.percentage
         local registeredCategory, layout = settings.RegisterVerticalLayoutCategory(
             options.categoryName
@@ -856,6 +1010,16 @@ function Client:RegisterSettingsCategory(options)
             error("balance display was not created")
         end
         layout:AddInitializer(balanceInitializer)
+
+        -- Names whose settings the controls below change, or why they can't.
+        local guildInitializer
+        if type(options.guildHeaderText) == "string" then
+            guildInitializer = createSectionHeader(options.guildHeaderText)
+            if guildInitializer == nil then
+                error("guild header was not created")
+            end
+            layout:AddInitializer(guildInitializer)
+        end
 
         local setting = settings.RegisterProxySetting(
             registeredCategory,
@@ -903,6 +1067,7 @@ function Client:RegisterSettingsCategory(options)
         if slider == nil then
             error("percentage slider was not created")
         end
+        addEnabledPredicate(slider, percentage)
 
         for sectionIndex = 1, #options.checkboxSections do
             local section = options.checkboxSections[sectionIndex]
@@ -935,11 +1100,12 @@ function Client:RegisterSettingsCategory(options)
                 if checkboxControl == nil then
                     error("checkbox control was not created")
                 end
+                addEnabledPredicate(checkboxControl, checkbox)
             end
         end
 
         settings.RegisterAddOnCategory(registeredCategory)
-        return registeredCategory, balanceInitializer
+        return registeredCategory, balanceInitializer, guildInitializer
     end)
 
     if not ok then
@@ -948,7 +1114,26 @@ function Client:RegisterSettingsCategory(options)
 
     self.balanceInitializers = self.balanceInitializers or {}
     self.balanceInitializers[category] = balanceInitializer
+    self.guildInitializers = self.guildInitializers or {}
+    self.guildInitializers[category] = guildInitializer
+    self.guildVariables = self.guildVariables or {}
+    self.guildVariables[category] = guildVariables
     return category
+end
+
+-- Shows the new guild header text and asks the guild-scoped controls to
+-- re-read their values and whether they are enabled.
+function Client:RefreshSettingsGuild(category, headerText)
+    local refreshed = self:RefreshSettingsHeader(self.guildInitializers, category, headerText)
+    local settings = self.environment.Settings
+    local variables = self.guildVariables and self.guildVariables[category] or {}
+    if type(settings) == "table" and type(settings.NotifyUpdate) == "function" then
+        local index
+        for index = 1, #variables do
+            pcall(settings.NotifyUpdate, variables[index])
+        end
+    end
+    return refreshed
 end
 
 -- Updates a settings header's text and repaints it if it is on screen.
@@ -1241,4 +1426,96 @@ function Client:OpenHistoryPage(page)
         return true
     end
     return self:OpenSettingsCategory(page.category)
+end
+
+-- Finds a library through LibStub without erroring when it is missing.
+local function getLibrary(libStub, major)
+    local ok, library = pcall(libStub.GetLibrary, libStub, major, true)
+    if ok and type(library) == "table" then
+        return library
+    end
+    return nil
+end
+
+-- Adds the add-on's minimap icon through LibDataBroker and LibDBIcon. The
+-- broker entry is a data source, so display bars (Titan Panel, ElvUI, and
+-- others) show its text as well as its icon.
+-- `options`: name (unique per add-on), label, icon (texture), text (the
+-- display-bar text), iconState (the saved table LibDBIcon reads `hide`
+-- from and saves the position to), onClick(button), and tooltipLines()
+-- returning one string per line.
+-- Returns false, changing nothing, when LibStub or either library is
+-- unavailable.
+function Client:RegisterMinimapLauncher(options)
+    local libStub = self.environment.LibStub
+    if type(libStub) ~= "table" or type(options) ~= "table" then
+        return false, "LibStub is unavailable"
+    end
+    local broker = getLibrary(libStub, "LibDataBroker-1.1")
+    local icons = getLibrary(libStub, "LibDBIcon-1.0")
+    if broker == nil or icons == nil then
+        return false, "the minimap icon libraries are unavailable"
+    end
+
+    local created, dataObject = pcall(broker.NewDataObject, broker, options.name, {
+        type = "data source",
+        label = options.label,
+        icon = options.icon,
+        text = options.text,
+        OnClick = function(_, button)
+            callFunction(options.onClick, button)
+        end,
+        OnTooltipShow = function(tooltip)
+            local ok, lines = callFunction(options.tooltipLines)
+            if not ok or type(lines) ~= "table" then
+                return
+            end
+            local index
+            for index = 1, #lines do
+                tooltip:AddLine(lines[index])
+            end
+        end,
+    })
+    if not created or dataObject == nil then
+        return false, "the minimap launcher could not be created"
+    end
+
+    if not pcall(icons.Register, icons, options.name, dataObject, options.iconState) then
+        return false, "the minimap icon could not be created"
+    end
+    self.minimapIcons = icons
+    self.minimapLaunchers = self.minimapLaunchers or {}
+    self.minimapLaunchers[options.name] = dataObject
+    return true
+end
+
+-- Changes the display-bar text of a launcher added by
+-- RegisterMinimapLauncher; LibDataBroker tells the display bars.
+function Client:SetMinimapLauncherText(name, text)
+    local dataObject = self.minimapLaunchers and self.minimapLaunchers[name]
+    if dataObject == nil or type(text) ~= "string" then
+        return false
+    end
+    return pcall(function()
+        dataObject.text = text
+    end)
+end
+
+-- Shows or hides a minimap icon added by RegisterMinimapLauncher.
+function Client:SetMinimapIconShown(name, shown)
+    local icons = self.minimapIcons
+    if icons == nil then
+        return false
+    end
+    return pcall(shown and icons.Show or icons.Hide, icons, name)
+end
+
+-- Asks a settings control to re-read its value, e.g. after a slash command
+-- changed it while the settings page is open.
+function Client:RefreshSettingValue(variable)
+    local settings = self.environment.Settings
+    if type(settings) ~= "table" or type(settings.NotifyUpdate) ~= "function" then
+        return false
+    end
+    return pcall(settings.NotifyUpdate, variable)
 end
