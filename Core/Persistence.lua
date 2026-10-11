@@ -558,7 +558,7 @@ local function isGuildKey(value)
         return false
     end
 
-    local name, realm = string.match(value, "^([^-]+)%-(%S+)$")
+    local name = string.match(value, "^([^-]+)%-%S+$")
     return name ~= nil and name == trim(name)
 end
 
@@ -608,6 +608,12 @@ local function validateGuilds(database, report)
     end
     if type(database.quarantinedGuilds) ~= "table" then
         return false, "saved data guild quarantine is invalid"
+    end
+    local _, entries
+    for _, entries in pairs(database.quarantinedGuilds) do
+        if type(entries) ~= "table" then
+            return false, "saved data guild quarantine contains an invalid entry"
+        end
     end
 
     if type(database.guilds) ~= "table" then

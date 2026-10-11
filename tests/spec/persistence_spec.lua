@@ -786,6 +786,19 @@ test.test("invalid guild settings are repaired field by field and reported", fun
     test.assertTrue(repaired["horde lords-camelot:sources"])
 end)
 
+test.test("a damaged guild quarantine entry is refused instead of raising an error", function()
+    local addon = loadPersistenceModules()
+    local saved = versionFiveDatabase({ ["knights of camelot-camelot"] = "corrupted" })
+    saved.quarantinedGuilds["knights of camelot-camelot"] = "broken"
+    local environment = newEnvironment("Jaina", "Camelot", saved)
+
+    local database, loadError = createStore(addon, environment):Load()
+
+    test.assertEqual(nil, database)
+    test.assertContains(loadError, "guild quarantine contains an invalid entry")
+    test.assertEqual("broken", environment.AsgardsGuildTitheDB.quarantinedGuilds["knights of camelot-camelot"])
+end)
+
 test.test("unreadable guild records are quarantined intact and valid guilds still load", function()
     local addon = loadPersistenceModules()
     local environment = newEnvironment("Jaina", "Camelot", versionFiveDatabase({

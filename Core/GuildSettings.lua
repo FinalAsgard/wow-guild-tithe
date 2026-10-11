@@ -33,11 +33,6 @@ function GuildSettings.Create(persistence)
     return setmetatable({ persistence = persistence }, Settings)
 end
 
--- The guilds-map key for a { name, realm } identity, or nil.
-function GuildSettings.Key(identity)
-    return addon.Persistence.GuildKey(identity)
-end
-
 local function snapshot(guildKey, record)
     return {
         guildKey = guildKey,
@@ -49,24 +44,23 @@ end
 -- A copy of the settings for `identity`'s guild, or nil when the identity is
 -- unusable or the guild's record is quarantined. A guild with no record yet
 -- is created from `seed` ({ percentage, sources }, either optional), with the
--- defaults for anything the seed lacks. The second result is true when this
--- call created the record.
+-- defaults for anything the seed lacks.
 function Settings:Get(identity, seed)
-    local guildKey = GuildSettings.Key(identity)
+    local guildKey = addon.Persistence.GuildKey(identity)
     if guildKey == nil then
         return nil
     end
 
     local record = self.persistence:GetGuild(guildKey)
     if record ~= nil then
-        return snapshot(guildKey, record), false
+        return snapshot(guildKey, record)
     end
 
     record = self.persistence:CreateGuild(guildKey, identity, seed)
     if record == nil then
         return nil
     end
-    return snapshot(guildKey, record), true
+    return snapshot(guildKey, record)
 end
 
 function Settings:SetPercentage(guildKey, percentage)

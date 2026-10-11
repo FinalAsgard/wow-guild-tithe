@@ -150,7 +150,10 @@ guessed rules. A `guilds` value that is not a table is quarantined whole and
 replaced with an empty table, and an unreadable `ui` table is replaced with the
 defaults. A minimap `hide` value that is not a boolean is reset to `false`
 (shown), and a `minimapPos` that is not a number is removed, so the icon
-returns to its default position.
+returns to its default position. A `quarantinedGuilds` value, or an entry in
+it, that is not a table cannot safely hold more quarantined records, so the
+saved data is refused with an error and left untouched, as for the character
+quarantine.
 
 Payment state is repaired the same way. An unreadable `pendingPayment` is
 dropped, an invalid `resolvedPayments` list is emptied, and an invalid
