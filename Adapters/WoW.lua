@@ -810,10 +810,20 @@ function Client:CreatePaymentPanel(title)
             return self.inlineButton
         end
         local created, button = pcall(function()
-            local inline = createFrame("Button", nil, environment.GuildBankFrame,
-                "UIPanelButtonTemplate")
+            local bank = environment.GuildBankFrame
+            local inline = createFrame("Button", nil, bank, "UIPanelButtonTemplate")
             inline:SetSize(100, 22)
-            inline:SetPoint("RIGHT", withdraw, "LEFT", -4, 0)
+            -- Far left of the bank, in the Withdraw button's row: next to
+            -- Withdraw it would cover the bank's money and limit text.
+            local rise = 8
+            local measured, withdrawBottom, bankBottom = pcall(function()
+                return withdraw:GetBottom(), bank:GetBottom()
+            end)
+            if measured and type(withdrawBottom) == "number"
+                and type(bankBottom) == "number" then
+                rise = withdrawBottom - bankBottom
+            end
+            inline:SetPoint("BOTTOMLEFT", bank, "BOTTOMLEFT", 10, rise)
             -- Disabled buttons ignore the mouse unless told otherwise, and
             -- the tooltip is how a disabled Give Tithe explains itself.
             pcall(inline.SetMotionScriptsWhileDisabled, inline, true)

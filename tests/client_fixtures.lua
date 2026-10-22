@@ -106,8 +106,12 @@ local function newFrame(world)
         self.text = text
     end
     function frame:SetSize() end
-    function frame:SetPoint(point, relativeTo, relativePoint)
-        self.point = { point, relativeTo, relativePoint }
+    function frame:SetPoint(point, relativeTo, relativePoint, x, y)
+        self.point = { point, relativeTo, relativePoint, x, y }
+    end
+    -- Tests place a frame on screen by setting `bottom`.
+    function frame:GetBottom()
+        return self.bottom
     end
     function frame:ClearAllPoints()
         self.point = nil
