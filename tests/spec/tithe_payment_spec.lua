@@ -104,6 +104,8 @@ local function registerProfileTests(profile)
     local function loadBankWindow(world, naming)
         local bank = world.environment.CreateFrame("Frame")
         local withdraw = world.environment.CreateFrame("Button")
+        bank.bottom = 100
+        withdraw.bottom = 112
         if naming == "global" then
             world.environment.GuildBankFrameWithdrawButton = withdraw
         else
@@ -130,7 +132,7 @@ local function registerProfileTests(profile)
         return withdraw, tooltip
     end
 
-    test.test(profile .. " the Give Tithe button sits left of the bank's Withdraw button", function()
+    test.test(profile .. " the Give Tithe button sits at the bank's far left, in the Withdraw button's row", function()
         local namings = { "parentKey", "global" }
         local index
         for index = 1, #namings do
@@ -145,9 +147,11 @@ local function registerProfileTests(profile)
             test.assertTrue(panel(addon):IsShown(), namings[index])
             test.assertEqual("Give Tithe", inline.text)
             test.assertTrue(inline.enabled)
-            test.assertEqual("RIGHT", inline.point[1])
-            test.assertEqual(withdraw, inline.point[2])
-            test.assertEqual("LEFT", inline.point[3])
+            test.assertEqual("BOTTOMLEFT", inline.point[1])
+            test.assertEqual(world.environment.GuildBankFrame, inline.point[2])
+            test.assertEqual("BOTTOMLEFT", inline.point[3])
+            test.assertEqual(10, inline.point[4])
+            test.assertEqual(12, inline.point[5])
 
             inline.scripts.OnEnter(inline)
             test.assertTrue(tooltip.shown)
