@@ -7,13 +7,13 @@ only through `Adapters/WoW.lua`. `Core/Persistence.lua` is the single loading,
 migration, and validation boundary used by character state. Settings and
 accounting receive state only after that boundary succeeds.
 
-## Current schema: version 5
+## Current schema: version 6
 
 The persisted shape is:
 
 ```lua
 AsgardsGuildTitheDB = {
-    schemaVersion = 5,
+    schemaVersion = 6,
     characters = {
         ["normalizedname-normalizedrealm"] = {
             identity = {
@@ -50,7 +50,7 @@ AsgardsGuildTitheDB = {
             {
                 reason = "diagnostic text",
                 record = {}, -- preserved original record
-                schemaVersion = 5,
+                schemaVersion = 6,
             },
         },
     },
@@ -72,12 +72,16 @@ AsgardsGuildTitheDB = {
                 quests = true,
                 vendorSales = true,
             },
+            -- Advanced mode tithes each source at its own percentage.
+            advancedMode = false,
+            -- Created the first time advanced mode is turned on; 0 = off.
+            -- sourcePercentages = { auctions = 0, loot = 25, ... },
         },
     },
     -- Guild records that could not be read, kept intact like characters.
     quarantinedGuilds = {
         ["normalized guild name-normalizedrealm"] = {
-            { reason = "diagnostic text", record = {}, schemaVersion = 5 },
+            { reason = "diagnostic text", record = {}, schemaVersion = 6 },
         },
     },
     -- Account-wide display state, the same on every character.
@@ -100,7 +104,7 @@ AsgardsGuildTitheDB = {
     },
     -- Ledger entries that could not be read, kept intact.
     quarantinedDonations = {
-        { reason = "diagnostic text", record = {}, schemaVersion = 5 },
+        { reason = "diagnostic text", record = {}, schemaVersion = 6 },
     },
 }
 ```
@@ -125,7 +129,9 @@ The copy is written back only after migration and full validation succeed.
   `quarantinedGuilds` list, and a default `ui` table. Nothing else moves:
   characters keep their own percentage and sources until they log in to a
   guild, and balances, payments, and the donation ledger are unchanged.
-- Version 5 is validated and repaired without a schema change.
+- Version 5 to version 6 gives every guild record `advancedMode = false`.
+  Nothing else changes, so every guild keeps tithing at its one percentage.
+- Version 6 is validated and repaired without a schema change.
 
 Loading the result again performs no migration and makes no further structural
 or value changes.
@@ -141,7 +147,12 @@ metadata, and unrelated character records are retained.
 
 Guild records are repaired the same way: an invalid percentage or source flag
 takes its default, and an invalid optional identity value is removed, each
-reported with its `guildKey`. A guild record that is not a table, or whose key
+reported with its `guildKey`. An `advancedMode` that is not a boolean becomes
+`false`. A missing or invalid per-source percentage is rebuilt from that
+guild's own settings: the master percentage when the source is enabled, 0 when
+it is not. A `sourcePercentages` value that is not a table is rebuilt the same
+way while advanced mode is on, and removed while it is off, to be created again
+the next time advanced mode is turned on. A guild record that is not a table, or whose key
 is not normalized, is moved intact to `quarantinedGuilds` (a malformed key
 under a generated `__invalid_guild_key_N` entry that keeps the original key),
 and the rest of the saved data still loads. A quarantined guild's settings are
@@ -173,7 +184,7 @@ record, so it cannot shadow or block valid characters. Cyclic saved tables are
 rejected before migration or writeback because they cannot be safely represented
 as SavedVariables.
 
-A schema version newer than 5 is incompatible. It is returned as an error before
+A schema version newer than 6 is incompatible. It is returned as an error before
 copying, migration, validation, or writeback, leaving the SavedVariables table
 and all nested values untouched for a newer add-on version to handle.
 
@@ -197,6 +208,15 @@ a record, whether it created it or found it, the character's leftover fields
 are removed. A guildless character keeps them until it first joins a guild.
 Settings are read when they are needed, so changing guilds mid-session applies
 the new guild's settings to the next gain.
+
+`advancedMode` and `sourcePercentages` are shared the same way. The first time
+a guild turns advanced mode on, each source starts at the master percentage if
+it is enabled, or at 0 if it is not, so nothing changes until a slider moves.
+After that the two sets are kept separately: in simple mode `percentage` and
+`sources` apply, in advanced mode `sourcePercentages` applies, and switching
+modes never changes either set. Because the fractional remainder is kept in
+hundredths of a copper, it carries over correctly between gains taxed at
+different rates.
 
 ## Guild-bank payments
 
@@ -259,19 +279,20 @@ donations.
 
 **Which version.** Guild Tithe is optional, so it may not be installed and
 `AsgardsGuildTitheDB` may not exist. First check that it is a table, then that
-its `schemaVersion` is 4 or 5 and its `donations` is a table. Treat anything
-else as unavailable rather than guessing:
+its `schemaVersion` is 4, 5, or 6 and its `donations` is a table. Treat
+anything else as unavailable rather than guessing:
 
 ```lua
 local db = AsgardsGuildTitheDB
 local version = type(db) == "table" and db.schemaVersion
-if (version ~= 4 and version ~= 5) or type(db.donations) ~= "table" then
+if (version ~= 4 and version ~= 5 and version ~= 6)
+    or type(db.donations) ~= "table" then
     return nil -- Guild Tithe data is unavailable
 end
 ```
 
-The donation format is the same in schema 4 and schema 5: version 5 only added
-the shared guild settings and UI state. Guild Tithe raises `schemaVersion`
+The donation format is the same in schemas 4, 5, and 6: version 5 only added
+the shared guild settings and UI state, and version 6 only added advanced mode. Guild Tithe raises `schemaVersion`
 whenever the donation format changes, and this section documents the current
 one and lists every version it applies to.
 

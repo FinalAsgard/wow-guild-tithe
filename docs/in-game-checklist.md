@@ -48,6 +48,19 @@ Run these on a guilded character after the shared steps, on both clients. Every 
 19. When convenient: withdraw gold from the guild bank and confirm the balance does not change and no message appears.
 20. When convenient: buy an item from a vendor and sell it back for a refund. Confirm the refund is not tithed.
 
+## Advanced mode steps
+
+Run these on a guilded character, on both clients. If the settings page cannot hide controls, the inapplicable ones are greyed out instead of hidden; note which happened.
+
+1. In `/agtdev`, confirm **Advanced mode: set a percentage for each income source** sits just below **Tithe percentage** and starts unchecked, and that the page otherwise looks as before.
+2. Set **Tithe percentage** to `15` with **Auction income** off, then check **Advanced mode**. Without closing settings, confirm **Tithe percentage** and the seven source checkboxes disappear and seven source sliders appear in their place, each with the same name as its checkbox: enabled sources at `15`, **Auction income** and **Mailbox income** at `0`.
+3. Hover a source slider and confirm its tooltip ends with `Set to 0% to leave it out of your tithe.`
+4. Set **Vendor sales** to `50` and **Loot income** to `0`. Sell an item and confirm the tithe is half the sale. Loot coin and confirm the balance does not change and no message appears.
+5. Hover the minimap icon and confirm it reads `Tithing custom rates to <your guild>`.
+6. Uncheck **Advanced mode**. Confirm the sliders disappear, **Tithe percentage** is back at `15` with the same checkboxes as before, and selling an item tithes 15% again. Check it again and confirm **Vendor sales** is still `50` and **Loot income** still `0`.
+7. `/reload`, reopen settings, and confirm advanced mode and every slider value remain. Log in to a second character in the same guild and confirm it shows the same advanced settings.
+8. On a guildless character, confirm **Advanced mode** is greyed out and cannot be changed.
+
 ## Guild-bank payment steps
 
 Run these on a guilded character that owes some tithe (earn a little income first), on both clients. If anything looks wrong, run `/agtdev trace start` before opening the guild bank and `/agtdev trace stop` after, then `/reload` and share `AsgardsGuildTitheDevTraceDB`: the trace records every guild-bank deposit or withdrawal call (and whether the add-on made it), blocked-action events, and the add-on's own chat messages.
@@ -82,7 +95,7 @@ Run these on both clients.
 
 **Required**
 1. On a fresh install (or with no saved icon state), confirm a gold-coin **Asgard's Guild Tithe (Dev)** icon is on the edge of the minimap, and no Lua error appears.
-2. Hover the icon on a guilded character. Confirm the tooltip shows the add-on name, `Balance owed:` with your balance in coin icons (matching `/agtdev`), `Tithing <percentage>% to <your guild>`, and the left-click and right-click hints.
+2. Hover the icon on a guilded character. Confirm the tooltip shows the add-on name, `Balance owed:` with your balance in coin icons (matching `/agtdev`), `Tithing <percentage>% to <your guild>` (`Tithing custom rates to <your guild>` in advanced mode), and the left-click and right-click hints.
 3. Left-click the icon and confirm the settings page opens. Right-click it and confirm **Donation History** opens.
 4. Drag the icon to another spot around the minimap, `/reload`, and confirm it stays there. Log in to another character and confirm the icon is in the same spot.
 5. On a guildless character, hover the icon and confirm the tooltip shows the balance and `Not in a guild`, with no guild name or percentage.
