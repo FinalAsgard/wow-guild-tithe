@@ -209,6 +209,8 @@ end)
 
 local function newCoordinator(overrides)
     local addon = test.newAddon(
+        "Core/Persistence.lua",
+        "Core/GuildSettings.lua",
         "Core/MoneyFormatter.lua",
         "Core/IncomeFeedback.lua",
         "Core/IncomeCoordinator.lua"
