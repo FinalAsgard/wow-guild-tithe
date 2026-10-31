@@ -504,26 +504,38 @@ local function assertControlsEnabled(world, variables, expected)
     end
 end
 
+local function assertControlsShown(world, variables, expected)
+    local index
+    for index = 1, #variables do
+        local variable = variables[index]
+        test.assertEqual(expected, world.settings.controls[variable]:IsShown(), variable)
+    end
+end
+
 local function registerAdvancedModeTests(profile)
-    test.test(profile .. " advanced mode swaps which tithe controls can be used", function()
+    test.test(profile .. " advanced mode swaps which tithe controls are shown", function()
         local world = fixtures.newEnvironment(profile)
         fixtures.login(world)
         local bindings = world.settings.bindings
 
         test.assertFalse(bindings.AsgardsGuildTithe_AdvancedMode.getValue())
+        test.assertTrue(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsShown())
         test.assertTrue(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsEnabled())
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, false)
         assertControlsEnabled(world, GUILD_CONTROLS, true)
-        assertControlsEnabled(world, ADVANCED_CONTROLS, false)
-        -- Before the first switch, the sliders show where each source starts.
+        assertControlsEnabled(world, ADVANCED_CONTROLS, true)
+        -- Before the first switch, the sliders hold where each source starts.
         test.assertEqual(10, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
         test.assertEqual(0, bindings.AsgardsGuildTithe_SourcePercentage_Auctions.getValue())
 
+        local relayouts = world.settings.relayouts
         test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
         test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.getValue())
-        assertControlsEnabled(world, GUILD_CONTROLS, false)
-        assertControlsEnabled(world, ADVANCED_CONTROLS, true)
-        test.assertTrue((world.settings.notified.AsgardsGuildTithe_SourcePercentage_Loot or 0) >= 1)
-        test.assertTrue((world.settings.notified.AsgardsGuildTithe_Percentage or 0) >= 1)
+        test.assertEqual(relayouts + 1, world.settings.relayouts)
+        test.assertTrue(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsShown())
+        assertControlsShown(world, GUILD_CONTROLS, false)
+        assertControlsShown(world, ADVANCED_CONTROLS, true)
 
         test.assertTrue(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(35))
         test.assertEqual(35, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
@@ -533,9 +545,60 @@ local function registerAdvancedModeTests(profile)
         test.assertFalse(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(101))
 
         test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(false))
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, false)
+        test.assertEqual(35, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
+    end)
+
+    test.test(profile .. " moving to a guild in the other mode shows that mode's controls", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+        test.assertTrue(world.settings.bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+
+        local relayouts = world.settings.relayouts
+        world.guildName = "Horde Lords"
+        fixtures.fire(world, "PLAYER_GUILD_UPDATE", "player")
+
+        test.assertEqual(relayouts + 1, world.settings.relayouts)
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, false)
+    end)
+
+    test.test(profile .. " the open settings panel is laid out again without the inbound helper", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+        local repaired = 0
+        world.environment.SettingsInbound = nil
+        world.environment.SettingsPanel = {
+            RepairDisplay = function(panel)
+                test.assertEqual(world.environment.SettingsPanel, panel)
+                repaired = repaired + 1
+            end,
+        }
+
+        test.assertTrue(world.settings.bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+
+        test.assertEqual(1, repaired)
+    end)
+
+    test.test(profile .. " a client that cannot hide controls greys out the other mode's instead", function()
+        local world = fixtures.newEnvironment(profile, { canHideSettings = false })
+        fixtures.login(world)
+        local bindings = world.settings.bindings
+
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, true)
         assertControlsEnabled(world, GUILD_CONTROLS, true)
         assertControlsEnabled(world, ADVANCED_CONTROLS, false)
-        test.assertEqual(35, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
+
+        local relayouts = world.settings.relayouts
+        test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+        test.assertEqual(relayouts, world.settings.relayouts)
+        test.assertTrue((world.settings.notified.AsgardsGuildTithe_SourcePercentage_Loot or 0) >= 1)
+        test.assertTrue((world.settings.notified.AsgardsGuildTithe_Percentage or 0) >= 1)
+        assertControlsEnabled(world, GUILD_CONTROLS, false)
+        assertControlsEnabled(world, ADVANCED_CONTROLS, true)
+        test.assertTrue(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsEnabled())
     end)
 
     test.test(profile .. " per-source sliders reuse the source labels", function()
@@ -550,14 +613,15 @@ local function registerAdvancedModeTests(profile)
             world.settings.bindings.AsgardsGuildTithe_AdvancedMode.label)
     end)
 
-    test.test(profile .. " a guildless character cannot use advanced mode", function()
+    test.test(profile .. " a guildless character sees the simple controls greyed out", function()
         local world = fixtures.newEnvironment(profile, { inGuild = false })
         fixtures.login(world)
         local bindings = world.settings.bindings
 
         test.assertFalse(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsEnabled())
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, false)
         assertControlsEnabled(world, GUILD_CONTROLS, false)
-        assertControlsEnabled(world, ADVANCED_CONTROLS, false)
         test.assertFalse(bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
         test.assertFalse(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(20))
     end)

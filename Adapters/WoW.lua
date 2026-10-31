@@ -1015,18 +1015,36 @@ function Client:RegisterSettingsCategory(options)
         end
     end
 
-    -- Controls marked with isEnabled are greyed out while it returns false.
-    -- Their variables are remembered so a guild change can repaint them.
+    -- Controls marked with isEnabled are greyed out while it returns false,
+    -- and controls marked with isShown are hidden while it returns false.
+    -- Where a control cannot be hidden, isShown greys it out instead. Their
+    -- variables are remembered so a guild change can repaint them.
     local guildVariables = {}
-    local function addEnabledPredicate(initializer, binding)
-        if type(binding.isEnabled) ~= "function" then
+    local hidesControls = false
+    local function addPredicates(initializer, binding)
+        if type(binding.isEnabled) ~= "function" and type(binding.isShown) ~= "function" then
             return
         end
         table.insert(guildVariables, binding.variable)
-        if type(initializer) == "table" and type(initializer.AddModifyPredicate) == "function" then
+        if type(initializer) ~= "table" then
+            return
+        end
+        local canModify = type(initializer.AddModifyPredicate) == "function"
+        if type(binding.isEnabled) == "function" and canModify then
             initializer:AddModifyPredicate(function()
                 return binding.isEnabled() == true
             end)
+        end
+        if type(binding.isShown) == "function" then
+            local function shown()
+                return binding.isShown() == true
+            end
+            if type(initializer.AddShownPredicate) == "function" then
+                initializer:AddShownPredicate(shown)
+                hidesControls = true
+            elseif canModify then
+                initializer:AddModifyPredicate(shown)
+            end
         end
     end
 
@@ -1078,7 +1096,7 @@ function Client:RegisterSettingsCategory(options)
         if slider == nil then
             error("percentage slider was not created")
         end
-        addEnabledPredicate(slider, binding)
+        addPredicates(slider, binding)
     end
 
     local function createCheckbox(registeredCategory, binding)
@@ -1103,7 +1121,7 @@ function Client:RegisterSettingsCategory(options)
         if checkboxControl == nil then
             error("checkbox control was not created")
         end
-        addEnabledPredicate(checkboxControl, binding)
+        addPredicates(checkboxControl, binding)
     end
 
     local function createControls(registeredCategory, controls)
@@ -1173,11 +1191,28 @@ function Client:RegisterSettingsCategory(options)
     self.guildInitializers[category] = guildInitializer
     self.guildVariables = self.guildVariables or {}
     self.guildVariables[category] = guildVariables
+    self.hidingCategories = self.hidingCategories or {}
+    self.hidingCategories[category] = hidesControls
     return category
 end
 
+-- Shown predicates are only read when the settings list is laid out, so an
+-- open page has to be laid out again for hidden controls to appear or go.
+-- Settings builds expose this through SettingsInbound or the panel itself.
+function Client:RelayoutSettings()
+    local inbound = self.environment.SettingsInbound
+    if type(inbound) == "table" and type(inbound.RepairDisplay) == "function" then
+        return pcall(inbound.RepairDisplay)
+    end
+    local settingsPanel = self.environment.SettingsPanel
+    if type(settingsPanel) == "table" and type(settingsPanel.RepairDisplay) == "function" then
+        return pcall(settingsPanel.RepairDisplay, settingsPanel)
+    end
+    return false
+end
+
 -- Shows the new guild header text and asks the guild-scoped controls to
--- re-read their values and whether they are enabled.
+-- re-read their values, whether they are enabled, and whether they show.
 function Client:RefreshSettingsGuild(category, headerText)
     local refreshed = self:RefreshSettingsHeader(self.guildInitializers, category, headerText)
     local settings = self.environment.Settings
@@ -1187,6 +1222,9 @@ function Client:RefreshSettingsGuild(category, headerText)
         for index = 1, #variables do
             pcall(settings.NotifyUpdate, variables[index])
         end
+    end
+    if self.hidingCategories ~= nil and self.hidingCategories[category] then
+        self:RelayoutSettings()
     end
     return refreshed
 end

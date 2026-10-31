@@ -187,7 +187,9 @@ function Fixtures.click(button, mouseButton)
 end
 
 -- The native Settings surface both clients expose for add-on categories.
-local function newSettingsAPI()
+-- `canHide = false` leaves out shown predicates, as on a client whose
+-- settings list cannot hide controls.
+local function newSettingsAPI(canHide)
     local category = {}
     function category:GetID()
         return 73
@@ -204,18 +206,35 @@ local function newSettingsAPI()
         bindingOrder = {},
         category = category,
         checkboxes = 0,
-        -- Control initializers by variable; `predicates` decide if enabled.
+        -- Control initializers by variable; `predicates` decide if enabled
+        -- and `shownPredicates` if shown.
         controls = {},
         layout = layout,
         -- Times each variable was asked to re-read its value and state.
         notified = {},
+        -- Times the open settings list was laid out again.
+        relayouts = 0,
         sliders = 0,
     }
 
     local function newControl(setting)
-        local control = { predicates = {} }
+        local control = { predicates = {}, shownPredicates = {} }
         function control:AddModifyPredicate(predicate)
             table.insert(self.predicates, predicate)
+        end
+        if canHide ~= false then
+            function control:AddShownPredicate(predicate)
+                table.insert(self.shownPredicates, predicate)
+            end
+        end
+        function control:IsShown()
+            local index
+            for index = 1, #self.shownPredicates do
+                if not self.shownPredicates[index]() then
+                    return false
+                end
+            end
+            return true
         end
         function control:IsEnabled()
             local index
@@ -296,9 +315,14 @@ local function newSettingsAPI()
     return api
 end
 
-local function installSettings(environment)
-    local api = newSettingsAPI()
+local function installSettings(environment, canHide)
+    local api = newSettingsAPI(canHide)
     environment.Settings = api
+    environment.SettingsInbound = {
+        RepairDisplay = function()
+            api.relayouts = api.relayouts + 1
+        end,
+    }
     environment.MinimalSliderWithSteppersMixin = { Label = { Right = "right" } }
     environment.CreateSettingsListSectionHeaderInitializer = function(name)
         local initializer = { data = { name = name } }
@@ -357,8 +381,9 @@ local PROFILE_APIS = {
 -- character reported once the player is ready, `options.money` sets carried
 -- copper (false omits the money API), and `options.inGuild` sets guild
 -- membership (false = guildless; `options.guildApi = false` omits the API),
--- and `options.libraries = false` loads the add-on without its bundled
--- libraries.
+-- `options.canHideSettings = false` gives a settings list that cannot hide
+-- controls, and `options.libraries = false` loads the add-on without its
+-- bundled libraries.
 function Fixtures.newEnvironment(profile, options)
     options = options or {}
     local world = {
@@ -474,7 +499,7 @@ function Fixtures.newEnvironment(profile, options)
         end
     end
     if options.settings ~= false then
-        world.settings = installSettings(environment)
+        world.settings = installSettings(environment, options.canHideSettings)
     end
 
     local declaredClient = options.declaredClient

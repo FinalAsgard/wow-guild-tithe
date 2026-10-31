@@ -130,14 +130,14 @@ local function isAdvancedMode(state)
     return settings ~= nil and settings.advancedMode == true
 end
 
--- Simple-mode controls (the one percentage and the source checkboxes) are
--- usable in a guild while advanced mode is off; the per-source sliders
--- while it is on.
-local function simpleControlsEnabled(state)
-    return hasGuildSettings(state) and not isAdvancedMode(state)
+-- Simple-mode controls (the one percentage and the source checkboxes) show
+-- while advanced mode is off, and the per-source sliders while it is on.
+-- Guildless characters see the simple-mode controls, greyed out.
+local function simpleControlsShown(state)
+    return not isAdvancedMode(state)
 end
 
-local function advancedControlsEnabled(state)
+local function advancedControlsShown(state)
     return isAdvancedMode(state)
 end
 
@@ -201,7 +201,10 @@ local function buildSourceCheckboxes(state)
                 return currentSource(state, definition)
             end,
             isEnabled = function()
-                return simpleControlsEnabled(state)
+                return hasGuildSettings(state)
+            end,
+            isShown = function()
+                return simpleControlsShown(state)
             end,
             setValue = function(value)
                 return state:SetSourceEnabled(source, value)
@@ -233,7 +236,10 @@ local function buildSourceSliders(state)
                 return currentSourcePercentage(state, definition)
             end,
             isEnabled = function()
-                return advancedControlsEnabled(state)
+                return hasGuildSettings(state)
+            end,
+            isShown = function()
+                return advancedControlsShown(state)
             end,
             setValue = function(value)
                 return state:SetSourcePercentage(source, value)
@@ -390,7 +396,10 @@ function Controller:Register()
                 return self.state:SetPercentage(value)
             end,
             isEnabled = function()
-                return simpleControlsEnabled(self.state)
+                return hasGuildSettings(self.state)
+            end,
+            isShown = function()
+                return simpleControlsShown(self.state)
             end,
         },
         controlsAfterPercentage = { buildAdvancedModeCheckbox(self.state) },
