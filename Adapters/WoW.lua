@@ -975,6 +975,25 @@ local function validControls(controls)
     return true
 end
 
+local function shownStates(predicates)
+    local states = {}
+    local index
+    for index = 1, #predicates do
+        states[index] = predicates[index]()
+    end
+    return states
+end
+
+local function sameStates(left, right)
+    local index
+    for index = 1, #left do
+        if left[index] ~= right[index] then
+            return false
+        end
+    end
+    return #left == #right
+end
+
 -- Registers a settings page from `options`: the balance and guild headers,
 -- the percentage slider, the optional `controlsAfterPercentage` directly
 -- beneath it, then each of `sections` (a heading and its controls).
@@ -1020,7 +1039,7 @@ function Client:RegisterSettingsCategory(options)
     -- Where a control cannot be hidden, isShown greys it out instead. Their
     -- variables are remembered so a guild change can repaint them.
     local guildVariables = {}
-    local hidesControls = false
+    local shownPredicates = {}
     local function addPredicates(initializer, binding)
         if type(binding.isEnabled) ~= "function" and type(binding.isShown) ~= "function" then
             return
@@ -1041,7 +1060,7 @@ function Client:RegisterSettingsCategory(options)
             end
             if type(initializer.AddShownPredicate) == "function" then
                 initializer:AddShownPredicate(shown)
-                hidesControls = true
+                table.insert(shownPredicates, shown)
             elseif canModify then
                 initializer:AddModifyPredicate(shown)
             end
@@ -1192,7 +1211,12 @@ function Client:RegisterSettingsCategory(options)
     self.guildVariables = self.guildVariables or {}
     self.guildVariables[category] = guildVariables
     self.hidingCategories = self.hidingCategories or {}
-    self.hidingCategories[category] = hidesControls
+    if #shownPredicates > 0 then
+        self.hidingCategories[category] = {
+            predicates = shownPredicates,
+            shown = shownStates(shownPredicates),
+        }
+    end
     return category
 end
 
@@ -1223,8 +1247,15 @@ function Client:RefreshSettingsGuild(category, headerText)
             pcall(settings.NotifyUpdate, variables[index])
         end
     end
-    if self.hidingCategories ~= nil and self.hidingCategories[category] then
-        self:RelayoutSettings()
+    -- Laying the page out again interrupts a slider drag, so only do it when
+    -- a control actually appears or goes.
+    local hiding = self.hidingCategories and self.hidingCategories[category]
+    if hiding ~= nil then
+        local shown = shownStates(hiding.predicates)
+        if not sameStates(shown, hiding.shown) then
+            hiding.shown = shown
+            self:RelayoutSettings()
+        end
     end
     return refreshed
 end

@@ -537,7 +537,11 @@ local function registerAdvancedModeTests(profile)
         assertControlsShown(world, GUILD_CONTROLS, false)
         assertControlsShown(world, ADVANCED_CONTROLS, true)
 
+        -- Moving a slider shows and hides nothing, so the page (and the
+        -- player's drag) is left alone.
+        test.assertTrue(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(34))
         test.assertTrue(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(35))
+        test.assertEqual(relayouts + 1, world.settings.relayouts)
         test.assertEqual(35, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
         local guild = world.environment.AsgardsGuildTitheDB.guilds["knights of camelot-camelot"]
         test.assertTrue(guild.advancedMode)
@@ -545,9 +549,14 @@ local function registerAdvancedModeTests(profile)
         test.assertFalse(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(101))
 
         test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(false))
+        test.assertEqual(relayouts + 2, world.settings.relayouts)
         assertControlsShown(world, GUILD_CONTROLS, true)
         assertControlsShown(world, ADVANCED_CONTROLS, false)
         test.assertEqual(35, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
+
+        test.assertTrue(bindings.AsgardsGuildTithe_Source_Loot.setValue(false))
+        test.assertTrue(bindings.AsgardsGuildTithe_Percentage.setValue(20))
+        test.assertEqual(relayouts + 2, world.settings.relayouts)
     end)
 
     test.test(profile .. " moving to a guild in the other mode shows that mode's controls", function()
