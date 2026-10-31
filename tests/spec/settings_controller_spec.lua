@@ -103,7 +103,8 @@ local function newSettingsAPI()
             setValue = setValue,
         }
         api.bindings[variable] = binding
-        if variableType == api.VarType.Number then
+        -- The tithe percentage is the first number setting on the page.
+        if variableType == api.VarType.Number and api.binding == nil then
             api.binding = binding
         end
         return binding
@@ -122,7 +123,9 @@ local function newSettingsAPI()
         return api.sliderOptions
     end
 
+    api.sliderTooltips = {}
     function api.CreateSlider(registeredCategory, setting, options, tooltip)
+        api.sliderTooltips[setting.variable] = tooltip
         api.slider = {
             category = registeredCategory,
             setting = setting,
@@ -300,7 +303,7 @@ test.test("settings expose all source and chat preferences with fresh-character 
     local controller = createController(addon, newEnvironment("Tyrande", "Camelot", nil, api))
 
     test.assertTrue(controller:Register())
-    test.assertEqual(9, #api.checkboxes)
+    test.assertEqual(10, #api.checkboxes)
     test.assertEqual(5, #api.sectionHeadings)
     test.assertContains(api.sectionHeadings[1], "Tithe")
     test.assertEqual("Shared by your characters in Knights of Camelot", api.sectionHeadings[2])
@@ -309,14 +312,18 @@ test.test("settings expose all source and chat preferences with fresh-character 
     -- The guild header sits directly above the percentage it describes.
     test.assertContains(api.events[2], "Shared by your characters")
     test.assertContains(api.events[3], "slider:AsgardsGuildTithe_Percentage")
-    test.assertContains(api.events[4], "Income Sources")
-    test.assertContains(api.events[5], "Source_Loot")
-    test.assertContains(api.events[12], "Feedback")
-    test.assertContains(api.events[13], "ChatFeedback")
+    -- Advanced mode sits directly beneath the percentage it replaces.
+    test.assertContains(api.events[4], "checkbox:AsgardsGuildTithe_AdvancedMode")
+    test.assertContains(api.events[5], "Income Sources")
+    test.assertContains(api.events[6], "checkbox:AsgardsGuildTithe_Source_Loot")
+    test.assertContains(api.events[13], "slider:AsgardsGuildTithe_SourcePercentage_Loot")
+    test.assertContains(api.events[19], "slider:AsgardsGuildTithe_SourcePercentage_Miscellaneous")
+    test.assertContains(api.events[20], "Feedback")
+    test.assertContains(api.events[21], "ChatFeedback")
     test.assertEqual("Guild Bank", api.sectionHeadings[5])
-    test.assertContains(api.events[14], "Guild Bank")
-    test.assertContains(api.events[15], "AutoDeposit")
-    local autoDeposit = api.checkboxes[9]
+    test.assertContains(api.events[22], "Guild Bank")
+    test.assertContains(api.events[23], "AutoDeposit")
+    local autoDeposit = api.checkboxes[10]
     test.assertEqual("AsgardsGuildTithe_AutoDeposit", autoDeposit.setting.variable)
     test.assertContains(autoDeposit.tooltip, "open the guild bank")
     test.assertContains(autoDeposit.tooltip, "Give Tithe button")
@@ -581,4 +588,25 @@ test.test("a guildless character sees default settings it cannot change", functi
     test.assertFalse(api.bindings.AsgardsGuildTithe_Source_Loot.setValue(false))
     test.assertTrue(api.bindings.AsgardsGuildTithe_ChatFeedback.setValue(false))
     test.assertEqual(nil, state:GetTitheSettings())
+end)
+
+test.test("each per-source slider explains that 0% leaves the source out", function()
+    local addon = loadSettingsModules()
+    local api = newSettingsAPI()
+    local controller = createController(addon, newEnvironment("Tyrande", "Camelot", nil, api))
+
+    test.assertTrue(controller:Register())
+
+    local index
+    for index = 1, #PREFERENCE_CASES do
+        local preference = PREFERENCE_CASES[index]
+        if preference.source ~= nil then
+            local variable = preference.variable:gsub("_Source_", "_SourcePercentage_")
+            local tooltip = api.sliderTooltips[variable]
+            test.assertContains(tooltip, "0%", variable)
+            test.assertEqual(api.checkboxes[index + 1].tooltip .. " Set to 0% to leave it out of your tithe.",
+                tooltip, variable)
+            test.assertEqual(preference.defaultValue and 10 or 0, api.bindings[variable].defaultValue, variable)
+        end
+    end
 end)

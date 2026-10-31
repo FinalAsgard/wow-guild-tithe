@@ -947,12 +947,46 @@ local function validBinding(options)
         and type(options.setValue) == "function"
 end
 
+local function validSliderRange(binding)
+    return type(binding.minimum) == "number"
+        and type(binding.maximum) == "number"
+        and type(binding.step) == "number"
+end
+
+-- A control is a checkbox binding, or a percentage slider binding with
+-- kind = "slider" and its minimum, maximum, and step.
+local function validControl(control)
+    if not validBinding(control) then
+        return false
+    end
+    return control.kind ~= "slider" or validSliderRange(control)
+end
+
+local function validControls(controls)
+    if type(controls) ~= "table" then
+        return false
+    end
+    local index
+    for index = 1, #controls do
+        if not validControl(controls[index]) then
+            return false
+        end
+    end
+    return true
+end
+
+-- Registers a settings page from `options`: the balance and guild headers,
+-- the percentage slider, the optional `controlsAfterPercentage` directly
+-- beneath it, then each of `sections` (a heading and its controls).
 function Client:RegisterSettingsCategory(options)
     local settings = self.environment.Settings
     local createSectionHeader = self.environment.CreateSettingsListSectionHeaderInitializer
     if type(options) ~= "table"
         or not validBinding(options.percentage)
-        or type(options.checkboxSections) ~= "table"
+        or not validSliderRange(options.percentage)
+        or (options.controlsAfterPercentage ~= nil
+            and not validControls(options.controlsAfterPercentage))
+        or type(options.sections) ~= "table"
         or type(options.balanceText) ~= "string"
         or type(createSectionHeader) ~= "function"
         or type(settings) ~= "table"
@@ -969,21 +1003,15 @@ function Client:RegisterSettingsCategory(options)
         return nil
     end
 
-    local sectionIndex, checkboxIndex
-    for sectionIndex = 1, #options.checkboxSections do
-        local section = options.checkboxSections[sectionIndex]
+    local sectionIndex
+    for sectionIndex = 1, #options.sections do
+        local section = options.sections[sectionIndex]
         if type(section) ~= "table"
             or type(section.heading) ~= "string"
             or section.heading == ""
-            or type(section.checkboxes) ~= "table"
+            or not validControls(section.controls)
         then
             return nil
-        end
-
-        for checkboxIndex = 1, #section.checkboxes do
-            if not validBinding(section.checkboxes[checkboxIndex]) then
-                return nil
-            end
         end
     end
 
@@ -1002,8 +1030,95 @@ function Client:RegisterSettingsCategory(options)
         end
     end
 
+    local sliderMixin = self.environment.MinimalSliderWithSteppersMixin
+
+    local function createSlider(registeredCategory, binding)
+        local setting = settings.RegisterProxySetting(
+            registeredCategory,
+            binding.variable,
+            settings.VarType.Number,
+            binding.label,
+            binding.defaultValue,
+            binding.getValue,
+            binding.setValue
+        )
+        if setting == nil then
+            error("percentage setting was not created")
+        end
+
+        local sliderOptions = settings.CreateSliderOptions(
+            binding.minimum,
+            binding.maximum,
+            binding.step
+        )
+        if sliderOptions == nil then
+            error("percentage slider options were not created")
+        end
+
+        if type(sliderOptions.SetLabelFormatter) ~= "function"
+            or type(sliderMixin) ~= "table"
+            or type(sliderMixin.Label) ~= "table"
+            or sliderMixin.Label.Right == nil
+        then
+            error("percentage slider formatter is unavailable")
+        end
+        sliderOptions:SetLabelFormatter(
+            sliderMixin.Label.Right,
+            function(value)
+                return string.format("%.0f%%", value)
+            end
+        )
+
+        local slider = settings.CreateSlider(
+            registeredCategory,
+            setting,
+            sliderOptions,
+            binding.tooltip
+        )
+        if slider == nil then
+            error("percentage slider was not created")
+        end
+        addEnabledPredicate(slider, binding)
+    end
+
+    local function createCheckbox(registeredCategory, binding)
+        local checkboxSetting = settings.RegisterProxySetting(
+            registeredCategory,
+            binding.variable,
+            settings.VarType.Boolean,
+            binding.label,
+            binding.defaultValue,
+            binding.getValue,
+            binding.setValue
+        )
+        if checkboxSetting == nil then
+            error("checkbox setting was not created")
+        end
+
+        local checkboxControl = settings.CreateCheckbox(
+            registeredCategory,
+            checkboxSetting,
+            binding.tooltip
+        )
+        if checkboxControl == nil then
+            error("checkbox control was not created")
+        end
+        addEnabledPredicate(checkboxControl, binding)
+    end
+
+    local function createControls(registeredCategory, controls)
+        local controlIndex
+        for controlIndex = 1, #controls do
+            local control = controls[controlIndex]
+            if control.kind == "slider" then
+                createSlider(registeredCategory, control)
+            else
+                createCheckbox(registeredCategory, control)
+            end
+        end
+    end
+
     local ok, category, balanceInitializer, guildInitializer = pcall(function()
-        local percentage = options.percentage
         local registeredCategory, layout = settings.RegisterVerticalLayoutCategory(
             options.categoryName
         )
@@ -1031,87 +1146,17 @@ function Client:RegisterSettingsCategory(options)
             layout:AddInitializer(guildInitializer)
         end
 
-        local setting = settings.RegisterProxySetting(
-            registeredCategory,
-            percentage.variable,
-            settings.VarType.Number,
-            percentage.label,
-            percentage.defaultValue,
-            percentage.getValue,
-            percentage.setValue
-        )
-        if setting == nil then
-            error("percentage setting was not created")
-        end
+        createSlider(registeredCategory, options.percentage)
+        createControls(registeredCategory, options.controlsAfterPercentage or {})
 
-        local sliderOptions = settings.CreateSliderOptions(
-            percentage.minimum,
-            percentage.maximum,
-            percentage.step
-        )
-        if sliderOptions == nil then
-            error("percentage slider options were not created")
-        end
-
-        local sliderMixin = self.environment.MinimalSliderWithSteppersMixin
-        if type(sliderOptions.SetLabelFormatter) ~= "function"
-            or type(sliderMixin) ~= "table"
-            or type(sliderMixin.Label) ~= "table"
-            or sliderMixin.Label.Right == nil
-        then
-            error("percentage slider formatter is unavailable")
-        end
-        sliderOptions:SetLabelFormatter(
-            sliderMixin.Label.Right,
-            function(value)
-                return string.format("%.0f%%", value)
-            end
-        )
-
-        local slider = settings.CreateSlider(
-            registeredCategory,
-            setting,
-            sliderOptions,
-            percentage.tooltip
-        )
-        if slider == nil then
-            error("percentage slider was not created")
-        end
-        addEnabledPredicate(slider, percentage)
-
-        for sectionIndex = 1, #options.checkboxSections do
-            local section = options.checkboxSections[sectionIndex]
+        for sectionIndex = 1, #options.sections do
+            local section = options.sections[sectionIndex]
             local sectionInitializer = createSectionHeader(section.heading)
             if sectionInitializer == nil then
                 error("settings section was not created")
             end
             layout:AddInitializer(sectionInitializer)
-
-            for checkboxIndex = 1, #section.checkboxes do
-                local checkbox = section.checkboxes[checkboxIndex]
-                local checkboxSetting = settings.RegisterProxySetting(
-                    registeredCategory,
-                    checkbox.variable,
-                    settings.VarType.Boolean,
-                    checkbox.label,
-                    checkbox.defaultValue,
-                    checkbox.getValue,
-                    checkbox.setValue
-                )
-                if checkboxSetting == nil then
-                    error("checkbox setting was not created")
-                end
-
-                local checkboxControl = settings.CreateCheckbox(
-                    registeredCategory,
-                    checkboxSetting,
-                    checkbox.tooltip
-                )
-                if checkboxControl == nil then
-                    error("checkbox control was not created")
-                end
-                addEnabledPredicate(checkboxControl, checkbox)
-            end
+            createControls(registeredCategory, section.controls)
         end
 
         settings.RegisterAddOnCategory(registeredCategory)
