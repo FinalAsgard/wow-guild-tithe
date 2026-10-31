@@ -114,12 +114,13 @@ test.test("schema one migrates to the latest schema without losing recognized or
 
     local database, report = store:Load()
 
-    test.assertEqual(5, database.schemaVersion)
+    test.assertEqual(6, database.schemaVersion)
     test.assertEqual("1 -> 2", report.migrations[1])
     test.assertEqual("2 -> 3", report.migrations[2])
     test.assertEqual("3 -> 4", report.migrations[3])
     test.assertEqual("4 -> 5", report.migrations[4])
-    test.assertEqual(4, #report.migrations)
+    test.assertEqual("5 -> 6", report.migrations[5])
+    test.assertEqual(5, #report.migrations)
     test.assertEqual(0, #report.repairedFields)
     test.assertEqual(37, database.characters["jaina-camelot"].percentage)
     test.assertEqual(123456, database.characters["jaina-camelot"].outstandingCopper)
@@ -307,7 +308,7 @@ test.test("a quarantined current character stays unavailable to state and accoun
     local result, accountingError = addon.TitheService.Create(
         state,
         addon.Accounting
-    ):AccrueEligibleCopper(100)
+    ):AccrueEligibleCopper(100, 10)
     test.assertEqual(nil, result)
     test.assertEqual("current character state is unavailable", accountingError)
     test.assertEqual(100,
@@ -483,18 +484,19 @@ test.test("schema two migrates forward with empty payment state", function()
     local database, report = createStore(addon, environment):Load()
     local migrated = database.characters["jaina-camelot"]
 
-    test.assertEqual(5, database.schemaVersion)
+    test.assertEqual(6, database.schemaVersion)
     test.assertEqual("2 -> 3", report.migrations[1])
     test.assertEqual("3 -> 4", report.migrations[2])
     test.assertEqual("4 -> 5", report.migrations[3])
-    test.assertEqual(3, #report.migrations)
+    test.assertEqual("5 -> 6", report.migrations[4])
+    test.assertEqual(4, #report.migrations)
     test.assertEqual(0, #report.repairedFields)
     test.assertEqual(nil, migrated.pendingPayment)
     test.assertEqual(0, #migrated.resolvedPayments)
     test.assertEqual(0, migrated.paymentSequence)
     test.assertEqual(123456, migrated.outstandingCopper)
     test.assertEqual(78, migrated.fractionalRemainder)
-    test.assertEqual(5, environment.AsgardsGuildTitheDB.schemaVersion)
+    test.assertEqual(6, environment.AsgardsGuildTitheDB.schemaVersion)
 
     local snapshot = copy(database)
     local again, againReport = createStore(addon, environment):Load()
@@ -506,7 +508,7 @@ end)
 test.test("a valid pending payment and resolved ids survive reloads unchanged", function()
     local addon = loadPersistenceModules()
     local environment = newEnvironment("Jaina", "Camelot", {
-        schemaVersion = 5,
+        schemaVersion = 6,
         donations = {},
         quarantinedDonations = {},
         guilds = {},
@@ -695,9 +697,10 @@ test.test("schema four gains guild and UI tables and leaves characters and the l
 
     local database, report = createStore(addon, environment):Load()
 
-    test.assertEqual(5, database.schemaVersion)
+    test.assertEqual(6, database.schemaVersion)
     test.assertEqual("4 -> 5", report.migrations[1])
-    test.assertEqual(1, #report.migrations)
+    test.assertEqual("5 -> 6", report.migrations[2])
+    test.assertEqual(2, #report.migrations)
     test.assertEqual(0, #report.repairedFields)
     assertDeepEqual({}, database.guilds)
     assertDeepEqual({}, database.quarantinedGuilds)
@@ -712,13 +715,13 @@ test.test("schema four gains guild and UI tables and leaves characters and the l
     test.assertEqual(0, #againReport.migrations)
 end)
 
-test.test("a fresh install starts at schema five with empty guild and default UI tables", function()
+test.test("a fresh install starts at schema six with empty guild and default UI tables", function()
     local addon = loadPersistenceModules()
     local environment = newEnvironment("Jaina", "Camelot", nil)
 
     local database = createStore(addon, environment):Load()
 
-    test.assertEqual(5, database.schemaVersion)
+    test.assertEqual(6, database.schemaVersion)
     assertDeepEqual({}, database.guilds)
     assertDeepEqual({}, database.quarantinedGuilds)
     assertDeepEqual({ minimap = { hide = false } }, database.ui)
@@ -860,3 +863,112 @@ test.test("minimap icon state keeps a valid position and repairs invalid fields"
     test.assertEqual("ui.minimap.minimapPos", report.repairedFields[2].field)
 end)
 
+
+local function guildRecord(overrides)
+    local record = {
+        identity = { displayName = "Knights of Camelot", displayRealm = "Camelot" },
+        percentage = 20,
+        sources = {
+            auctions = false,
+            loot = true,
+            mailbox = false,
+            miscellaneous = true,
+            playerTrades = true,
+            quests = true,
+            vendorSales = true,
+        },
+    }
+    local key, value
+    for key, value in pairs(overrides or {}) do
+        record[key] = value
+    end
+    return record
+end
+
+local function guildRepairs(report)
+    local repaired = {}
+    local index
+    for index = 1, #report.repairedFields do
+        local entry = report.repairedFields[index]
+        repaired[tostring(entry.guildKey) .. ":" .. entry.field] = true
+    end
+    return repaired
+end
+
+test.test("schema five guilds gain advanced mode off and otherwise load unchanged", function()
+    local addon = loadPersistenceModules()
+    local environment = newEnvironment("Jaina", "Camelot", versionFiveDatabase({
+        ["knights of camelot-camelot"] = guildRecord(),
+    }))
+    local before = copy(environment.AsgardsGuildTitheDB.guilds["knights of camelot-camelot"])
+
+    local database, report = createStore(addon, environment):Load()
+    local knights = database.guilds["knights of camelot-camelot"]
+
+    test.assertEqual(6, database.schemaVersion)
+    test.assertEqual("5 -> 6", report.migrations[1])
+    test.assertEqual(1, #report.migrations)
+    test.assertEqual(0, #report.repairedFields)
+    test.assertFalse(knights.advancedMode)
+    test.assertEqual(nil, knights.sourcePercentages)
+    local withoutMode = copy(knights)
+    withoutMode.advancedMode = nil
+    assertDeepEqual(before, withoutMode)
+
+    local snapshot = copy(database)
+    local again, againReport = createStore(addon, environment):Load()
+    assertDeepEqual(snapshot, again)
+    test.assertEqual(0, #againReport.migrations)
+end)
+
+test.test("invalid advanced settings are repaired from the simple-mode settings", function()
+    local addon = loadPersistenceModules()
+    local saved = versionFiveDatabase({
+        ["knights of camelot-camelot"] = guildRecord({
+            advancedMode = true,
+            sourcePercentages = {
+                auctions = 5,
+                loot = 140,
+                mailbox = "half",
+                miscellaneous = 0,
+                playerTrades = 7,
+                quests = 2.5,
+            },
+        }),
+        ["horde lords-camelot"] = guildRecord({ advancedMode = true }),
+        ["alliance-camelot"] = guildRecord({ advancedMode = false, sourcePercentages = "broken" }),
+        ["scarlet-camelot"] = guildRecord({ advancedMode = "on", sourcePercentages = 7 }),
+    })
+    saved.schemaVersion = 6
+    local environment = newEnvironment("Jaina", "Camelot", saved)
+
+    local database, report = createStore(addon, environment):Load()
+    local knights = database.guilds["knights of camelot-camelot"].sourcePercentages
+    local horde = database.guilds["horde lords-camelot"].sourcePercentages
+    local repaired = guildRepairs(report)
+
+    test.assertEqual(5, knights.auctions)
+    test.assertEqual(20, knights.loot)
+    test.assertEqual(0, knights.mailbox)
+    test.assertEqual(0, knights.miscellaneous)
+    test.assertEqual(7, knights.playerTrades)
+    test.assertEqual(20, knights.quests)
+    test.assertEqual(20, knights.vendorSales)
+    test.assertTrue(repaired["knights of camelot-camelot:sourcePercentages.loot"])
+    test.assertTrue(repaired["knights of camelot-camelot:sourcePercentages.mailbox"])
+    test.assertTrue(repaired["knights of camelot-camelot:sourcePercentages.quests"])
+    test.assertTrue(repaired["knights of camelot-camelot:sourcePercentages.vendorSales"])
+    test.assertEqual(nil, repaired["knights of camelot-camelot:sourcePercentages.auctions"])
+
+    test.assertEqual(20, horde.loot)
+    test.assertEqual(0, horde.auctions)
+    test.assertTrue(repaired["horde lords-camelot:sourcePercentages"])
+
+    test.assertEqual(nil, database.guilds["alliance-camelot"].sourcePercentages)
+    test.assertTrue(repaired["alliance-camelot:sourcePercentages"])
+
+    test.assertFalse(database.guilds["scarlet-camelot"].advancedMode)
+    test.assertEqual(nil, database.guilds["scarlet-camelot"].sourcePercentages)
+    test.assertTrue(repaired["scarlet-camelot:advancedMode"])
+    test.assertTrue(repaired["scarlet-camelot:sourcePercentages"])
+end)

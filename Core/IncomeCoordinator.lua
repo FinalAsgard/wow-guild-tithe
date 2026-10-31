@@ -48,17 +48,21 @@ function Coordinator:Finalize(observation)
         return terminal(observation, "guildless", "character is not in a guild")
     end
 
-    -- The percentage and sources are shared by the account's characters in
-    -- the current guild.
+    -- The tithe settings are shared by the account's characters in the
+    -- current guild; they decide whether and at what rate this source tithes.
     local settings = self.state:GetTitheSettings()
     if type(settings) ~= "table" then
         return terminal(observation, "unresolved", "guild tithe settings are unavailable")
     end
-    if type(settings.sources) ~= "table" or settings.sources[observation.source] ~= true then
+    local percentage = addon.GuildSettings.RateFor(settings, observation.source)
+    if percentage == nil then
         return terminal(observation, "disabled", observation.source .. " income is disabled")
     end
 
-    local accrual, accrualError = self.titheService:AccrueEligibleCopper(observation.copper)
+    local accrual, accrualError = self.titheService:AccrueEligibleCopper(
+        observation.copper,
+        percentage
+    )
     if accrual == nil then
         return terminal(observation, "unresolved", accrualError)
     end

@@ -13,7 +13,10 @@ function TitheService.Create(state, accounting)
     }, Service)
 end
 
-function Service:AccrueEligibleCopper(eligibleCopper)
+-- Accrues `percentage` of `eligibleCopper` onto the current character's
+-- balance. The percentage is the income's source rate, resolved by the
+-- caller from the guild's settings.
+function Service:AccrueEligibleCopper(eligibleCopper, percentage)
     if self.state == nil
         or self.accounting == nil
         or type(self.accounting.Calculate) ~= "function"
@@ -26,14 +29,9 @@ function Service:AccrueEligibleCopper(eligibleCopper)
         return nil, "current character state is unavailable"
     end
 
-    local settings = self.state:GetTitheSettings()
-    if type(settings) ~= "table" then
-        return nil, "guild tithe settings are unavailable"
-    end
-
     local result, calculateError = self.accounting.Calculate(
         eligibleCopper,
-        settings.percentage,
+        percentage,
         character.outstandingCopper,
         character.fractionalRemainder
     )

@@ -65,6 +65,13 @@ local CHAT_FEEDBACK_SETTING = {
     defaultValue = true,
 }
 
+local ADVANCED_MODE_SETTING = {
+    variableSuffix = "AdvancedMode",
+    label = "Advanced mode: set a percentage for each income source",
+    tooltip = "Give each income source its own tithe percentage instead of one percentage for all of them.",
+    defaultValue = false,
+}
+
 local AUTO_DEPOSIT_SETTING = {
     variableSuffix = "AutoDeposit",
     label = "Deposit tithe automatically",
@@ -118,6 +125,35 @@ local function hasGuildSettings(state)
     return currentTitheSettings(state) ~= nil
 end
 
+local function isAdvancedMode(state)
+    local settings = currentTitheSettings(state)
+    return settings ~= nil and settings.advancedMode == true
+end
+
+-- Simple-mode controls (the one percentage and the source checkboxes) show
+-- while advanced mode is off, and the per-source sliders while it is on.
+-- Guildless characters see the simple-mode controls, greyed out.
+local function simpleControlsShown(state)
+    return not isAdvancedMode(state)
+end
+
+local function advancedControlsShown(state)
+    return isAdvancedMode(state)
+end
+
+-- A source's advanced-mode percentage. Before the guild first turns advanced
+-- mode on, it shows the percentage the source would start at.
+local function currentSourcePercentage(state, definition)
+    local settings = currentTitheSettings(state)
+    if settings == nil then
+        return definition.defaultValue and DEFAULT_PERCENTAGE or 0
+    end
+    if type(settings.sourcePercentages) == "table" then
+        return settings.sourcePercentages[definition.key]
+    end
+    return addon.Persistence.SeedSourcePercentage(settings, definition.key)
+end
+
 -- The header above the guild-shared controls: whose settings they change,
 -- or why they cannot be changed.
 local function guildHeaderText(state)
@@ -167,6 +203,9 @@ local function buildSourceCheckboxes(state)
             isEnabled = function()
                 return hasGuildSettings(state)
             end,
+            isShown = function()
+                return simpleControlsShown(state)
+            end,
             setValue = function(value)
                 return state:SetSourceEnabled(source, value)
             end,
@@ -174,6 +213,60 @@ local function buildSourceCheckboxes(state)
     end
 
     return checkboxes
+end
+
+local function buildSourceSliders(state)
+    local sliders = {}
+    local index
+
+    for index = 1, #SOURCE_SETTINGS do
+        local definition = SOURCE_SETTINGS[index]
+        local source = definition.key
+        table.insert(sliders, {
+            kind = "slider",
+            variable = addon.Identity.settingsPrefix .. "_" ..
+                definition.variableSuffix:gsub("^Source_", "SourcePercentage_"),
+            label = definition.label,
+            tooltip = definition.tooltip .. " Set to 0% to leave it out of your tithe.",
+            defaultValue = definition.defaultValue and DEFAULT_PERCENTAGE or 0,
+            minimum = 0,
+            maximum = 100,
+            step = 1,
+            getValue = function()
+                return currentSourcePercentage(state, definition)
+            end,
+            isEnabled = function()
+                return hasGuildSettings(state)
+            end,
+            isShown = function()
+                return advancedControlsShown(state)
+            end,
+            setValue = function(value)
+                return state:SetSourcePercentage(source, value)
+            end,
+        })
+    end
+
+    return sliders
+end
+
+local function buildAdvancedModeCheckbox(state)
+    return {
+        variable = addon.Identity.settingsPrefix .. "_" ..
+            ADVANCED_MODE_SETTING.variableSuffix,
+        label = ADVANCED_MODE_SETTING.label,
+        tooltip = ADVANCED_MODE_SETTING.tooltip,
+        defaultValue = ADVANCED_MODE_SETTING.defaultValue,
+        getValue = function()
+            return isAdvancedMode(state)
+        end,
+        isEnabled = function()
+            return hasGuildSettings(state)
+        end,
+        setValue = function(value)
+            return state:SetAdvancedMode(value)
+        end,
+    }
 end
 
 local function buildChatFeedbackCheckbox(state)
@@ -256,24 +349,31 @@ function Controller:Register()
         return self.category ~= nil
     end
 
-    local checkboxSections = {
+    local sourceControls = buildSourceCheckboxes(self.state)
+    local sliders = buildSourceSliders(self.state)
+    local index
+    for index = 1, #sliders do
+        table.insert(sourceControls, sliders[index])
+    end
+
+    local sections = {
         {
             heading = "Income Sources",
-            checkboxes = buildSourceCheckboxes(self.state),
+            controls = sourceControls,
         },
         {
             heading = "Feedback",
-            checkboxes = { buildChatFeedbackCheckbox(self.state) },
+            controls = { buildChatFeedbackCheckbox(self.state) },
         },
         {
             heading = "Guild Bank",
-            checkboxes = { buildAutoDepositCheckbox(self.state) },
+            controls = { buildAutoDepositCheckbox(self.state) },
         },
     }
     if self.launcher ~= nil then
-        table.insert(checkboxSections, {
+        table.insert(sections, {
             heading = "Minimap",
-            checkboxes = { buildMinimapCheckbox(self.launcher) },
+            controls = { buildMinimapCheckbox(self.launcher) },
         })
     end
 
@@ -298,8 +398,12 @@ function Controller:Register()
             isEnabled = function()
                 return hasGuildSettings(self.state)
             end,
+            isShown = function()
+                return simpleControlsShown(self.state)
+            end,
         },
-        checkboxSections = checkboxSections,
+        controlsAfterPercentage = { buildAdvancedModeCheckbox(self.state) },
+        sections = sections,
     })
 
     if category == nil then

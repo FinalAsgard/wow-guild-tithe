@@ -171,7 +171,8 @@ function State:IsInGuild()
 end
 
 -- The tithe settings in effect, shared by the account's characters in the
--- current guild: { guild, guildKey, percentage, sources }, or nil while
+-- current guild: { guild, guildKey, percentage, sources, advancedMode,
+-- sourcePercentages }, or nil while
 -- guildless or when the guild is unknown or its record is quarantined.
 -- A guild with no record yet is created from this character's settings
 -- left over from before schema 5, or the defaults; once the character's
@@ -258,6 +259,38 @@ function State:SetSourceEnabled(source, enabled)
     local settings = self:GetTitheSettings()
     if settings == nil
         or not self.guildSettings:SetSourceEnabled(settings.guildKey, source, enabled)
+    then
+        return false
+    end
+    notify(self.guildListeners)
+    return true
+end
+
+-- Turns advanced mode on or off for the current guild; refused while
+-- guildless.
+function State:SetAdvancedMode(enabled)
+    if type(enabled) ~= "boolean" then
+        return false
+    end
+
+    local settings = self:GetTitheSettings()
+    if settings == nil or not self.guildSettings:SetAdvancedMode(settings.guildKey, enabled) then
+        return false
+    end
+    notify(self.guildListeners)
+    return true
+end
+
+-- Changes one source's advanced-mode percentage for the current guild;
+-- refused while guildless.
+function State:SetSourcePercentage(source, percentage)
+    if not addon.Persistence.IsSource(source) or not isInteger(percentage) or percentage > 100 then
+        return false
+    end
+
+    local settings = self:GetTitheSettings()
+    if settings == nil
+        or not self.guildSettings:SetSourcePercentage(settings.guildKey, source, percentage)
     then
         return false
     end

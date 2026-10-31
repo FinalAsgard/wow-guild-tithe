@@ -52,7 +52,10 @@ function Controller:GuildText()
         end
         return Launcher.NOT_IN_GUILD_TEXT
     end
-    return "Tithing " .. WHITE .. settings.percentage .. "%|r to " ..
+    -- In advanced mode no single percentage applies.
+    local rate = settings.advancedMode == true and "custom rates"
+        or settings.percentage .. "%"
+    return "Tithing " .. WHITE .. rate .. "|r to " ..
         WHITE .. settings.guild.name .. "|r"
 end
 

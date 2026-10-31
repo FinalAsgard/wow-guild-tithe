@@ -1,18 +1,40 @@
 local test = require("tests.test_helper")
 local fixtures = require("tests.client_fixtures")
 
-local CHECKBOX_VARIABLES = {
-    "AsgardsGuildTithe_Source_Loot",
-    "AsgardsGuildTithe_Source_Quests",
-    "AsgardsGuildTithe_Source_VendorSales",
-    "AsgardsGuildTithe_Source_Auctions",
-    "AsgardsGuildTithe_Source_Mailbox",
-    "AsgardsGuildTithe_Source_PlayerTrades",
-    "AsgardsGuildTithe_Source_Miscellaneous",
-    "AsgardsGuildTithe_ChatFeedback",
-    "AsgardsGuildTithe_AutoDeposit",
-    "AsgardsGuildTithe_MinimapIcon",
+-- Every editable setting, in page order. Sliders are marked.
+local SETTING_VARIABLES = {
+    { "AsgardsGuildTithe_Percentage", slider = true },
+    { "AsgardsGuildTithe_AdvancedMode" },
+    { "AsgardsGuildTithe_Source_Loot" },
+    { "AsgardsGuildTithe_Source_Quests" },
+    { "AsgardsGuildTithe_Source_VendorSales" },
+    { "AsgardsGuildTithe_Source_Auctions" },
+    { "AsgardsGuildTithe_Source_Mailbox" },
+    { "AsgardsGuildTithe_Source_PlayerTrades" },
+    { "AsgardsGuildTithe_Source_Miscellaneous" },
+    { "AsgardsGuildTithe_SourcePercentage_Loot", slider = true },
+    { "AsgardsGuildTithe_SourcePercentage_Quests", slider = true },
+    { "AsgardsGuildTithe_SourcePercentage_VendorSales", slider = true },
+    { "AsgardsGuildTithe_SourcePercentage_Auctions", slider = true },
+    { "AsgardsGuildTithe_SourcePercentage_Mailbox", slider = true },
+    { "AsgardsGuildTithe_SourcePercentage_PlayerTrades", slider = true },
+    { "AsgardsGuildTithe_SourcePercentage_Miscellaneous", slider = true },
+    { "AsgardsGuildTithe_ChatFeedback" },
+    { "AsgardsGuildTithe_AutoDeposit" },
+    { "AsgardsGuildTithe_MinimapIcon" },
 }
+
+local function countSettings(sliders)
+    local count = 0
+    local index
+    for index = 1, #SETTING_VARIABLES do
+        if (SETTING_VARIABLES[index].slider == true) == sliders then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 
 local function otherProfile(profile)
     return profile == "Forever" and "Retail" or "Forever"
@@ -47,8 +69,8 @@ local function registerProfileTests(profile)
         test.assertEqual(100, settings.sliderOptions.maximum)
         test.assertEqual(1, settings.sliderOptions.step)
         test.assertEqual("42%", settings.sliderFormatter(42))
-        test.assertEqual(1, settings.sliders)
-        test.assertEqual(#CHECKBOX_VARIABLES, settings.checkboxes)
+        test.assertEqual(countSettings(true), settings.sliders)
+        test.assertEqual(countSettings(false), settings.checkboxes)
 
         local headings = {}
         local index
@@ -62,11 +84,10 @@ local function registerProfileTests(profile)
         test.assertEqual("Guild Bank", headings[5])
         test.assertEqual("Minimap", headings[6])
 
-        -- Only the percentage and the preferences are editable.
-        test.assertEqual(1 + #CHECKBOX_VARIABLES, #settings.bindingOrder)
-        test.assertEqual("AsgardsGuildTithe_Percentage", settings.bindingOrder[1])
-        for index = 1, #CHECKBOX_VARIABLES do
-            test.assertEqual(CHECKBOX_VARIABLES[index], settings.bindingOrder[index + 1])
+        -- Only the percentages and the preferences are editable.
+        test.assertEqual(#SETTING_VARIABLES, #settings.bindingOrder)
+        for index = 1, #SETTING_VARIABLES do
+            test.assertEqual(SETTING_VARIABLES[index][1], settings.bindingOrder[index])
         end
     end)
 
@@ -462,4 +483,160 @@ end
 local guildIndex
 for guildIndex = 1, #fixtures.PROFILES do
     registerGuildTests(fixtures.PROFILES[guildIndex])
+end
+
+
+local ADVANCED_CONTROLS = {
+    "AsgardsGuildTithe_SourcePercentage_Loot",
+    "AsgardsGuildTithe_SourcePercentage_Quests",
+    "AsgardsGuildTithe_SourcePercentage_VendorSales",
+    "AsgardsGuildTithe_SourcePercentage_Auctions",
+    "AsgardsGuildTithe_SourcePercentage_Mailbox",
+    "AsgardsGuildTithe_SourcePercentage_PlayerTrades",
+    "AsgardsGuildTithe_SourcePercentage_Miscellaneous",
+}
+
+local function assertControlsEnabled(world, variables, expected)
+    local index
+    for index = 1, #variables do
+        local variable = variables[index]
+        test.assertEqual(expected, world.settings.controls[variable]:IsEnabled(), variable)
+    end
+end
+
+local function assertControlsShown(world, variables, expected)
+    local index
+    for index = 1, #variables do
+        local variable = variables[index]
+        test.assertEqual(expected, world.settings.controls[variable]:IsShown(), variable)
+    end
+end
+
+local function registerAdvancedModeTests(profile)
+    test.test(profile .. " advanced mode swaps which tithe controls are shown", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+        local bindings = world.settings.bindings
+
+        test.assertFalse(bindings.AsgardsGuildTithe_AdvancedMode.getValue())
+        test.assertTrue(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsShown())
+        test.assertTrue(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsEnabled())
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, false)
+        assertControlsEnabled(world, GUILD_CONTROLS, true)
+        assertControlsEnabled(world, ADVANCED_CONTROLS, true)
+        -- Before the first switch, the sliders hold where each source starts.
+        test.assertEqual(10, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
+        test.assertEqual(0, bindings.AsgardsGuildTithe_SourcePercentage_Auctions.getValue())
+
+        local relayouts = world.settings.relayouts
+        test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+        test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.getValue())
+        test.assertEqual(relayouts + 1, world.settings.relayouts)
+        test.assertTrue(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsShown())
+        assertControlsShown(world, GUILD_CONTROLS, false)
+        assertControlsShown(world, ADVANCED_CONTROLS, true)
+
+        -- Moving a slider shows and hides nothing, so the page (and the
+        -- player's drag) is left alone.
+        test.assertTrue(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(34))
+        test.assertTrue(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(35))
+        test.assertEqual(relayouts + 1, world.settings.relayouts)
+        test.assertEqual(35, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
+        local guild = world.environment.AsgardsGuildTitheDB.guilds["knights of camelot-camelot"]
+        test.assertTrue(guild.advancedMode)
+        test.assertEqual(35, guild.sourcePercentages.loot)
+        test.assertFalse(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(101))
+
+        test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(false))
+        test.assertEqual(relayouts + 2, world.settings.relayouts)
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, false)
+        test.assertEqual(35, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
+
+        test.assertTrue(bindings.AsgardsGuildTithe_Source_Loot.setValue(false))
+        test.assertTrue(bindings.AsgardsGuildTithe_Percentage.setValue(20))
+        test.assertEqual(relayouts + 2, world.settings.relayouts)
+    end)
+
+    test.test(profile .. " moving to a guild in the other mode shows that mode's controls", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+        test.assertTrue(world.settings.bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+
+        local relayouts = world.settings.relayouts
+        world.guildName = "Horde Lords"
+        fixtures.fire(world, "PLAYER_GUILD_UPDATE", "player")
+
+        test.assertEqual(relayouts + 1, world.settings.relayouts)
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, false)
+    end)
+
+    test.test(profile .. " the open settings panel is laid out again without the inbound helper", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+        local repaired = 0
+        world.environment.SettingsInbound = nil
+        world.environment.SettingsPanel = {
+            RepairDisplay = function(panel)
+                test.assertEqual(world.environment.SettingsPanel, panel)
+                repaired = repaired + 1
+            end,
+        }
+
+        test.assertTrue(world.settings.bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+
+        test.assertEqual(1, repaired)
+    end)
+
+    test.test(profile .. " a client that cannot hide controls greys out the other mode's instead", function()
+        local world = fixtures.newEnvironment(profile, { canHideSettings = false })
+        fixtures.login(world)
+        local bindings = world.settings.bindings
+
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, true)
+        assertControlsEnabled(world, GUILD_CONTROLS, true)
+        assertControlsEnabled(world, ADVANCED_CONTROLS, false)
+
+        local relayouts = world.settings.relayouts
+        test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+        test.assertEqual(relayouts, world.settings.relayouts)
+        test.assertTrue((world.settings.notified.AsgardsGuildTithe_SourcePercentage_Loot or 0) >= 1)
+        test.assertTrue((world.settings.notified.AsgardsGuildTithe_Percentage or 0) >= 1)
+        assertControlsEnabled(world, GUILD_CONTROLS, false)
+        assertControlsEnabled(world, ADVANCED_CONTROLS, true)
+        test.assertTrue(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsEnabled())
+    end)
+
+    test.test(profile .. " per-source sliders reuse the source labels", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+        local slider = world.settings.bindings.AsgardsGuildTithe_SourcePercentage_Loot
+        local checkbox = world.settings.bindings.AsgardsGuildTithe_Source_Loot
+
+        test.assertEqual("number", slider.variableType)
+        test.assertEqual(checkbox.label, slider.label)
+        test.assertEqual("Advanced mode: set a percentage for each income source",
+            world.settings.bindings.AsgardsGuildTithe_AdvancedMode.label)
+    end)
+
+    test.test(profile .. " a guildless character sees the simple controls greyed out", function()
+        local world = fixtures.newEnvironment(profile, { inGuild = false })
+        fixtures.login(world)
+        local bindings = world.settings.bindings
+
+        test.assertFalse(world.settings.controls.AsgardsGuildTithe_AdvancedMode:IsEnabled())
+        assertControlsShown(world, GUILD_CONTROLS, true)
+        assertControlsShown(world, ADVANCED_CONTROLS, false)
+        assertControlsEnabled(world, GUILD_CONTROLS, false)
+        test.assertFalse(bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+        test.assertFalse(bindings.AsgardsGuildTithe_SourcePercentage_Loot.setValue(20))
+    end)
+end
+
+local advancedIndex
+for advancedIndex = 1, #fixtures.PROFILES do
+    registerAdvancedModeTests(fixtures.PROFILES[advancedIndex])
 end

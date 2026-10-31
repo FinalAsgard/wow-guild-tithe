@@ -94,7 +94,7 @@ test.test("fresh characters receive the complete default tithe state", function(
     local character = state:GetCurrentCharacter()
     local settings = state:GetTitheSettings()
 
-    test.assertEqual(5, environment.AsgardsGuildTitheDB.schemaVersion)
+    test.assertEqual(6, environment.AsgardsGuildTitheDB.schemaVersion)
     test.assertEqual("arthas-camelot", state:GetCharacterKey())
     test.assertEqual("Arthas", character.identity.displayName)
     test.assertEqual("Camelot", character.identity.displayRealm)
@@ -366,4 +366,115 @@ test.test("missing identity or an unsupported schema does not overwrite saved da
     local missingIdentityState = createState(addon, missingIdentityEnvironment)
     test.assertFalse(missingIdentityState:Initialize())
     test.assertEqual(futureDatabase, missingIdentityEnvironment.AsgardsGuildTitheDB)
+end)
+
+test.test("turning advanced mode on seeds each source from the simple-mode settings", function()
+    local addon = loadStateModules()
+    local environment = newEnvironment("Jaina", "Camelot", nil)
+    local state = createState(addon, environment)
+    test.assertTrue(state:Initialize())
+    test.assertTrue(state:SetPercentage(15))
+    test.assertFalse(state:GetTitheSettings().advancedMode)
+    test.assertEqual(nil, state:GetTitheSettings().sourcePercentages)
+
+    test.assertTrue(state:SetAdvancedMode(true))
+    local settings = state:GetTitheSettings()
+
+    test.assertTrue(settings.advancedMode)
+    test.assertEqual(15, settings.sourcePercentages.loot)
+    test.assertEqual(15, settings.sourcePercentages.quests)
+    test.assertEqual(15, settings.sourcePercentages.vendorSales)
+    test.assertEqual(15, settings.sourcePercentages.playerTrades)
+    test.assertEqual(15, settings.sourcePercentages.miscellaneous)
+    test.assertEqual(0, settings.sourcePercentages.auctions)
+    test.assertEqual(0, settings.sourcePercentages.mailbox)
+end)
+
+test.test("simple and advanced settings survive switching modes back and forth", function()
+    local addon = loadStateModules()
+    local environment = newEnvironment("Jaina", "Camelot", nil)
+    local state = createState(addon, environment)
+    test.assertTrue(state:Initialize())
+    test.assertTrue(state:SetAdvancedMode(true))
+    test.assertTrue(state:SetSourcePercentage("loot", 25))
+    test.assertTrue(state:SetSourcePercentage("quests", 0))
+
+    test.assertTrue(state:SetAdvancedMode(false))
+    test.assertTrue(state:SetPercentage(30))
+    test.assertTrue(state:SetSourceEnabled("loot", false))
+    test.assertTrue(state:SetAdvancedMode(true))
+
+    local reloaded = reload(addon, "Thrall", "Camelot", environment.AsgardsGuildTitheDB)
+    local settings = reloaded:GetTitheSettings()
+    test.assertTrue(settings.advancedMode)
+    test.assertEqual(25, settings.sourcePercentages.loot)
+    test.assertEqual(0, settings.sourcePercentages.quests)
+    test.assertEqual(10, settings.sourcePercentages.vendorSales)
+    test.assertEqual(30, settings.percentage)
+    test.assertFalse(settings.sources.loot)
+end)
+
+test.test("advanced mode is kept separately for each guild", function()
+    local addon = loadStateModules()
+    local environment = newEnvironment("Jaina", "Camelot", nil)
+    local jaina = createState(addon, environment)
+    test.assertTrue(jaina:Initialize())
+    test.assertTrue(jaina:SetAdvancedMode(true))
+
+    local thrall = reload(addon, "Thrall", "Camelot", environment.AsgardsGuildTitheDB,
+        { name = "Horde Lords" })
+    test.assertFalse(thrall:GetTitheSettings().advancedMode)
+    test.assertEqual(nil, thrall:GetTitheSettings().sourcePercentages)
+end)
+
+test.test("advanced settings refuse invalid input and guildless characters", function()
+    local addon = loadStateModules()
+    local environment = newEnvironment("Jaina", "Camelot", nil)
+    local state = createState(addon, environment)
+    test.assertTrue(state:Initialize())
+    local changes = 0
+    state:OnGuildSettingsChange(function()
+        changes = changes + 1
+    end)
+
+    test.assertFalse(state:SetAdvancedMode("yes"))
+    test.assertFalse(state:SetSourcePercentage("fishing", 10))
+    test.assertFalse(state:SetSourcePercentage("loot", 101))
+    test.assertFalse(state:SetSourcePercentage("loot", -1))
+    test.assertFalse(state:SetSourcePercentage("loot", 2.5))
+    test.assertEqual(0, changes)
+
+    test.assertTrue(state:SetAdvancedMode(true))
+    test.assertTrue(state:SetSourcePercentage("loot", 40))
+    test.assertEqual(2, changes)
+
+    local guildless = reload(addon, "Thrall", "Camelot", environment.AsgardsGuildTitheDB, false)
+    test.assertFalse(guildless:SetAdvancedMode(false))
+    test.assertFalse(guildless:SetSourcePercentage("loot", 5))
+end)
+
+test.test("the rate for a source follows the mode in effect", function()
+    local addon = loadStateModules()
+    local rateFor = addon.GuildSettings.RateFor
+    local simple = {
+        advancedMode = false,
+        percentage = 12,
+        sources = { loot = true, auctions = false },
+        sourcePercentages = { loot = 40, auctions = 30 },
+    }
+    test.assertEqual(12, rateFor(simple, "loot"))
+    test.assertEqual(nil, rateFor(simple, "auctions"))
+    test.assertEqual(nil, rateFor(simple, "quests"))
+
+    local advanced = {
+        advancedMode = true,
+        percentage = 12,
+        sources = { loot = false, auctions = true },
+        sourcePercentages = { loot = 40, auctions = 0 },
+    }
+    test.assertEqual(40, rateFor(advanced, "loot"))
+    test.assertEqual(nil, rateFor(advanced, "auctions"))
+    test.assertEqual(nil, rateFor(advanced, "quests"))
+    test.assertEqual(nil, rateFor({ advancedMode = true }, "loot"))
+    test.assertEqual(nil, rateFor(nil, "loot"))
 end)

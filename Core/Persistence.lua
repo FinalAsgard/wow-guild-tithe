@@ -1,7 +1,7 @@
 local _, addon = ...
 
 local Persistence = {
-    LATEST_SCHEMA_VERSION = 5,
+    LATEST_SCHEMA_VERSION = 6,
     -- Resolved payment operation ids kept to refuse a replayed confirmation.
     MAX_RESOLVED_PAYMENTS = 20,
     MAX_SAFE_INTEGER = 9007199254740991,
@@ -106,6 +106,27 @@ function Persistence.IsSource(source)
     return SOURCE_DEFAULTS[source] ~= nil
 end
 
+-- The starting advanced-mode percentage for `source` in a guild record:
+-- the master percentage when the source is enabled, otherwise 0, so turning
+-- advanced mode on changes nothing until a slider moves.
+function Persistence.SeedSourcePercentage(record, source)
+    if type(record.sources) == "table" and record.sources[source] == true then
+        return record.percentage
+    end
+    return 0
+end
+
+-- Starting per-source percentages for advanced mode, from the record's
+-- percentage and sources.
+function Persistence.SeedSourcePercentages(record)
+    local percentages = {}
+    local source
+    for source in pairs(SOURCE_DEFAULTS) do
+        percentages[source] = Persistence.SeedSourcePercentage(record, source)
+    end
+    return percentages
+end
+
 -- Percentage and sources belong to the guild record (schema 5), so a new
 -- character has none of its own.
 local function newCharacter(identity)
@@ -183,11 +204,27 @@ local function migrateVersion4To5(database)
     database.schemaVersion = 5
 end
 
+-- Version 6 adds advanced mode to each guild record, off, so every guild
+-- keeps tithing exactly as before. Per-source percentages appear only when
+-- a guild first turns advanced mode on.
+local function migrateVersion5To6(database)
+    if type(database.guilds) == "table" then
+        local _, guild
+        for _, guild in pairs(database.guilds) do
+            if type(guild) == "table" and guild.advancedMode == nil then
+                guild.advancedMode = false
+            end
+        end
+    end
+    database.schemaVersion = 6
+end
+
 local MIGRATIONS = {
     [1] = migrateVersion1To2,
     [2] = migrateVersion2To3,
     [3] = migrateVersion3To4,
     [4] = migrateVersion4To5,
+    [5] = migrateVersion5To6,
 }
 
 local function validateQuarantine(database)
@@ -315,6 +352,44 @@ local function repairTitheSettings(record, repaired)
         if type(record.sources[source]) ~= "boolean" then
             record.sources[source] = defaultValue
             repaired("sources." .. source)
+        end
+    end
+end
+
+-- Repairs a guild record's advanced mode and per-source percentages field by
+-- field. Runs after repairTitheSettings, so percentage and sources are valid
+-- for reseeding a missing or invalid per-source percentage. Percentages are
+-- absent until advanced mode is first turned on; while it is on they must
+-- exist.
+local function repairAdvancedSettings(record, repaired)
+    if type(record.advancedMode) ~= "boolean" then
+        record.advancedMode = false
+        repaired("advancedMode")
+    end
+
+    if record.sourcePercentages == nil then
+        if record.advancedMode then
+            record.sourcePercentages = Persistence.SeedSourcePercentages(record)
+            repaired("sourcePercentages")
+        end
+        return
+    end
+
+    if type(record.sourcePercentages) ~= "table" then
+        if record.advancedMode then
+            record.sourcePercentages = Persistence.SeedSourcePercentages(record)
+        else
+            record.sourcePercentages = nil
+        end
+        repaired("sourcePercentages")
+        return
+    end
+
+    local source
+    for source in pairs(SOURCE_DEFAULTS) do
+        if not isPercentage(record.sourcePercentages[source]) then
+            record.sourcePercentages[source] = Persistence.SeedSourcePercentage(record, source)
+            repaired("sourcePercentages." .. source)
         end
     end
 end
@@ -651,6 +726,7 @@ local function validateGuilds(database, report)
                 end
             end
             repairTitheSettings(guild, repaired)
+            repairAdvancedSettings(guild, repaired)
         end
     end
 
@@ -867,6 +943,7 @@ function Store:CreateGuild(guildKey, identity, seed)
         },
         percentage = seed.percentage,
         sources = copyValue(seed.sources),
+        advancedMode = false,
     }
     repairTitheSettings(guild, function() end)
     self.database.guilds[guildKey] = guild
