@@ -246,6 +246,18 @@ local function registerProfileTests(profile)
         world.settings.bindings.AsgardsGuildTithe_Percentage.setValue(7)
         test.assertEqual("Tithing |cffffffff7%|r to |cffffffffKnights of Camelot|r", hover(world)[3])
     end)
+
+    test.test(profile .. " the tooltip says custom rates while the guild is in advanced mode", function()
+        local world = login(profile)
+        local bindings = world.settings.bindings
+
+        bindings.AsgardsGuildTithe_AdvancedMode.setValue(true)
+        test.assertEqual("Tithing |cffffffffcustom rates|r to |cffffffffKnights of Camelot|r",
+            hover(world)[3])
+
+        bindings.AsgardsGuildTithe_AdvancedMode.setValue(false)
+        test.assertEqual("Tithing |cffffffff10%|r to |cffffffffKnights of Camelot|r", hover(world)[3])
+    end)
 end
 
 local index
