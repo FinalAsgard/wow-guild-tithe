@@ -479,25 +479,34 @@ test.test("the rate for a source follows the mode in effect", function()
     test.assertEqual(nil, rateFor(nil, "loot"))
 end)
 
--- WoW Forever no longer reports the realm: GetRealmName returns nothing.
-test.test("without a reported realm, a new character keys by the server in its GUID", function()
+-- WoW Forever no longer reports the realm (GetRealmName returns nothing);
+-- its character and guild names are unique across the region instead.
+local function foreverEnvironment(name, stableId, database, membership)
+    local environment = newEnvironment(name, nil, stableId, database, membership)
+    environment.GetCurrentRegionName = function()
+        return "US"
+    end
+    return environment
+end
+
+test.test("without a reported realm, a new character and guild key by the region", function()
     local addon = loadStateModules()
-    local environment = newEnvironment("Jaina", nil, "Player-4395-0A1B2C3D")
-    local state = createState(addon, environment)
+    local state = createState(addon, foreverEnvironment("Jaina", "Player-7"))
     test.assertTrue(state:Initialize())
-    test.assertEqual("jaina-4395", state:GetCharacterKey())
-    test.assertEqual("knights of camelot-4395", state:GetTitheSettings().guildKey)
+    test.assertEqual("jaina-us", state:GetCharacterKey())
+    local settings = state:GetTitheSettings()
+    test.assertEqual("knights of camelot-us", settings.guildKey)
+    test.assertEqual("US", settings.guild.realm)
 end)
 
 test.test("without a reported realm, a saved character keeps its key and guild settings", function()
     local addon = loadStateModules()
-    local before = newEnvironment("Jaina", "Camelot", "Player-4395-0A1B2C3D")
+    local before = newEnvironment("Jaina", "Camelot", "Player-7")
     local first = createState(addon, before)
     test.assertTrue(first:Initialize())
     test.assertTrue(first:SetPercentage(25))
 
-    local after = newEnvironment("Jaina", nil, "Player-4395-0A1B2C3D", before.AsgardsGuildTitheDB)
-    local second = createState(addon, after)
+    local second = createState(addon, foreverEnvironment("Jaina", "Player-7", before.AsgardsGuildTitheDB))
     test.assertTrue(second:Initialize())
     test.assertEqual("jaina-camelot", second:GetCharacterKey())
     local settings = second:GetTitheSettings()
@@ -506,22 +515,33 @@ test.test("without a reported realm, a saved character keeps its key and guild s
     test.assertEqual("Camelot", settings.guild.realm)
 end)
 
-test.test("without a reported realm, a new character takes the realm saved for its server", function()
+test.test("without a reported realm, a saved character is found by name when its GUID changed", function()
     local addon = loadStateModules()
-    local before = newEnvironment("Jaina", "Camelot", "Player-4395-0A1B2C3D")
+    local before = newEnvironment("Jaina", "Camelot", "Player-7")
+    test.assertTrue(createState(addon, before):Initialize())
+
+    local second = createState(addon, foreverEnvironment(" jaina ", "Player-99", before.AsgardsGuildTitheDB))
+    test.assertTrue(second:Initialize())
+    test.assertEqual("jaina-camelot", second:GetCharacterKey())
+end)
+
+test.test("without a reported realm, a new character joins its guild's saved settings", function()
+    local addon = loadStateModules()
+    local before = newEnvironment("Jaina", "Camelot", "Player-7")
     local first = createState(addon, before)
     test.assertTrue(first:Initialize())
     test.assertTrue(first:SetPercentage(25))
 
-    local after = newEnvironment("Thrall", nil, "Player-4395-0F0F0F0F", before.AsgardsGuildTitheDB)
-    local second = createState(addon, after)
+    local second = createState(addon, foreverEnvironment("Thrall", "Player-8", before.AsgardsGuildTitheDB))
     test.assertTrue(second:Initialize())
-    test.assertEqual("thrall-camelot", second:GetCharacterKey())
-    test.assertEqual(25, second:GetTitheSettings().percentage)
+    test.assertEqual("thrall-us", second:GetCharacterKey())
+    local settings = second:GetTitheSettings()
+    test.assertEqual("knights of camelot-camelot", settings.guildKey)
+    test.assertEqual(25, settings.percentage)
 end)
 
-test.test("without a realm or a GUID, the character identity is unavailable", function()
+test.test("without a realm or a region, the character identity is unavailable", function()
     local addon = loadStateModules()
-    local state = createState(addon, newEnvironment("Jaina", nil, nil))
+    local state = createState(addon, newEnvironment("Jaina", nil, "Player-7"))
     test.assertFalse(state:Initialize())
 end)

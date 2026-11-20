@@ -155,9 +155,19 @@ function Client:GetCurrentCharacterIdentity()
         stableId = guid
     end
 
-    local realm, realmSource = unitRealm, "client"
+    local realm = unitRealm
     if not isText(realm) then
-        realm, realmSource = self:GetCurrentRealm()
+        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
+        realm = realmOk and currentRealm or nil
+    end
+    if not isText(realm) then
+        -- WoW Forever hides the realm. Keep the realm a saved character was
+        -- stored under so its key, settings, and ledger identity carry on.
+        realm = self:SavedCharacterRealm(stableId, name)
+        self:RememberRealm(realm)
+    end
+    if not isText(realm) then
+        realm = self:GetCurrentRealm()
     end
     if not isText(realm) then
         return nil
@@ -166,31 +176,25 @@ function Client:GetCurrentCharacterIdentity()
     return {
         name = name,
         realm = realm,
-        -- "client" when the client named the realm; "guid" when it is the
-        -- server number stood in for a realm the client no longer reports.
-        realmSource = realmSource,
         stableId = stableId,
     }
 end
 
--- The player's realm and where it came from, or nil. WoW Forever no longer
--- reports the realm, so the add-on falls back to the realm remembered from
--- saved data (RememberRealm), then to the server number in the player GUID
--- ("Player-<server>-<id>"), which is stable for a character's realm.
+-- The player's realm, or nil. WoW Forever no longer reports the realm, and
+-- its character and guild names are unique across the region, so there the
+-- realm remembered from saved data (RememberRealm) stands in for it, and
+-- otherwise the region name (GetCurrentRegionName).
 function Client:GetCurrentRealm()
     local ok, realm = callFunction(self.environment.GetRealmName)
     if ok and isText(realm) then
-        return realm, "client"
+        return realm
     end
     if isText(self.knownRealm) then
-        return self.knownRealm, "saved"
+        return self.knownRealm
     end
-    local guidOk, guid = callFunction(self.environment.UnitGUID, "player")
-    if guidOk and type(guid) == "string" then
-        local server = string.match(guid, "^Player%-(%d+)%-")
-        if server ~= nil then
-            return server, "guid"
-        end
+    local regionOk, region = callFunction(self.environment.GetCurrentRegionName)
+    if regionOk and isText(region) then
+        return region
     end
     return nil
 end
@@ -201,6 +205,59 @@ function Client:RememberRealm(realm)
     if isText(realm) then
         self.knownRealm = realm
     end
+end
+
+local function normalizedName(value)
+    return string.lower((value:gsub("^%s+", ""):gsub("%s+$", "")))
+end
+
+-- The one saved realm among `records` (characters or guilds map) whose
+-- identity matches: by `matches(identity)` first, else by display name.
+-- Names are unique within a Forever region, so a single name match is the
+-- same character or guild; nil when nothing or more than one realm matches.
+local function savedRealm(records, name, matches)
+    if type(records) ~= "table" then
+        return nil
+    end
+    local wanted = normalizedName(name)
+    local byName
+    local ambiguous = false
+    local _, record
+    for _, record in pairs(records) do
+        local identity = type(record) == "table" and record.identity
+        if type(identity) == "table" and isText(identity.displayRealm) then
+            if matches(identity) then
+                return identity.displayRealm
+            end
+            if type(identity.displayName) == "string"
+                and normalizedName(identity.displayName) == wanted
+            then
+                if byName ~= nil and byName ~= identity.displayRealm then
+                    ambiguous = true
+                end
+                byName = identity.displayRealm
+            end
+        end
+    end
+    return not ambiguous and byName or nil
+end
+
+-- The realm saved for this character, by player GUID then by name, or nil.
+function Client:SavedCharacterRealm(stableId, name)
+    local database = self:GetAccountDatabase()
+    return savedRealm(type(database) == "table" and database.characters, name,
+        function(identity)
+            return stableId ~= nil and identity.stableId == stableId
+        end)
+end
+
+-- The realm saved for this guild, by guild id then by name, or nil.
+function Client:SavedGuildRealm(id, name)
+    local database = self:GetAccountDatabase()
+    return savedRealm(type(database) == "table" and database.guilds, name,
+        function(identity)
+            return id ~= nil and identity.id == id
+        end)
 end
 
 -- Carried money in copper, or nil when the client cannot report it.
@@ -625,24 +682,31 @@ function Client:GetGuildIdentity()
         return nil
     end
 
+    -- Newer clients expose a stable guild club id; the realm-qualified name
+    -- is the fallback identity everywhere else.
+    local id
+    local clubs = self.environment.C_Club
+    if type(clubs) == "table" then
+        local idOk, clubId = callFunction(clubs.GetGuildClubId)
+        if idOk and (type(clubId) == "string" or type(clubId) == "number") then
+            id = tostring(clubId)
+        end
+    end
+
     if not isText(realm) then
-        realm = self:GetCurrentRealm()
+        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
+        realm = realmOk and currentRealm or nil
+    end
+    if not isText(realm) then
+        -- WoW Forever hides the realm: keep the realm the guild was saved
+        -- under, so its shared settings and ledger identity carry on.
+        realm = self:SavedGuildRealm(id, name) or self:GetCurrentRealm()
     end
     if not isText(realm) then
         return nil
     end
 
-    -- Newer clients expose a stable guild club id; the realm-qualified name
-    -- is the fallback identity everywhere else.
-    local identity = { name = name, realm = realm }
-    local clubs = self.environment.C_Club
-    if type(clubs) == "table" then
-        local idOk, clubId = callFunction(clubs.GetGuildClubId)
-        if idOk and (type(clubId) == "string" or type(clubId) == "number") then
-            identity.id = tostring(clubId)
-        end
-    end
-    return identity
+    return { name = name, realm = realm, id = id }
 end
 
 -- Calls onChange() when the client reports that guild membership or guild

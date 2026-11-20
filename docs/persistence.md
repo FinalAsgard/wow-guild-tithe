@@ -186,13 +186,18 @@ as SavedVariables.
 
 ### When the client hides the realm
 
-WoW Forever no longer reports the player's realm. When neither `UnitName` nor
-`GetRealmName` names it, the realm part of the character key (and of a
-same-realm guild's key) comes from, in order: the `displayRealm` saved for the
-character with the same `stableId` (player GUID); the `displayRealm` saved for
-another character on the same server (the number in `Player-<server>-<id>`);
-otherwise the server number itself. Saved characters therefore keep their keys,
-guild settings, and ledger identity, and the key format does not change.
+WoW Forever no longer reports the player's realm, but its character and guild
+names are unique across the region. When neither `UnitName`/`GetGuildInfo` nor
+`GetRealmName` names the realm, the realm part of a key comes from:
+
+- for a character, the `displayRealm` saved for the character with the same
+  `stableId` (player GUID), else for the one saved character with that name;
+- for a guild, the `displayRealm` saved for the guild with the same `id`, else
+  for the one saved guild with that name, else the character's realm;
+- otherwise the region name (`GetCurrentRegionName`, e.g. `US`).
+
+Saved characters and guilds therefore keep their keys, shared settings, and
+ledger identity, and the key format does not change.
 
 A schema version newer than 6 is incompatible. It is returned as an error before
 copying, migration, validation, or writeback, leaving the SavedVariables table

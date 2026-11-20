@@ -59,43 +59,6 @@ local function buildCharacterKey(identity)
     return name .. "-" .. realm
 end
 
-local function serverOf(stableId)
-    return type(stableId) == "string" and string.match(stableId, "^Player%-(%d+)%-") or nil
-end
-
--- The realm name saved for this character, found by its stable id, or else
--- for another saved character on the same server, or nil. Used when the
--- client no longer reports the realm, so saved characters keep their keys,
--- settings, and ledger identity and guilds keep their shared settings.
-local function savedRealmFor(client, stableId)
-    local server = serverOf(stableId)
-    if server == nil or type(client.GetAccountDatabase) ~= "function" then
-        return nil
-    end
-    local database = client:GetAccountDatabase()
-    local characters = type(database) == "table" and database.characters
-    if type(characters) ~= "table" then
-        return nil
-    end
-    local sameServer
-    local _, character
-    for _, character in pairs(characters) do
-        local identity = type(character) == "table" and character.identity
-        if type(identity) == "table"
-            and type(identity.displayRealm) == "string"
-            and identity.displayRealm ~= ""
-        then
-            if identity.stableId == stableId then
-                return identity.displayRealm
-            end
-            if sameServer == nil and serverOf(identity.stableId) == server then
-                sameServer = identity.displayRealm
-            end
-        end
-    end
-    return sameServer
-end
-
 function CharacterState.Create(client, persistence)
     persistence = persistence or addon.Persistence.Create(client)
     return setmetatable({
@@ -114,15 +77,6 @@ function State:Initialize()
     end
 
     local identity = self.client:GetCurrentCharacterIdentity()
-    if type(identity) == "table" and identity.realmSource == "guid" then
-        local savedRealm = savedRealmFor(self.client, identity.stableId)
-        if savedRealm ~= nil then
-            identity.realm = savedRealm
-            if type(self.client.RememberRealm) == "function" then
-                self.client:RememberRealm(savedRealm)
-            end
-        end
-    end
     local characterKey = buildCharacterKey(identity)
     if characterKey == nil then
         return false, "current character identity is unavailable"
