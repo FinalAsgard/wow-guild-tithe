@@ -209,6 +209,8 @@ end)
 
 local function newCoordinator(overrides)
     local addon = test.newAddon(
+        "Core/Persistence.lua",
+        "Core/GuildSettings.lua",
         "Core/MoneyFormatter.lua",
         "Core/IncomeFeedback.lua",
         "Core/IncomeCoordinator.lua"
@@ -307,4 +309,84 @@ test.test("coordinator leaves a gain unresolved when the guild's settings are un
     test.assertEqual("guild tithe settings are unavailable", result.reason)
     test.assertEqual(0, calls())
     test.assertEqual(0, #messages)
+end)
+
+-- Real state, settings, and accounting for a character in Knights of Camelot.
+local function newAdvancedPipeline()
+    local addon = test.newAddon(
+        "Adapters/WoW.lua",
+        "Core/Persistence.lua",
+        "Core/GuildSettings.lua",
+        "Core/CharacterState.lua",
+        "Core/Accounting.lua",
+        "Core/TitheService.lua",
+        "Core/MoneyFormatter.lua",
+        "Core/IncomeFeedback.lua",
+        "Core/IncomeCoordinator.lua"
+    )
+    local client = addon.Compatibility.Create({
+        UnitName = function()
+            return "Jaina"
+        end,
+        GetRealmName = function()
+            return "Camelot"
+        end,
+        IsInGuild = function()
+            return true
+        end,
+        GetGuildInfo = function()
+            return "Knights of Camelot", "Member", 3, nil
+        end,
+    })
+    local state = addon.CharacterState.Create(client)
+    test.assertTrue(state:Initialize())
+    local coordinator = addon.IncomeCoordinator.Create(
+        client,
+        state,
+        addon.TitheService.Create(state, addon.Accounting)
+    )
+    return coordinator, state
+end
+
+test.test("advanced mode tithes each source at its own rate and 0% tithes nothing", function()
+    local coordinator, state = newAdvancedPipeline()
+    test.assertTrue(state:SetAdvancedMode(true))
+    test.assertTrue(state:SetSourcePercentage("loot", 25))
+    test.assertTrue(state:SetSourcePercentage("quests", 0))
+    test.assertTrue(state:SetSourcePercentage("auctions", 5))
+
+    local loot = coordinator:Finalize({ copper = 1000, id = 1, reason = "test", source = "loot" })
+    local quest = coordinator:Finalize({ copper = 1000, id = 2, reason = "test", source = "quests" })
+    local auction = coordinator:Finalize({ copper = 1000, id = 3, reason = "test", source = "auctions" })
+
+    test.assertEqual("accrued", loot.status)
+    test.assertEqual(250, loot.accruedCopper)
+    test.assertEqual("disabled", quest.status)
+    test.assertEqual("accrued", auction.status)
+    test.assertEqual(50, auction.accruedCopper)
+    test.assertEqual(300, state:GetCurrentCharacter().outstandingCopper)
+
+    test.assertTrue(state:SetAdvancedMode(false))
+    local simpleQuest = coordinator:Finalize({ copper = 1000, id = 4, reason = "test", source = "quests" })
+    local simpleAuction = coordinator:Finalize({ copper = 1000, id = 5, reason = "test", source = "auctions" })
+    test.assertEqual(100, simpleQuest.accruedCopper)
+    test.assertEqual("disabled", simpleAuction.status)
+end)
+
+test.test("fractional copper carries across income tithed at different rates", function()
+    local coordinator, state = newAdvancedPipeline()
+    test.assertTrue(state:SetAdvancedMode(true))
+    test.assertTrue(state:SetSourcePercentage("loot", 33))
+    test.assertTrue(state:SetSourcePercentage("quests", 17))
+
+    -- 3 copper at 33% leaves 99 hundredths; 3 copper at 17% adds 51 more:
+    -- 150 hundredths, so one copper accrues and 50 hundredths carry on.
+    local loot = coordinator:Finalize({ copper = 3, id = 1, reason = "test", source = "loot" })
+    local quest = coordinator:Finalize({ copper = 3, id = 2, reason = "test", source = "quests" })
+
+    test.assertEqual(0, loot.accruedCopper)
+    test.assertEqual(1, quest.accruedCopper)
+    local character = state:GetCurrentCharacter()
+    test.assertEqual(1, character.outstandingCopper)
+    test.assertEqual(50, character.fractionalRemainder)
 end)

@@ -138,11 +138,11 @@ test.test("tithe service persists through state only after successful calculatio
     }
     local service = addon.TitheService.Create(state, addon.Accounting)
 
-    local result = service:AccrueEligibleCopper(15)
+    local result = service:AccrueEligibleCopper(15, 10)
     assertResult(2, 14, 0, result)
     test.assertEqual(1, writes)
 
-    local failed, accrueError = service:AccrueEligibleCopper(-1)
+    local failed, accrueError = service:AccrueEligibleCopper(-1, 10)
     test.assertEqual(nil, failed)
     test.assertEqual("string", type(accrueError))
     test.assertEqual(1, writes)
@@ -168,20 +168,17 @@ test.test("tithe service reports rejected state writes without returning success
     }
     local service = addon.TitheService.Create(state, addon.Accounting)
 
-    local result, accrueError = service:AccrueEligibleCopper(10)
+    local result, accrueError = service:AccrueEligibleCopper(10, 10)
     test.assertEqual(nil, result)
     test.assertEqual("updated financial state was rejected", accrueError)
 end)
 
-test.test("tithe service accrues nothing without guild tithe settings", function()
+test.test("tithe service accrues nothing at an invalid percentage", function()
     local addon = loadAccountingModules()
     local writes = 0
     local state = {
         GetCurrentCharacter = function()
             return { outstandingCopper = 0, fractionalRemainder = 0 }
-        end,
-        GetTitheSettings = function()
-            return nil
         end,
         SetFinancialState = function()
             writes = writes + 1
@@ -190,8 +187,8 @@ test.test("tithe service accrues nothing without guild tithe settings", function
     }
     local service = addon.TitheService.Create(state, addon.Accounting)
 
-    local result, accrueError = service:AccrueEligibleCopper(10)
+    local result, accrueError = service:AccrueEligibleCopper(10, nil)
     test.assertEqual(nil, result)
-    test.assertEqual("guild tithe settings are unavailable", accrueError)
+    test.assertEqual("string", type(accrueError))
     test.assertEqual(0, writes)
 end)

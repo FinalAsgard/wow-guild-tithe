@@ -44,7 +44,7 @@ Then run `/agtdev trace stop` and `/reload` (or log out) so the game writes the 
 
 The trace is saved with the development build's SavedVariables:
 
-- WoW Forever: `World of Warcraft\_classic_beta_\WTF\Account\<ACCOUNT>\SavedVariables\AsgardsGuildTitheDev.lua`
+- WoW Forever: `World of Warcraft\_forever_\WTF\Account\<ACCOUNT>\SavedVariables\AsgardsGuildTitheDev.lua`
 - WoW Retail: `World of Warcraft\_retail_\WTF\Account\<ACCOUNT>\SavedVariables\AsgardsGuildTitheDev.lua`
 
 The trace is the `AsgardsGuildTitheDevTraceDB` table in that file. Attach the file to the capture issue, or copy it to `tests/fixtures/traces/<client>/`, and note which activities you performed.

@@ -281,7 +281,7 @@ local function registerBootstrapTest(variant)
         frame.handler(frame, "PLAYER_LOGIN")
 
         local database = environment[variant.databaseName]
-        test.assertEqual(5, database.schemaVersion)
+        test.assertEqual(6, database.schemaVersion)
         test.assertEqual("table", type(database.characters["jaina-camelot"]))
         test.assertEqual(otherVariantDatabase, environment[variant.otherDatabaseName])
         test.assertEqual(legacyDatabase, environment.GuildTitheDB)

@@ -258,9 +258,10 @@ test.test("schema three gains an empty ledger and loads again unchanged", functi
 
     local database, report = store:Load()
 
-    test.assertEqual(5, database.schemaVersion)
+    test.assertEqual(6, database.schemaVersion)
     test.assertEqual("3 -> 4", report.migrations[1])
     test.assertEqual("4 -> 5", report.migrations[2])
+    test.assertEqual("5 -> 6", report.migrations[3])
     test.assertEqual(0, #database.donations)
     test.assertEqual(0, #database.quarantinedDonations)
 

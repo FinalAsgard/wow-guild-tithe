@@ -28,6 +28,18 @@ local function callFunction(callback, ...)
     return pcall(callback, ...)
 end
 
+-- A non-empty string. Guarded so a value the client refuses to compare
+-- (a protected or "secret" value) reads as unavailable instead of erroring.
+local function isText(value)
+    if type(value) ~= "string" then
+        return false
+    end
+    local ok, empty = pcall(function()
+        return value == ""
+    end)
+    return ok and not empty
+end
+
 function Compatibility.Create(environment)
     return setmetatable({
         databaseName = addon.Identity.databaseName,
@@ -137,22 +149,28 @@ function Client:GetCurrentCharacterIdentity()
         return nil
     end
 
-    local realm = unitRealm
-    if type(realm) ~= "string" or realm == "" then
-        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
-        if realmOk then
-            realm = currentRealm
-        end
-    end
-
-    if type(realm) ~= "string" or realm == "" then
-        return nil
-    end
-
     local stableId
     local guidOk, guid = callFunction(self.environment.UnitGUID, "player")
     if guidOk and type(guid) == "string" and guid ~= "" then
         stableId = guid
+    end
+
+    local realm = unitRealm
+    if not isText(realm) then
+        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
+        realm = realmOk and currentRealm or nil
+    end
+    if not isText(realm) then
+        -- WoW Forever hides the realm. Keep the realm a saved character was
+        -- stored under so its key, settings, and ledger identity carry on.
+        realm = self:SavedCharacterRealm(stableId, name)
+        self:RememberRealm(realm)
+    end
+    if not isText(realm) then
+        realm = self:GetCurrentRealm()
+    end
+    if not isText(realm) then
+        return nil
     end
 
     return {
@@ -160,6 +178,86 @@ function Client:GetCurrentCharacterIdentity()
         realm = realm,
         stableId = stableId,
     }
+end
+
+-- The player's realm, or nil. WoW Forever no longer reports the realm, and
+-- its character and guild names are unique across the region, so there the
+-- realm remembered from saved data (RememberRealm) stands in for it, and
+-- otherwise the region name (GetCurrentRegionName).
+function Client:GetCurrentRealm()
+    local ok, realm = callFunction(self.environment.GetRealmName)
+    if ok and isText(realm) then
+        return realm
+    end
+    if isText(self.knownRealm) then
+        return self.knownRealm
+    end
+    local regionOk, region = callFunction(self.environment.GetCurrentRegionName)
+    if regionOk and isText(region) then
+        return region
+    end
+    return nil
+end
+
+-- Remembers the realm a character was saved under, for clients that no
+-- longer report it.
+function Client:RememberRealm(realm)
+    if isText(realm) then
+        self.knownRealm = realm
+    end
+end
+
+local function normalizedName(value)
+    return string.lower((value:gsub("^%s+", ""):gsub("%s+$", "")))
+end
+
+-- The one saved realm among `records` (characters or guilds map) whose
+-- identity matches: by `matches(identity)` first, else by display name.
+-- Names are unique within a Forever region, so a single name match is the
+-- same character or guild; nil when nothing or more than one realm matches.
+local function savedRealm(records, name, matches)
+    if type(records) ~= "table" then
+        return nil
+    end
+    local wanted = normalizedName(name)
+    local byName
+    local ambiguous = false
+    local _, record
+    for _, record in pairs(records) do
+        local identity = type(record) == "table" and record.identity
+        if type(identity) == "table" and isText(identity.displayRealm) then
+            if matches(identity) then
+                return identity.displayRealm
+            end
+            if type(identity.displayName) == "string"
+                and normalizedName(identity.displayName) == wanted
+            then
+                if byName ~= nil and byName ~= identity.displayRealm then
+                    ambiguous = true
+                end
+                byName = identity.displayRealm
+            end
+        end
+    end
+    return not ambiguous and byName or nil
+end
+
+-- The realm saved for this character, by player GUID then by name, or nil.
+function Client:SavedCharacterRealm(stableId, name)
+    local database = self:GetAccountDatabase()
+    return savedRealm(type(database) == "table" and database.characters, name,
+        function(identity)
+            return stableId ~= nil and identity.stableId == stableId
+        end)
+end
+
+-- The realm saved for this guild, by guild id then by name, or nil.
+function Client:SavedGuildRealm(id, name)
+    local database = self:GetAccountDatabase()
+    return savedRealm(type(database) == "table" and database.guilds, name,
+        function(identity)
+            return id ~= nil and identity.id == id
+        end)
 end
 
 -- Carried money in copper, or nil when the client cannot report it.
@@ -584,25 +682,31 @@ function Client:GetGuildIdentity()
         return nil
     end
 
-    if type(realm) ~= "string" or realm == "" then
-        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
-        realm = realmOk and currentRealm or nil
-    end
-    if type(realm) ~= "string" or realm == "" then
-        return nil
-    end
-
     -- Newer clients expose a stable guild club id; the realm-qualified name
     -- is the fallback identity everywhere else.
-    local identity = { name = name, realm = realm }
+    local id
     local clubs = self.environment.C_Club
     if type(clubs) == "table" then
         local idOk, clubId = callFunction(clubs.GetGuildClubId)
         if idOk and (type(clubId) == "string" or type(clubId) == "number") then
-            identity.id = tostring(clubId)
+            id = tostring(clubId)
         end
     end
-    return identity
+
+    if not isText(realm) then
+        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
+        realm = realmOk and currentRealm or nil
+    end
+    if not isText(realm) then
+        -- WoW Forever hides the realm: keep the realm the guild was saved
+        -- under, so its shared settings and ledger identity carry on.
+        realm = self:SavedGuildRealm(id, name) or self:GetCurrentRealm()
+    end
+    if not isText(realm) then
+        return nil
+    end
+
+    return { name = name, realm = realm, id = id }
 end
 
 -- Calls onChange() when the client reports that guild membership or guild
@@ -947,12 +1051,65 @@ local function validBinding(options)
         and type(options.setValue) == "function"
 end
 
+local function validSliderRange(binding)
+    return type(binding.minimum) == "number"
+        and type(binding.maximum) == "number"
+        and type(binding.step) == "number"
+end
+
+-- A control is a checkbox binding, or a percentage slider binding with
+-- kind = "slider" and its minimum, maximum, and step.
+local function validControl(control)
+    if not validBinding(control) then
+        return false
+    end
+    return control.kind ~= "slider" or validSliderRange(control)
+end
+
+local function validControls(controls)
+    if type(controls) ~= "table" then
+        return false
+    end
+    local index
+    for index = 1, #controls do
+        if not validControl(controls[index]) then
+            return false
+        end
+    end
+    return true
+end
+
+local function shownStates(predicates)
+    local states = {}
+    local index
+    for index = 1, #predicates do
+        states[index] = predicates[index]()
+    end
+    return states
+end
+
+local function sameStates(left, right)
+    local index
+    for index = 1, #left do
+        if left[index] ~= right[index] then
+            return false
+        end
+    end
+    return #left == #right
+end
+
+-- Registers a settings page from `options`: the balance and guild headers,
+-- the percentage slider, the optional `controlsAfterPercentage` directly
+-- beneath it, then each of `sections` (a heading and its controls).
 function Client:RegisterSettingsCategory(options)
     local settings = self.environment.Settings
     local createSectionHeader = self.environment.CreateSettingsListSectionHeaderInitializer
     if type(options) ~= "table"
         or not validBinding(options.percentage)
-        or type(options.checkboxSections) ~= "table"
+        or not validSliderRange(options.percentage)
+        or (options.controlsAfterPercentage ~= nil
+            and not validControls(options.controlsAfterPercentage))
+        or type(options.sections) ~= "table"
         or type(options.balanceText) ~= "string"
         or type(createSectionHeader) ~= "function"
         or type(settings) ~= "table"
@@ -969,41 +1126,140 @@ function Client:RegisterSettingsCategory(options)
         return nil
     end
 
-    local sectionIndex, checkboxIndex
-    for sectionIndex = 1, #options.checkboxSections do
-        local section = options.checkboxSections[sectionIndex]
+    local sectionIndex
+    for sectionIndex = 1, #options.sections do
+        local section = options.sections[sectionIndex]
         if type(section) ~= "table"
             or type(section.heading) ~= "string"
             or section.heading == ""
-            or type(section.checkboxes) ~= "table"
+            or not validControls(section.controls)
         then
             return nil
         end
-
-        for checkboxIndex = 1, #section.checkboxes do
-            if not validBinding(section.checkboxes[checkboxIndex]) then
-                return nil
-            end
-        end
     end
 
-    -- Controls marked with isEnabled are greyed out while it returns false.
-    -- Their variables are remembered so a guild change can repaint them.
+    -- Controls marked with isEnabled are greyed out while it returns false,
+    -- and controls marked with isShown are hidden while it returns false.
+    -- Where a control cannot be hidden, isShown greys it out instead. Their
+    -- variables are remembered so a guild change can repaint them.
     local guildVariables = {}
-    local function addEnabledPredicate(initializer, binding)
-        if type(binding.isEnabled) ~= "function" then
+    local shownPredicates = {}
+    local function addPredicates(initializer, binding)
+        if type(binding.isEnabled) ~= "function" and type(binding.isShown) ~= "function" then
             return
         end
         table.insert(guildVariables, binding.variable)
-        if type(initializer) == "table" and type(initializer.AddModifyPredicate) == "function" then
+        if type(initializer) ~= "table" then
+            return
+        end
+        local canModify = type(initializer.AddModifyPredicate) == "function"
+        if type(binding.isEnabled) == "function" and canModify then
             initializer:AddModifyPredicate(function()
                 return binding.isEnabled() == true
             end)
         end
+        if type(binding.isShown) == "function" then
+            local function shown()
+                return binding.isShown() == true
+            end
+            if type(initializer.AddShownPredicate) == "function" then
+                initializer:AddShownPredicate(shown)
+                table.insert(shownPredicates, shown)
+            elseif canModify then
+                initializer:AddModifyPredicate(shown)
+            end
+        end
+    end
+
+    local sliderMixin = self.environment.MinimalSliderWithSteppersMixin
+
+    local function createSlider(registeredCategory, binding)
+        local setting = settings.RegisterProxySetting(
+            registeredCategory,
+            binding.variable,
+            settings.VarType.Number,
+            binding.label,
+            binding.defaultValue,
+            binding.getValue,
+            binding.setValue
+        )
+        if setting == nil then
+            error("percentage setting was not created")
+        end
+
+        local sliderOptions = settings.CreateSliderOptions(
+            binding.minimum,
+            binding.maximum,
+            binding.step
+        )
+        if sliderOptions == nil then
+            error("percentage slider options were not created")
+        end
+
+        if type(sliderOptions.SetLabelFormatter) ~= "function"
+            or type(sliderMixin) ~= "table"
+            or type(sliderMixin.Label) ~= "table"
+            or sliderMixin.Label.Right == nil
+        then
+            error("percentage slider formatter is unavailable")
+        end
+        sliderOptions:SetLabelFormatter(
+            sliderMixin.Label.Right,
+            function(value)
+                return string.format("%.0f%%", value)
+            end
+        )
+
+        local slider = settings.CreateSlider(
+            registeredCategory,
+            setting,
+            sliderOptions,
+            binding.tooltip
+        )
+        if slider == nil then
+            error("percentage slider was not created")
+        end
+        addPredicates(slider, binding)
+    end
+
+    local function createCheckbox(registeredCategory, binding)
+        local checkboxSetting = settings.RegisterProxySetting(
+            registeredCategory,
+            binding.variable,
+            settings.VarType.Boolean,
+            binding.label,
+            binding.defaultValue,
+            binding.getValue,
+            binding.setValue
+        )
+        if checkboxSetting == nil then
+            error("checkbox setting was not created")
+        end
+
+        local checkboxControl = settings.CreateCheckbox(
+            registeredCategory,
+            checkboxSetting,
+            binding.tooltip
+        )
+        if checkboxControl == nil then
+            error("checkbox control was not created")
+        end
+        addPredicates(checkboxControl, binding)
+    end
+
+    local function createControls(registeredCategory, controls)
+        local controlIndex
+        for controlIndex = 1, #controls do
+            local control = controls[controlIndex]
+            if control.kind == "slider" then
+                createSlider(registeredCategory, control)
+            else
+                createCheckbox(registeredCategory, control)
+            end
+        end
     end
 
     local ok, category, balanceInitializer, guildInitializer = pcall(function()
-        local percentage = options.percentage
         local registeredCategory, layout = settings.RegisterVerticalLayoutCategory(
             options.categoryName
         )
@@ -1031,87 +1287,17 @@ function Client:RegisterSettingsCategory(options)
             layout:AddInitializer(guildInitializer)
         end
 
-        local setting = settings.RegisterProxySetting(
-            registeredCategory,
-            percentage.variable,
-            settings.VarType.Number,
-            percentage.label,
-            percentage.defaultValue,
-            percentage.getValue,
-            percentage.setValue
-        )
-        if setting == nil then
-            error("percentage setting was not created")
-        end
+        createSlider(registeredCategory, options.percentage)
+        createControls(registeredCategory, options.controlsAfterPercentage or {})
 
-        local sliderOptions = settings.CreateSliderOptions(
-            percentage.minimum,
-            percentage.maximum,
-            percentage.step
-        )
-        if sliderOptions == nil then
-            error("percentage slider options were not created")
-        end
-
-        local sliderMixin = self.environment.MinimalSliderWithSteppersMixin
-        if type(sliderOptions.SetLabelFormatter) ~= "function"
-            or type(sliderMixin) ~= "table"
-            or type(sliderMixin.Label) ~= "table"
-            or sliderMixin.Label.Right == nil
-        then
-            error("percentage slider formatter is unavailable")
-        end
-        sliderOptions:SetLabelFormatter(
-            sliderMixin.Label.Right,
-            function(value)
-                return string.format("%.0f%%", value)
-            end
-        )
-
-        local slider = settings.CreateSlider(
-            registeredCategory,
-            setting,
-            sliderOptions,
-            percentage.tooltip
-        )
-        if slider == nil then
-            error("percentage slider was not created")
-        end
-        addEnabledPredicate(slider, percentage)
-
-        for sectionIndex = 1, #options.checkboxSections do
-            local section = options.checkboxSections[sectionIndex]
+        for sectionIndex = 1, #options.sections do
+            local section = options.sections[sectionIndex]
             local sectionInitializer = createSectionHeader(section.heading)
             if sectionInitializer == nil then
                 error("settings section was not created")
             end
             layout:AddInitializer(sectionInitializer)
-
-            for checkboxIndex = 1, #section.checkboxes do
-                local checkbox = section.checkboxes[checkboxIndex]
-                local checkboxSetting = settings.RegisterProxySetting(
-                    registeredCategory,
-                    checkbox.variable,
-                    settings.VarType.Boolean,
-                    checkbox.label,
-                    checkbox.defaultValue,
-                    checkbox.getValue,
-                    checkbox.setValue
-                )
-                if checkboxSetting == nil then
-                    error("checkbox setting was not created")
-                end
-
-                local checkboxControl = settings.CreateCheckbox(
-                    registeredCategory,
-                    checkboxSetting,
-                    checkbox.tooltip
-                )
-                if checkboxControl == nil then
-                    error("checkbox control was not created")
-                end
-                addEnabledPredicate(checkboxControl, checkbox)
-            end
+            createControls(registeredCategory, section.controls)
         end
 
         settings.RegisterAddOnCategory(registeredCategory)
@@ -1128,11 +1314,33 @@ function Client:RegisterSettingsCategory(options)
     self.guildInitializers[category] = guildInitializer
     self.guildVariables = self.guildVariables or {}
     self.guildVariables[category] = guildVariables
+    self.hidingCategories = self.hidingCategories or {}
+    if #shownPredicates > 0 then
+        self.hidingCategories[category] = {
+            predicates = shownPredicates,
+            shown = shownStates(shownPredicates),
+        }
+    end
     return category
 end
 
+-- Shown predicates are only read when the settings list is laid out, so an
+-- open page has to be laid out again for hidden controls to appear or go.
+-- Settings builds expose this through SettingsInbound or the panel itself.
+function Client:RelayoutSettings()
+    local inbound = self.environment.SettingsInbound
+    if type(inbound) == "table" and type(inbound.RepairDisplay) == "function" then
+        return pcall(inbound.RepairDisplay)
+    end
+    local settingsPanel = self.environment.SettingsPanel
+    if type(settingsPanel) == "table" and type(settingsPanel.RepairDisplay) == "function" then
+        return pcall(settingsPanel.RepairDisplay, settingsPanel)
+    end
+    return false
+end
+
 -- Shows the new guild header text and asks the guild-scoped controls to
--- re-read their values and whether they are enabled.
+-- re-read their values, whether they are enabled, and whether they show.
 function Client:RefreshSettingsGuild(category, headerText)
     local refreshed = self:RefreshSettingsHeader(self.guildInitializers, category, headerText)
     local settings = self.environment.Settings
@@ -1141,6 +1349,16 @@ function Client:RefreshSettingsGuild(category, headerText)
         local index
         for index = 1, #variables do
             pcall(settings.NotifyUpdate, variables[index])
+        end
+    end
+    -- Laying the page out again interrupts a slider drag, so only do it when
+    -- a control actually appears or goes.
+    local hiding = self.hidingCategories and self.hidingCategories[category]
+    if hiding ~= nil then
+        local shown = shownStates(hiding.predicates)
+        if not sameStates(shown, hiding.shown) then
+            hiding.shown = shown
+            self:RelayoutSettings()
         end
     end
     return refreshed
