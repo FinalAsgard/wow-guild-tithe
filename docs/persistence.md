@@ -184,6 +184,16 @@ record, so it cannot shadow or block valid characters. Cyclic saved tables are
 rejected before migration or writeback because they cannot be safely represented
 as SavedVariables.
 
+### When the client hides the realm
+
+WoW Forever no longer reports the player's realm. When neither `UnitName` nor
+`GetRealmName` names it, the realm part of the character key (and of a
+same-realm guild's key) comes from, in order: the `displayRealm` saved for the
+character with the same `stableId` (player GUID); the `displayRealm` saved for
+another character on the same server (the number in `Player-<server>-<id>`);
+otherwise the server number itself. Saved characters therefore keep their keys,
+guild settings, and ledger identity, and the key format does not change.
+
 A schema version newer than 6 is incompatible. It is returned as an error before
 copying, migration, validation, or writeback, leaving the SavedVariables table
 and all nested values untouched for a newer add-on version to handle.

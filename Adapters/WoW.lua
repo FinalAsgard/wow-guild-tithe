@@ -28,6 +28,18 @@ local function callFunction(callback, ...)
     return pcall(callback, ...)
 end
 
+-- A non-empty string. Guarded so a value the client refuses to compare
+-- (a protected or "secret" value) reads as unavailable instead of erroring.
+local function isText(value)
+    if type(value) ~= "string" then
+        return false
+    end
+    local ok, empty = pcall(function()
+        return value == ""
+    end)
+    return ok and not empty
+end
+
 function Compatibility.Create(environment)
     return setmetatable({
         databaseName = addon.Identity.databaseName,
@@ -137,29 +149,58 @@ function Client:GetCurrentCharacterIdentity()
         return nil
     end
 
-    local realm = unitRealm
-    if type(realm) ~= "string" or realm == "" then
-        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
-        if realmOk then
-            realm = currentRealm
-        end
-    end
-
-    if type(realm) ~= "string" or realm == "" then
-        return nil
-    end
-
     local stableId
     local guidOk, guid = callFunction(self.environment.UnitGUID, "player")
     if guidOk and type(guid) == "string" and guid ~= "" then
         stableId = guid
     end
 
+    local realm, realmSource = unitRealm, "client"
+    if not isText(realm) then
+        realm, realmSource = self:GetCurrentRealm()
+    end
+    if not isText(realm) then
+        return nil
+    end
+
     return {
         name = name,
         realm = realm,
+        -- "client" when the client named the realm; "guid" when it is the
+        -- server number stood in for a realm the client no longer reports.
+        realmSource = realmSource,
         stableId = stableId,
     }
+end
+
+-- The player's realm and where it came from, or nil. WoW Forever no longer
+-- reports the realm, so the add-on falls back to the realm remembered from
+-- saved data (RememberRealm), then to the server number in the player GUID
+-- ("Player-<server>-<id>"), which is stable for a character's realm.
+function Client:GetCurrentRealm()
+    local ok, realm = callFunction(self.environment.GetRealmName)
+    if ok and isText(realm) then
+        return realm, "client"
+    end
+    if isText(self.knownRealm) then
+        return self.knownRealm, "saved"
+    end
+    local guidOk, guid = callFunction(self.environment.UnitGUID, "player")
+    if guidOk and type(guid) == "string" then
+        local server = string.match(guid, "^Player%-(%d+)%-")
+        if server ~= nil then
+            return server, "guid"
+        end
+    end
+    return nil
+end
+
+-- Remembers the realm a character was saved under, for clients that no
+-- longer report it.
+function Client:RememberRealm(realm)
+    if isText(realm) then
+        self.knownRealm = realm
+    end
 end
 
 -- Carried money in copper, or nil when the client cannot report it.
@@ -584,11 +625,10 @@ function Client:GetGuildIdentity()
         return nil
     end
 
-    if type(realm) ~= "string" or realm == "" then
-        local realmOk, currentRealm = callFunction(self.environment.GetRealmName)
-        realm = realmOk and currentRealm or nil
+    if not isText(realm) then
+        realm = self:GetCurrentRealm()
     end
-    if type(realm) ~= "string" or realm == "" then
+    if not isText(realm) then
         return nil
     end
 
