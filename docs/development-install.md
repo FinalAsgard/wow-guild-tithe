@@ -33,7 +33,7 @@ cd ~/Projects/wow-guild-tithe
 
 | `-Client` | Default client directory |
 | --- | --- |
-| `Forever` (default) | `C:\Program Files (x86)\World of Warcraft\_classic_beta_` |
+| `Forever` (default) | `C:\Program Files (x86)\World of Warcraft\_forever_` |
 | `Retail` | `C:\Program Files (x86)\World of Warcraft\_retail_` |
 
 If WoW is installed somewhere else, pass the `World of Warcraft` folder with

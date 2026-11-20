@@ -15,7 +15,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $clients = @{
-    Forever = @{ Directory = "_classic_beta_"; Manifest = "AsgardsGuildTitheDev_Camelot.toc" }
+    Forever = @{ Directory = "_forever_"; Manifest = "AsgardsGuildTitheDev_Camelot.toc" }
     Retail = @{ Directory = "_retail_"; Manifest = "AsgardsGuildTitheDev_Mainline.toc" }
 }
 $target = $clients[$Client]

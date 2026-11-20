@@ -111,7 +111,7 @@ Run these on both clients.
 ### Install
 
 1. From the checkout at `~/Projects/wow-guild-tithe`, run `./tools/Install-Dev.ps1` in PowerShell. Pass `-WowRoot` if the Forever client is not in its default location.
-2. Confirm `_classic_beta_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Camelot.toc`, `Core`, `Adapters`, and `Libs` are directly inside it.
+2. Confirm `_forever_/Interface/AddOns/AsgardsGuildTitheDev` is a junction to the checkout and that `AsgardsGuildTitheDev_Camelot.toc`, `Core`, `Adapters`, and `Libs` are directly inside it.
 3. Start or restart the client so it rescans add-ons.
 4. At character selection, open **AddOns** and confirm **Asgard's Guild Tithe (Dev)** appears enabled and is not marked out of date. Disable the production variant if it is installed. The Forever manifests target interfaces `16000` and `16001`.
 

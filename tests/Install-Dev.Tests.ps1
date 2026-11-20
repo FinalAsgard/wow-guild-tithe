@@ -57,7 +57,7 @@ New-Item -ItemType Directory -Path $scratch | Out-Null
 try {
     Test-Case "default client links Forever under the install root and is idempotent" {
         $installRoot = Join-Path $scratch "default\World of Warcraft"
-        $forever = New-ClientRoot (Join-Path $installRoot "_classic_beta_")
+        $forever = New-ClientRoot (Join-Path $installRoot "_forever_")
         $retail = New-ClientRoot (Join-Path $installRoot "_retail_")
 
         & $installer -WowInstallRoot $installRoot | Out-Null
@@ -71,7 +71,7 @@ try {
 
     Test-Case "explicit Forever matches the default layout" {
         $installRoot = Join-Path $scratch "forever\World of Warcraft"
-        $forever = New-ClientRoot (Join-Path $installRoot "_classic_beta_")
+        $forever = New-ClientRoot (Join-Path $installRoot "_forever_")
 
         & $installer -Client Forever -WowInstallRoot $installRoot | Out-Null
 
@@ -80,7 +80,7 @@ try {
 
     Test-Case "Retail links under _retail_ and is idempotent" {
         $installRoot = Join-Path $scratch "retail\World of Warcraft"
-        $forever = New-ClientRoot (Join-Path $installRoot "_classic_beta_")
+        $forever = New-ClientRoot (Join-Path $installRoot "_forever_")
         $retail = New-ClientRoot (Join-Path $installRoot "_retail_")
 
         & $installer -Client Retail -WowInstallRoot $installRoot | Out-Null
