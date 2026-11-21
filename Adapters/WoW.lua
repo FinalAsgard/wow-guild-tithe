@@ -1079,11 +1079,37 @@ local function validControls(controls)
     return true
 end
 
-local function shownStates(predicates)
+-- Whether each hideable control in `entries` should show right now.
+local function shownStates(entries)
     local states = {}
     local index
-    for index = 1, #predicates do
-        states[index] = predicates[index]()
+    for index = 1, #entries do
+        if entries[index].shown ~= nil then
+            table.insert(states, entries[index].shown())
+        end
+    end
+    return states
+end
+
+-- Puts back in `layout` only the controls `entries` say should show, in
+-- page order, and returns whether each hideable control is shown.
+local function showOnly(layout, entries)
+    local list = layout:GetInitializers()
+    local index
+    for index = #list, 1, -1 do
+        table.remove(list, index)
+    end
+    local states = {}
+    for index = 1, #entries do
+        local entry = entries[index]
+        local shown = true
+        if entry.shown ~= nil then
+            shown = entry.shown()
+            table.insert(states, shown)
+        end
+        if shown then
+            table.insert(list, entry.initializer)
+        end
     end
     return states
 end
@@ -1139,11 +1165,16 @@ function Client:RegisterSettingsCategory(options)
     end
 
     -- Controls marked with isEnabled are greyed out while it returns false,
-    -- and controls marked with isShown are hidden while it returns false.
-    -- Where a control cannot be hidden, isShown greys it out instead. Their
+    -- and controls marked with isShown are left out of the page's layout
+    -- while it returns false. They are never given to Blizzard as shown
+    -- predicates: its settings search calls those on every control, so add-on
+    -- code would taint the search and its results would be blocked. Where the
+    -- layout cannot be edited, isShown greys the control out instead. Their
     -- variables are remembered so a guild change can repaint them.
     local guildVariables = {}
     local shownPredicates = {}
+    local shownByInitializer = {}
+    local canHide = false
     local function addPredicates(initializer, binding)
         if type(binding.isEnabled) ~= "function" and type(binding.isShown) ~= "function" then
             return
@@ -1162,8 +1193,8 @@ function Client:RegisterSettingsCategory(options)
             local function shown()
                 return binding.isShown() == true
             end
-            if type(initializer.AddShownPredicate) == "function" then
-                initializer:AddShownPredicate(shown)
+            if canHide then
+                shownByInitializer[initializer] = shown
                 table.insert(shownPredicates, shown)
             elseif canModify then
                 initializer:AddModifyPredicate(shown)
@@ -1259,7 +1290,7 @@ function Client:RegisterSettingsCategory(options)
         end
     end
 
-    local ok, category, balanceInitializer, guildInitializer = pcall(function()
+    local ok, category, balanceInitializer, guildInitializer, pageLayout, entries = pcall(function()
         local registeredCategory, layout = settings.RegisterVerticalLayoutCategory(
             options.categoryName
         )
@@ -1269,6 +1300,7 @@ function Client:RegisterSettingsCategory(options)
         then
             error("settings category was not created")
         end
+        canHide = type(layout.GetInitializers) == "function"
 
         local balanceInitializer = createSectionHeader("Tithe - Current balance: " ..
             options.balanceText)
@@ -1300,8 +1332,21 @@ function Client:RegisterSettingsCategory(options)
             createControls(registeredCategory, section.controls)
         end
 
+        -- Every control on the page, in order, so hidden ones can return.
+        local entries = {}
+        if canHide then
+            local list = layout:GetInitializers()
+            local index
+            for index = 1, #list do
+                entries[index] = {
+                    initializer = list[index],
+                    shown = shownByInitializer[list[index]],
+                }
+            end
+        end
+
         settings.RegisterAddOnCategory(registeredCategory)
-        return registeredCategory, balanceInitializer, guildInitializer
+        return registeredCategory, balanceInitializer, guildInitializer, layout, entries
     end)
 
     if not ok then
@@ -1317,26 +1362,31 @@ function Client:RegisterSettingsCategory(options)
     self.hidingCategories = self.hidingCategories or {}
     if #shownPredicates > 0 then
         self.hidingCategories[category] = {
-            predicates = shownPredicates,
-            shown = shownStates(shownPredicates),
+            entries = entries,
+            layout = pageLayout,
+            shown = showOnly(pageLayout, entries),
         }
     end
     return category
 end
 
--- Shown predicates are only read when the settings list is laid out, so an
--- open page has to be laid out again for hidden controls to appear or go.
--- Settings builds expose this through SettingsInbound or the panel itself.
-function Client:RelayoutSettings()
-    local inbound = self.environment.SettingsInbound
-    if type(inbound) == "table" and type(inbound.RepairDisplay) == "function" then
-        return pcall(inbound.RepairDisplay)
-    end
+-- The settings list only reads a layout when it displays it, so if `layout`
+-- is the page on screen it is displayed again for hidden controls to appear
+-- or go. (RepairDisplay can't do this: it expects every control it shows to
+-- still be in the layout.)
+function Client:RelayoutSettings(layout)
     local settingsPanel = self.environment.SettingsPanel
-    if type(settingsPanel) == "table" and type(settingsPanel.RepairDisplay) == "function" then
-        return pcall(settingsPanel.RepairDisplay, settingsPanel)
+    if type(settingsPanel) ~= "table"
+        or type(settingsPanel.GetCurrentLayout) ~= "function"
+        or type(settingsPanel.DisplayLayout) ~= "function"
+    then
+        return false
     end
-    return false
+    local ok, current = pcall(settingsPanel.GetCurrentLayout, settingsPanel)
+    if not ok or current == nil or current ~= layout then
+        return false
+    end
+    return pcall(settingsPanel.DisplayLayout, settingsPanel, layout)
 end
 
 -- Shows the new guild header text and asks the guild-scoped controls to
@@ -1355,10 +1405,10 @@ function Client:RefreshSettingsGuild(category, headerText)
     -- a control actually appears or goes.
     local hiding = self.hidingCategories and self.hidingCategories[category]
     if hiding ~= nil then
-        local shown = shownStates(hiding.predicates)
+        local shown = shownStates(hiding.entries)
         if not sameStates(shown, hiding.shown) then
-            hiding.shown = shown
-            self:RelayoutSettings()
+            hiding.shown = showOnly(hiding.layout, hiding.entries)
+            self:RelayoutSettings(hiding.layout)
         end
     end
     return refreshed

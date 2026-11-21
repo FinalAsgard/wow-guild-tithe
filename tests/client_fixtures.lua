@@ -187,8 +187,9 @@ function Fixtures.click(button, mouseButton)
 end
 
 -- The native Settings surface both clients expose for add-on categories.
--- `canHide = false` leaves out shown predicates, as on a client whose
--- settings list cannot hide controls.
+-- As in Blizzard's, created controls join the category's layout and a
+-- control shows only while it is in that layout. `canHide = false` gives a
+-- layout the add-on cannot edit, so it cannot hide controls.
 local function newSettingsAPI(canHide)
     local category = {}
     function category:GetID()
@@ -199,6 +200,11 @@ local function newSettingsAPI(canHide)
     function layout:AddInitializer(initializer)
         table.insert(self.initializers, initializer)
     end
+    if canHide ~= false then
+        function layout:GetInitializers()
+            return self.initializers
+        end
+    end
 
     local api = {
         VarType = { Boolean = "boolean", Number = "number" },
@@ -206,35 +212,38 @@ local function newSettingsAPI(canHide)
         bindingOrder = {},
         category = category,
         checkboxes = 0,
-        -- Control initializers by variable; `predicates` decide if enabled
-        -- and `shownPredicates` if shown.
+        -- Control initializers by variable; `predicates` decide if enabled.
         controls = {},
         layout = layout,
         -- Times each variable was asked to re-read its value and state.
         notified = {},
         -- Times the open settings list was laid out again.
         relayouts = 0,
+        -- Shown predicates handed to Blizzard. Its settings search calls
+        -- them directly, which taints the search, so this must stay 0.
+        shownPredicatesAdded = 0,
         sliders = 0,
     }
 
     local function newControl(setting)
-        local control = { predicates = {}, shownPredicates = {} }
+        local control = { data = { setting = setting }, predicates = {} }
+        function control:GetData()
+            return self.data
+        end
         function control:AddModifyPredicate(predicate)
             table.insert(self.predicates, predicate)
         end
-        if canHide ~= false then
-            function control:AddShownPredicate(predicate)
-                table.insert(self.shownPredicates, predicate)
-            end
+        function control:AddShownPredicate()
+            api.shownPredicatesAdded = api.shownPredicatesAdded + 1
         end
         function control:IsShown()
             local index
-            for index = 1, #self.shownPredicates do
-                if not self.shownPredicates[index]() then
-                    return false
+            for index = 1, #layout.initializers do
+                if layout.initializers[index] == self then
+                    return true
                 end
             end
-            return true
+            return false
         end
         function control:IsEnabled()
             local index
@@ -250,6 +259,7 @@ local function newSettingsAPI(canHide)
                 api.controls[variable] = control
             end
         end
+        layout:AddInitializer(control)
         return control
     end
 
@@ -318,8 +328,15 @@ end
 local function installSettings(environment, canHide)
     local api = newSettingsAPI(canHide)
     environment.Settings = api
-    environment.SettingsInbound = {
-        RepairDisplay = function()
+    -- The add-on's page is the one on screen unless a test says otherwise.
+    environment.SettingsPanel = {
+        currentLayout = api.layout,
+        GetCurrentLayout = function(panel)
+            return panel.currentLayout
+        end,
+        DisplayLayout = function(panel, layout)
+            test.assertEqual(environment.SettingsPanel, panel)
+            test.assertEqual(api.layout, layout)
             api.relayouts = api.relayouts + 1
         end,
     }

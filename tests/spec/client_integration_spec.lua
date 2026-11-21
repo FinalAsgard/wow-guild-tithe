@@ -75,7 +75,10 @@ local function registerProfileTests(profile)
         local headings = {}
         local index
         for index = 1, #settings.layout.initializers do
-            table.insert(headings, settings.layout.initializers[index]:GetData().name)
+            local data = settings.layout.initializers[index]:GetData()
+            if data.setting == nil then
+                table.insert(headings, data.name)
+            end
         end
         test.assertContains(headings[1], "Current balance: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
         test.assertEqual("Shared by your characters in Knights of Camelot", headings[2])
@@ -525,6 +528,10 @@ local function registerAdvancedModeTests(profile)
         assertControlsShown(world, ADVANCED_CONTROLS, false)
         assertControlsEnabled(world, GUILD_CONTROLS, true)
         assertControlsEnabled(world, ADVANCED_CONTROLS, true)
+        -- Hidden controls are left out of the layout, never hidden by shown
+        -- predicates, which the game's settings search would run as add-on
+        -- code and so block its results.
+        test.assertEqual(0, world.settings.shownPredicatesAdded)
         -- Before the first switch, the sliders hold where each source starts.
         test.assertEqual(10, bindings.AsgardsGuildTithe_SourcePercentage_Loot.getValue())
         test.assertEqual(0, bindings.AsgardsGuildTithe_SourcePercentage_Auctions.getValue())
@@ -573,21 +580,37 @@ local function registerAdvancedModeTests(profile)
         assertControlsShown(world, ADVANCED_CONTROLS, false)
     end)
 
-    test.test(profile .. " the open settings panel is laid out again without the inbound helper", function()
+    test.test(profile .. " another settings page on screen is left alone when controls show or hide", function()
         local world = fixtures.newEnvironment(profile)
         fixtures.login(world)
-        local repaired = 0
-        world.environment.SettingsInbound = nil
-        world.environment.SettingsPanel = {
-            RepairDisplay = function(panel)
-                test.assertEqual(world.environment.SettingsPanel, panel)
-                repaired = repaired + 1
-            end,
-        }
+        world.environment.SettingsPanel.currentLayout = {}
 
+        local relayouts = world.settings.relayouts
         test.assertTrue(world.settings.bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
 
-        test.assertEqual(1, repaired)
+        test.assertEqual(relayouts, world.settings.relayouts)
+        assertControlsShown(world, GUILD_CONTROLS, false)
+        assertControlsShown(world, ADVANCED_CONTROLS, true)
+    end)
+
+    test.test(profile .. " hidden controls come back in their place on the page", function()
+        local world = fixtures.newEnvironment(profile)
+        fixtures.login(world)
+        local initializers = world.settings.layout.initializers
+        local before = {}
+        local index
+        for index = 1, #initializers do
+            before[index] = initializers[index]
+        end
+
+        local bindings = world.settings.bindings
+        test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(true))
+        test.assertTrue(bindings.AsgardsGuildTithe_AdvancedMode.setValue(false))
+
+        test.assertEqual(#before, #initializers)
+        for index = 1, #before do
+            test.assertEqual(before[index], initializers[index])
+        end
     end)
 
     test.test(profile .. " a client that cannot hide controls greys out the other mode's instead", function()
